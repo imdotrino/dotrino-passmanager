@@ -1,7 +1,10 @@
 # Diseño — `dotrino-passmanager` (gestor de contraseñas del ecosistema)
 
-> **Estado:** diseño inicial, **sin implementar**. Define el *qué* y el *cómo*, y
-> el orden en que se construye.
+> **Estado:** **paso 1 en marcha** (2026-08-25). Hechos: `lib/` (modelo, cifrado,
+> emparejamiento, TOTP, importadores — 19 tests verdes), `extension/` (MV3 con bóveda
+> local, autocompletado e importación) y la landing en vivo en `pass.dotrino.com`.
+> Pendientes del paso 1: publicar `@dotrino/passmanager` en npm y la Chrome Web Store.
+> La consola web espera al paso 2 (§6.2).
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).

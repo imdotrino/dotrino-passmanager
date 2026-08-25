@@ -9,14 +9,28 @@ pregunta por una credencial concreta y recibe esa sola; quién responde es el va
 del PC, el teléfono (con huella) o, como último recurso, una caché local de solo
 lectura.
 
-**Estado: diseño, sin implementar.** Ver [`docs/DISENO.md`](./docs/DISENO.md).
+**Estado: paso 1 en marcha.** Ver [`docs/DISENO.md`](./docs/DISENO.md).
 
-## Piezas previstas
+| | | |
+|---|---|---|
+| `lib/` | `@dotrino/passmanager` — modelo, cifrado, interfaz de bóveda | hecho, 19 tests |
+| `extension/` | extensión Chrome MV3 | hecha, sin publicar en la tienda |
+| `web/` | landing en [pass.dotrino.com](https://pass.dotrino.com/) | en vivo |
 
-| | |
-|---|---|
-| `lib/` | `@dotrino/passmanager` — modelo, cifrado, interfaz de bóveda |
-| `extension/` | extensión Chrome MV3 |
-| `web/` | `pass.dotrino.com` — consola de la bóveda + landing |
+La consola web llega en el paso 2, con el vault: antes no hay nada que sincronice la
+bóveda de la extensión con la de la web. La app nativa es una pantalla de
+`dotrino-app`, no vive aquí.
 
-La app nativa es una pantalla de `dotrino-app`, no vive aquí.
+## Plan
+
+1. **Bóveda, autocompletado, TOTP e importación** ← aquí estamos
+2. El **vault del PC** responde de a una
+3. El **teléfono** responde de a una, con huella
+4. **Passkeys**
+
+## Desarrollo
+
+```bash
+cd lib && npm test              # 19 tests, sin dependencias
+cd extension && npm run build   # copia lib/src a src/vendor, luego cargar descomprimida
+```
