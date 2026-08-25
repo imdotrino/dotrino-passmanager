@@ -216,14 +216,6 @@ DOM y sitios que renombran los inputs en cada despliegue.
 - **Recuperación.** Perder el master del acta es perder la cuenta
   (`dotrino-acta-perfil`). Para contraseñas eso es más grave que para cualquier otra
   app del ecosistema, y hay que decidir qué se le ofrece al usuario. **Sin resolver.**
-- **La portabilidad hacia otro gestor.** Los demás gestores solo importan **CSV en
-  claro**, y ese archivo se queda olvidado en Descargas, respaldado a la nube del
-  sistema e indexado por el buscador del escritorio. Sin él la portabilidad es una
-  promesa vacía (solo puedes migrar hacia ti mismo); con él hay un archivo peligroso
-  a un clic. **Decisión pendiente del dueño**: si existe, va en el vault (§10) con
-  aprobación desde el teléfono y un aviso que diga lo que pasa —*"este archivo
-  contendrá tus contraseñas legibles; bórralo en cuanto lo hayas importado"*—, no un
-  "¿estás seguro?". Es una advertencia del §5.1: no se esconde detrás de una (i).
 
 ## 10. Sacar credenciales en bloque es del vault, no del gestor
 
@@ -244,3 +236,22 @@ De ahí, sin más discusión:
 - La **consola web** tampoco: enlaza al vault, no lo reimplementa.
 - El **importar sí** es del gestor (§8, paso 1). Entra de a muchas, pero entrar no es
   salir: no expone nada que el usuario no tuviera ya en la mano.
+
+### 10.1. La exportación existe, y el formato lo elige el usuario
+
+> Decidido por el dueño el 2026-08-25.
+
+Se exporta, y el usuario elige cómo: **en claro** (CSV, que es lo único que los otros
+gestores importan), **cifrado**, o **zip con clave**. No se le impone el formato: es
+su información y es su decisión — que es literalmente el principio del ecosistema, no
+una excepción a él.
+
+**La fricción la pone abrir el vault, no un diálogo.** Para exportar hay que tener la
+bóveda abierta, que ya es la operación deliberada y menos cómoda del sistema. Sobre
+esa barrera no hace falta apilar un "¿estás seguro?": quien llegó ahí sabe lo que está
+haciendo.
+
+Lo único que sí se dice, y **a la vista** —es una advertencia del §5.1, no se esconde
+detrás de una (i)—: si eligió el formato en claro, ese archivo contiene sus
+contraseñas legibles y conviene borrarlo en cuanto lo haya importado. Se enuncia lo
+que pasa; no se le pide que confirme.
