@@ -163,6 +163,13 @@ al wiki. No ejecuta nada. `pass.dotrino.com/vault` es la **consola**: la lista, 
 buscador y los botones. Sin párrafos de bienvenida. La documentación de uso va al
 wiki (§9.2), no a ninguna de las dos.
 
+**La consola NO se construye en el paso 1, y no es por falta de tiempo.** Hasta que
+exista el vault del paso 2 no hay nada que sincronice las dos bóvedas: la de la
+extensión vive en el almacenamiento del navegador y la de la web viviría en el store,
+y serían dos bóvedas distintas que no se ven. Enseñarle al usuario dos listas que no
+coinciden es peor que no darle consola. Así que en el paso 1 `pass.dotrino.com` es
+**solo la landing**, y la consola llega con el vault, cuando ambas miran lo mismo.
+
 ## 7. Las passkeys en Chrome (v4)
 
 Chrome **no expone API de proveedor de credenciales a extensiones** — Android 14+ e

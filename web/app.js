@@ -1,0 +1,54 @@
+// Bilingüe es/en (CONVENCIONES §9). El toggle lo trae <dotrino-topbar>; aquí solo se
+// traduce lo propio de la página cuando avisa por `dotrino-lang`.
+(function () {
+  var STRINGS = {
+    en: {
+      heroTitle: 'Your passwords, kept by you',
+      heroLead: 'Your own vault keeps them, on your device. When you open a site, the browser gets that site’s password and nothing else.',
+      state: 'In development. Not in the Chrome store yet — below is how to try it.',
+      c1t: 'One at a time',
+      c1d: 'Password managers usually keep a copy of all your passwords in the browser. This one asks for the password of the site you are opening, uses it and lets it go.',
+      c2t: 'The key is yours',
+      c2d: 'Nothing travels to a server of ours. The vault lives on your devices and opens with your password, which we neither keep nor can recover.',
+      c3t: 'Bring what you already have',
+      c3d: 'Import your passwords from 1Password, Bitwarden or Chrome. Two-step codes come along.',
+      c4t: 'Leave whenever you want',
+      c4d: 'Your passwords export in the format you choose. It is your information, and taking it with you is your call too.',
+      installTitle: 'Try it now',
+      i1: 'Download the project code.',
+      i2: 'In Chrome, open the extensions page and turn on developer mode.',
+      i3: 'Click “Load unpacked” and pick the extension folder.',
+      repo: 'See the project',
+      docs: 'How to use it',
+      title: 'Dotrino — password manager',
+    },
+  }
+
+  var ES = {}
+  document.querySelectorAll('[data-i18n]').forEach(function (el) {
+    ES[el.dataset.i18n] = el.innerHTML
+  })
+  ES.title = document.title
+
+  function apply (lang) {
+    var dict = lang === 'en' ? STRINGS.en : ES
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var v = dict[el.dataset.i18n]
+      if (v) el.innerHTML = v
+    })
+    document.title = dict.title || ES.title
+    document.documentElement.lang = lang
+    var og = document.querySelector('meta[property="og:locale"]')
+    if (og) og.content = lang === 'en' ? 'en_US' : 'es_ES'
+  }
+
+  document.addEventListener('dotrino-lang', function (e) {
+    apply(e.detail && e.detail.lang === 'en' ? 'en' : 'es')
+  })
+
+  // Primera carga: el topbar ya decidió el idioma, pero puede tardar en montar.
+  var saved = null
+  try { saved = localStorage.getItem('dotrino-lang') } catch (e) {}
+  var lang = saved || ((navigator.language || 'es').toLowerCase().indexOf('en') === 0 ? 'en' : 'es')
+  if (lang === 'en') apply('en')
+})()

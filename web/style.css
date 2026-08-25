@@ -1,0 +1,58 @@
+:root {
+  --bg: #f4f7f9;
+  --panel: #ffffff;
+  --line: #e3e9ed;
+  --fg: #181c1e;
+  --dim: #4a5560;
+  --brand: #00658c;
+  --brand-dark: #00506f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161a;
+    --panel: #181d23;
+    --line: #262e36;
+    --fg: #e8eaf0;
+    --dim: #9aa3b5;
+    --brand: #4bb3dd;
+    --brand-dark: #7cc9e8;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+main { max-width: 880px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) 20px 72px; }
+.hero { text-align: center; margin-bottom: clamp(32px, 6vw, 56px); }
+h1 { font-size: clamp(28px, 5.5vw, 44px); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.02em; }
+.lead { font-size: clamp(16px, 2.4vw, 19px); color: var(--dim); max-width: 34em; margin: 0 auto; }
+.state {
+  display: inline-block; margin-top: 20px; padding: 6px 14px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); color: var(--dim); font-size: 13px;
+}
+.cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.cards article {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 20px;
+}
+.cards h2 { margin: 0 0 8px; font-size: 17px; }
+.cards p { margin: 0; color: var(--dim); font-size: 15px; }
+.install { margin-top: clamp(36px, 6vw, 60px); }
+.install h2 { font-size: 20px; margin: 0 0 12px; }
+.install ol { margin: 0 0 20px; padding-left: 1.3em; color: var(--dim); }
+.install li { margin-bottom: 6px; }
+code {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 5px; padding: 1px 6px; font-size: .9em;
+}
+.links { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+.links a {
+  padding: 9px 16px; border-radius: 9px; text-decoration: none; font-weight: 600; font-size: 15px;
+  background: var(--brand); color: #fff;
+}
+.links a + a { background: none; color: var(--brand); border: 1px solid var(--line); }

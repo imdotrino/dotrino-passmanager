@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dotrino — gestor de contraseñas</title>
+<meta name="description" content="Tus contraseñas las guarda tu propia bóveda. El navegador recibe solo la del sitio que estás abriendo, y nada más.">
+<link rel="canonical" href="https://pass.dotrino.com/">
+<meta name="theme-color" content="#00658c">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_ES">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:site_name" content="Dotrino">
+<meta property="og:title" content="Dotrino — gestor de contraseñas">
+<meta property="og:description" content="Tus contraseñas las guarda tu propia bóveda. El navegador recibe solo la del sitio que estás abriendo, y nada más.">
+<meta property="og:url" content="https://pass.dotrino.com/">
+<meta property="og:image" content="https://pass.dotrino.com/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dotrino — gestor de contraseñas">
+<meta name="twitter:description" content="Tus contraseñas las guarda tu propia bóveda. El navegador recibe solo la del sitio que estás abriendo, y nada más.">
+<meta name="twitter:image" content="https://pass.dotrino.com/og.jpg">
+
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "DeveloperApplication",
+  "name": "Dotrino — gestor de contraseñas",
+  "url": "https://pass.dotrino.com/",
+  "description": "Gestor de contraseñas cuyas credenciales custodia la bóveda del propio usuario.",
+  "applicationCategory": "SecurityApplication",
+  "operatingSystem": "Web",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "publisher": { "@type": "Organization", "name": "Dotrino", "url": "https://dotrino.com/" }
+}
+</script>
+
+<script>window.goatcounter={path:function(p){return location.hostname+p}}</script>
+<script data-goatcounter="https://goat.dotrino.com/count" async src="https://goat.dotrino.com/count.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@dotrino/topbar@0.8/+esm"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<dotrino-topbar
+  no-back
+  brand-name="Contraseñas"
+  brand-href="https://dotrino.com/"
+  support-repo="imdotrino/dotrino-passmanager"
+  support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
+
+<main>
+  <section class="hero">
+    <h1 data-i18n="heroTitle">Tus contraseñas, guardadas por ti</h1>
+    <p class="lead" data-i18n="heroLead">
+      Las guarda tu propia bóveda, en tu equipo. Cuando entras a un sitio, el navegador
+      recibe la contraseña de ese sitio y nada más.
+    </p>
+    <p class="state" data-i18n="state">
+      En desarrollo. Todavía no está en la tienda de Chrome; abajo está cómo probarla.
+    </p>
+  </section>
+
+  <section class="cards">
+    <article>
+      <h2 data-i18n="c1t">Una cada vez</h2>
+      <p data-i18n="c1d">
+        Lo habitual es que el navegador tenga una copia de todas tus contraseñas. Aquí
+        pide la del sitio que estás abriendo, la usa y la suelta.
+      </p>
+    </article>
+    <article>
+      <h2 data-i18n="c2t">La llave es tuya</h2>
+      <p data-i18n="c2d">
+        Nada viaja a un servidor nuestro. La bóveda vive en tus aparatos y se abre con
+        tu contraseña, que no guardamos ni podemos recuperar.
+      </p>
+    </article>
+    <article>
+      <h2 data-i18n="c3t">Traes lo que ya tienes</h2>
+      <p data-i18n="c3d">
+        Importa tus contraseñas de 1Password, Bitwarden o Chrome. Los códigos de dos
+        pasos vienen incluidos.
+      </p>
+    </article>
+    <article>
+      <h2 data-i18n="c4t">Puedes irte cuando quieras</h2>
+      <p data-i18n="c4d">
+        Tus contraseñas se exportan en el formato que elijas. Es tu información, y
+        llevártela también es decisión tuya.
+      </p>
+    </article>
+  </section>
+
+  <section class="install">
+    <h2 data-i18n="installTitle">Probarla ahora</h2>
+    <ol>
+      <li data-i18n="i1">Descarga el código del proyecto.</li>
+      <li data-i18n="i2">En Chrome, abre la página de extensiones y activa el modo de desarrollador.</li>
+      <li data-i18n="i3">Pulsa «Cargar descomprimida» y elige la carpeta <code>extension</code>.</li>
+    </ol>
+    <p class="links">
+      <a href="https://github.com/imdotrino/dotrino-passmanager" data-i18n="repo">Ver el proyecto</a>
+      <a href="https://wiki.dotrino.com/" data-i18n="docs">Cómo se usa</a>
+    </p>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
