@@ -1,10 +1,11 @@
 # Diseño — `dotrino-passmanager` (gestor de contraseñas del ecosistema)
 
-> **Estado:** **paso 1 en marcha** (2026-08-25). Hechos: `lib/` (modelo, cifrado,
-> emparejamiento, TOTP, importadores — 19 tests verdes), `extension/` (MV3 con bóveda
-> local, autocompletado e importación) y la landing en vivo en `pass.dotrino.com`.
-> Pendientes del paso 1: publicar `@dotrino/passmanager` en npm y la Chrome Web Store.
-> La consola web espera al paso 2 (§6.2).
+> **Estado:** **pasos 1 y 2 en marcha** (2026-08-25). La extensión **ya no guarda la
+> bóveda**: pide de a una por el proxio, y responde `bin/passmanager.js serve`.
+> Verificado E2E contra `proxy.dotrino.com`. 28 tests verdes. Landing en vivo en
+> `pass.dotrino.com`. Pendiente: que atienda el vault del ecosistema (con sus cajones
+> y su bitácora), el teléfono (§2.1), npm y la Chrome Web Store. La consola web sigue
+> esperando (§6.2).
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).
@@ -88,13 +89,24 @@ Se reusa lo de `@dotrino/identity/content`, ya escrito y probado (ver
 | Aparato | ¿Recibe la CEK? | Consecuencia |
 |---|---|---|
 | vault del PC, app nativa | sí | puede abrir la bóveda entera; puede escribir |
-| extensión de Chrome | **no**, por defecto | solo recibe credenciales sueltas, selladas a su ECDH efímera |
-| extensión con caché opt-in | sí, marcada de solo lectura | recupera el comportamiento de un gestor normal; se avisa de lo que se pierde |
+| extensión de Chrome | **no. Nunca** | solo recibe credenciales sueltas, de a una |
 
-Ese último renglón es una **degradación explícita y visible para el usuario**, no un
-modo por defecto. Es la única forma de leer una contraseña con el teléfono sin
-batería y sin el PC, y quien la activa tiene que saber que a partir de ahí el
-navegador sí tiene la bóveda.
+### 3.1. La extensión no guarda la llave, y la caché queda descartada
+
+> Decidido por el dueño el 2026-08-25.
+
+El diseño llevaba una **caché opt-in de solo lectura** en el navegador, para el caso
+de no tener ni el PC ni el teléfono. **Se descarta.** Para abrir esa caché haría falta
+la llave, que es exactamente lo que no queremos ahí: sostenerla obligaba a guardarla
+entre siestas del service worker, y con ella vuelve todo lo que este diseño evita.
+
+Lo que se pierde: sin bóveda al otro lado, la extensión no rellena nada. Se acepta,
+porque los sitios donde puede vivir la bóveda son tres —el vault del PC, el teléfono,
+la app— y se asume que uno está.
+
+Lo que se gana no es solo seguridad, es que **el problema desaparece en vez de
+gestionarse**: no hay llave en el navegador que proteger, que caducar, ni que borrar
+al cerrar.
 
 ## 4. Dónde vive cada cosa
 
@@ -219,10 +231,14 @@ DOM y sitios que renombran los inputs en cada despliegue.
 
 - **La revisión de la Chrome Web Store** mira con lupa las extensiones que tocan
   credenciales, y lo hace en cada actualización. Puede marcar el ritmo de entrega.
-- **MV3 duerme el service worker**: el estado de "desbloqueado" no puede vivir en su
-  memoria. Hay que resolverlo desde el diseño, no parchearlo después.
-- **La caché opt-in del §3 es la pieza que más fácil se degrada.** Si por comodidad
-  acaba activada por defecto, el producto pierde lo único que lo distingue.
+- ~~**MV3 duerme el service worker**~~ — **resuelto por el §3.1**: si no se guarda
+  ninguna llave, no hay nada que tenga que sobrevivir a la siesta del worker. El
+  problema desapareció con la caché.
+- **La identidad del aparato sí tiene que persistir**, y ese fue el hallazgo caro:
+  `@dotrino/proxy-client` la guardaba en `localStorage`, que no existe en un service
+  worker, y sin él **la regeneraba en cada llamada sin guardarla**. La extensión habría
+  cambiado de llave cada pocos minutos y la bóveda la habría visto siempre como una
+  desconocida. Arreglado en el pilar (0.12.0, IndexedDB), no en la app.
 - **Recuperación: frase de 24 palabras, y la emite el vault.** (Decidido por el dueño
   el 2026-08-25.) Perder el master del acta es perder la cuenta
   (`dotrino-acta-perfil`), y en un gestor de contraseñas eso pesa más que en cualquier
