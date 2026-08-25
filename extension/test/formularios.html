@@ -1,0 +1,34 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Casos de formulario</title></head><body>
+<h3>1. acceso corriente</h3>
+<form id="f1"><input name="email" type="email"><input name="password" type="password"></form>
+
+<h3>2. contraseña oculta (no se rellena)</h3>
+<form id="f2"><input name="user" type="text"><input name="pw" type="password" style="display:none"></form>
+
+<h3>3. registro con confirmación (solo la primera)</h3>
+<form id="f3"><input name="username"><input name="pass1" type="password"><input name="pass2" type="password"></form>
+
+<h3>4. buscador + acceso (el buscador no es el usuario)</h3>
+<form id="f4"><input name="search" type="text" placeholder="Buscar"><input name="login_id" type="text"><input name="password" type="password"></form>
+
+<h3>5. sin name ni id (un solo campo antes)</h3>
+<form id="f5"><input type="text"><input type="password"></form>
+
+<h3>6. dos pasos: solo contraseña</h3>
+<form id="f6"><input name="password" type="password"></form>
+
+<h3>7. dentro de shadow DOM</h3>
+<div id="host"></div>
+
+<h3>8. montado después (SPA)</h3>
+<div id="tarde"></div>
+
+<script>
+  const sr = document.getElementById('host').attachShadow({ mode: 'open' })
+  sr.innerHTML = '<form><input name="usuario" type="text"><input name="clave" type="password"></form>'
+  setTimeout(() => {
+    document.getElementById('tarde').innerHTML =
+      '<form id="f8"><input name="correo" type="email"><input name="password" type="password"></form>'
+  }, 400)
+</script>
+</body></html>

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dotrino</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="bar">
+    <span class="brand">Dotrino</span>
+    <div class="bar-end">
+      <div class="lang" id="lang">
+        <button data-lang="es">ES</button><button data-lang="en">EN</button>
+      </div>
+      <button id="lock" class="ghost" hidden></button>
+    </div>
+  </header>
+
+  <main id="view"></main>
+  <p id="toast" class="toast" hidden></p>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

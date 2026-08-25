@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#00658c"/>
+  <!-- Un candado abierto: la bóveda responde, no retiene. El arco sale hacia la
+       derecha para que se lea como "entregar", no como "cerrar". -->
+  <path d="M188 232v-52a68 68 0 0 1 136 0"
+        fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+  <rect x="124" y="232" width="200" height="164" rx="30" fill="#ffffff"/>
+  <circle cx="224" cy="300" r="24" fill="#00658c"/>
+  <rect x="212" y="312" width="24" height="46" rx="12" fill="#00658c"/>
+</svg>
