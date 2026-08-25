@@ -1,7 +1,8 @@
-// Popup: desbloquear, ver lo que hay para este sitio, rellenar e importar.
+// Popup: enlazar con la bóveda, ver qué hay para este sitio y rellenar.
 //
-// No toca la bóveda: todo pasa por el service worker. Sin `alert`/`confirm`/`prompt`
-// (CONVENCIONES §5) — los mensajes van por el toast de abajo.
+// No hay contraseña maestra ni lista completa: esta extensión no tiene la bóveda.
+// Todo lo que se ve aquí lo contestó la bóveda del usuario, de a una petición.
+// Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
 import { pickLang, t } from './i18n.js'
 
@@ -26,7 +27,16 @@ function toast (text, kind) {
   toastEl.dataset.kind = kind || 'ok'
   toastEl.hidden = false
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toastEl.hidden = true }, 2200)
+  toastTimer = setTimeout(() => { toastEl.hidden = true }, 2600)
+}
+
+/** Los errores se comparan por código: el texto está traducido (memoria del proyecto). */
+function humano (e) {
+  if (e.code === 'denied') return t(lang, 'denied')
+  if (e.code === 'approval-timeout') return t(lang, 'noAnswer')
+  if (e.code === 'unreachable' || e.code === 'no-link') return t(lang, 'noLink')
+  if (e.code === 'bad-code') return t(lang, 'badCode')
+  return e.message
 }
 
 function el (tag, props = {}, children = []) {
@@ -45,60 +55,43 @@ async function tellPage (op, payload) {
   if (!tab?.id) return null
   return new Promise(resolve => {
     chrome.tabs.sendMessage(tab.id, { op, payload }, r => {
-      if (chrome.runtime.lastError) resolve(null)
-      else resolve(r?.result || null)
+      resolve(chrome.runtime.lastError ? null : (r?.result || null))
     })
   })
 }
 
 // --- vistas ------------------------------------------------------------------
 
-function renderCreate () {
-  const pass = el('input', { type: 'password', placeholder: t(lang, 'password'), autofocus: true })
+function renderLink (myCode) {
+  const code = el('input', { type: 'text', placeholder: t(lang, 'linkCode'), autofocus: true })
   const err = el('p', { className: 'error', hidden: true })
-  const go = el('button', { className: 'primary', textContent: t(lang, 'create') })
+  const go = el('button', { className: 'primary', textContent: t(lang, 'linkGo') })
 
   const submit = async () => {
-    if (!pass.value) return
+    if (!code.value.trim()) return
     try {
-      await ask('create', { password: pass.value })
+      await ask('link', { code: code.value.trim() })
       render()
     } catch (e) {
-      err.textContent = e.message
+      err.textContent = humano(e)
       err.hidden = false
     }
   }
   go.onclick = submit
-  pass.onkeydown = e => { if (e.key === 'Enter') submit() }
+  code.onkeydown = e => { if (e.key === 'Enter') submit() }
+
+  const mine = el('code', { className: 'mycode', textContent: myCode || '—' })
+  mine.onclick = () => {
+    navigator.clipboard.writeText(myCode || '').then(() => toast(t(lang, 'copied')))
+  }
 
   view.replaceChildren(
-    el('h2', { textContent: t(lang, 'create') }),
-    el('p', { className: 'hint', textContent: t(lang, 'createHint') }),
-    pass, err, go,
+    el('h2', { textContent: t(lang, 'linkTitle') }),
+    el('p', { className: 'hint', textContent: t(lang, 'linkHint') }),
+    code, err, go,
+    el('p', { className: 'hint', textContent: t(lang, 'myCode') }),
+    mine,
   )
-}
-
-function renderUnlock () {
-  const pass = el('input', { type: 'password', placeholder: t(lang, 'password'), autofocus: true })
-  const err = el('p', { className: 'error', hidden: true })
-  const go = el('button', { className: 'primary', textContent: t(lang, 'unlock') })
-
-  const submit = async () => {
-    if (!pass.value) return
-    try {
-      await ask('unlock', { password: pass.value })
-      render()
-    } catch (e) {
-      // Se compara por código, no por el texto: el mensaje está traducido.
-      err.textContent = e.code === 'wrong-password' ? t(lang, 'wrongPassword') : e.message
-      err.hidden = false
-      pass.select()
-    }
-  }
-  go.onclick = submit
-  pass.onkeydown = e => { if (e.key === 'Enter') submit() }
-
-  view.replaceChildren(el('h2', { textContent: t(lang, 'unlock') }), pass, err, go)
 }
 
 function entryRow (e, { onFill, onCopy }) {
@@ -108,93 +101,59 @@ function entryRow (e, { onFill, onCopy }) {
   copy.onclick = () => onCopy(e)
   return el('li', { className: 'entry' }, [
     el('div', { className: 'who' }, [
-      el('div', { className: 'name', textContent: e.title || e.sites[0] || '—' }),
-      el('div', { className: 'hint', textContent: e.hint || e.sites[0] || '' }),
+      el('div', { className: 'name', textContent: e.title || e.sites?.[0] || '—' }),
+      el('div', { className: 'hint', textContent: e.hint || e.sites?.[0] || '' }),
     ]),
     fill, copy,
   ])
 }
 
-async function renderVault () {
+async function renderSite (link) {
   lockBtn.hidden = false
-  lockBtn.textContent = t(lang, 'lock')
+  lockBtn.textContent = t(lang, 'unlink')
 
   const url = await currentUrl()
-  let tab = 'site'
-
-  const tabs = el('div', { className: 'tabs' })
-  const bSite = el('button', { className: 'ghost', textContent: t(lang, 'onThisSite') })
-  const bAll = el('button', { className: 'ghost', textContent: t(lang, 'all') })
-  tabs.append(bSite, bAll)
-
-  const search = el('input', { type: 'search', placeholder: t(lang, 'search') })
   const list = el('ul', { className: 'entries' })
-  const empty = el('p', { className: 'hint' })
+  const estado = el('p', { className: 'hint', textContent: t(lang, 'waiting') })
+  view.replaceChildren(el('h2', { textContent: link.label || t(lang, 'onThisSite') }), list, estado)
+
+  // Cada credencial sale de una petición aparte: la lista de arriba nunca las llevó.
+  const pedirUna = async (e) => ask('get', { id: e.id })
 
   const onFill = async (e) => {
     try {
-      // Aquí es donde se pide UNA credencial: la lista de arriba nunca las llevó.
-      const full = await ask('get', { id: e.id })
+      const full = await pedirUna(e)
       const r = await tellPage('page-fill', { username: full.username, secret: full.secret })
       if (r?.filled) window.close()
       else toast(t(lang, 'noForm'), 'error')
-    } catch (err) { toast(err.message, 'error') }
+    } catch (err) { toast(humano(err), 'error') }
   }
 
   const onCopy = async (e) => {
     try {
-      const full = await ask('get', { id: e.id })
+      const full = await pedirUna(e)
       await navigator.clipboard.writeText(full.secret)
       toast(t(lang, 'copied'))
-    } catch (err) { toast(err.message, 'error') }
+    } catch (err) { toast(humano(err), 'error') }
   }
 
-  async function refresh () {
-    bSite.setAttribute('aria-pressed', String(tab === 'site'))
-    bAll.setAttribute('aria-pressed', String(tab === 'all'))
-    const items = tab === 'site' ? await ask('find', { url }) : await ask('list')
-    const q = search.value.trim().toLowerCase()
-    const shown = q
-      ? items.filter(e => (e.title + ' ' + e.sites.join(' ')).toLowerCase().includes(q))
-      : items
-    list.replaceChildren(...shown.map(e => entryRow(e, { onFill, onCopy })))
-    empty.textContent = shown.length ? '' : t(lang, tab === 'site' ? 'noneHere' : 'empty')
-    empty.hidden = !!shown.length
+  try {
+    const items = await ask('find', { url })
+    list.replaceChildren(...items.map(e => entryRow(e, { onFill, onCopy })))
+    estado.textContent = items.length ? t(lang, 'importHint') : t(lang, 'noneHere')
+  } catch (e) {
+    estado.className = 'error'
+    estado.textContent = humano(e)
   }
-
-  bSite.onclick = () => { tab = 'site'; refresh() }
-  bAll.onclick = () => { tab = 'all'; refresh() }
-  search.oninput = refresh
-
-  // Importar: la única operación que entra de a muchas (DISENO §10).
-  const file = el('input', { type: 'file', accept: '.csv,.json,.txt', hidden: true })
-  const importBtn = el('button', { className: 'ghost file', textContent: t(lang, 'importFrom') })
-  importBtn.onclick = () => file.click()
-  file.onchange = async () => {
-    const f = file.files?.[0]
-    if (!f) return
-    try {
-      const { count } = await ask('import', { text: await f.text() })
-      toast(t(lang, 'imported', count))
-      tab = 'all'
-      await refresh()
-    } catch (e) { toast(e.message, 'error') }
-    file.value = ''
-  }
-
-  view.replaceChildren(tabs, search, list, empty, importBtn, file)
-  await refresh()
 }
 
 async function render () {
   try {
     const s = await ask('status')
-    lockBtn.hidden = !s.unlocked
-    if (!s.exists) return renderCreate()
-    if (!s.unlocked) { lockBtn.hidden = true; return renderUnlock() }
-    return renderVault()
+    lockBtn.hidden = !s.linked
+    return s.linked ? renderSite(s) : renderLink(s.code)
   } catch (e) {
-    view.replaceChildren(el('p', { className: 'error', textContent: e.message }))
+    view.replaceChildren(el('p', { className: 'error', textContent: humano(e) }))
   }
 }
 
@@ -203,7 +162,6 @@ for (const b of document.querySelectorAll('#lang button')) {
   b.onclick = () => {
     lang = b.dataset.lang
     try { localStorage.setItem('dotrino-lang', lang) } catch {}
-    document.documentElement.lang = lang
     paintLang()
     render()
   }
@@ -216,7 +174,7 @@ function paintLang () {
   document.documentElement.lang = lang
 }
 
-lockBtn.onclick = async () => { await ask('lock'); render() }
+lockBtn.onclick = async () => { await ask('unlink'); render() }
 
 paintLang()
 render()

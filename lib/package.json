@@ -11,10 +11,21 @@
     "./totp": "./src/totp.js",
     "./import": "./src/import.js"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "node --test \"test/**/*.test.js\""
   },
-  "repository": { "type": "git", "url": "git+https://github.com/imdotrino/dotrino-passmanager.git" },
-  "keywords": ["dotrino", "passwords", "vault", "totp", "webauthn"]
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imdotrino/dotrino-passmanager.git"
+  },
+  "keywords": [
+    "dotrino",
+    "passwords",
+    "vault",
+    "totp",
+    "webauthn"
+  ]
 }

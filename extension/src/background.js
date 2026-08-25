@@ -1,122 +1,112 @@
-// Service worker: el único dueño de la bóveda dentro del navegador.
+// Service worker: el aparato que PIDE. No tiene la bóveda ni la llave.
 //
-// Ni el popup ni los content scripts ven la CEK ni el almacén; le hablan por
-// mensajes. Así el día que la bóveda deje de ser local y la responda el vault o el
-// teléfono (DISENO §8, pasos 2 y 3), solo cambia lo que hay detrás de `source()`.
+// Cuando hace falta una credencial, se la pide a la bóveda del usuario por el
+// transporte del ecosistema (@dotrino/proxy-client) y recibe esa sola. Aquí no hay
+// nada que descifrar, nada que guardar entre siestas del worker y nada que perder si
+// alguien se hace con la extensión: sin bóveda al otro lado, esto no sabe nada.
 
-import {
-  LocalVault, makeSalt, deriveKeyFromPassword, makeVerifier, checkVerifier,
-  exportVaultKey, importVaultKey, toBase64, fromBase64, sealEntry, totpNow,
-} from './vendor/passmanager/index.js'
-import { importAuto } from './vendor/passmanager/import.js'
+import { WebSocketProxyClient, getPublicKeyJwk, signData } from './vendor/proxy-client/index.js'
+import { RemoteVault } from './vendor/passmanager/vault/remote.js'
+import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
+import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
 
-const META = 'passmanager/meta/v1'
-const SESSION_KEY = 'cek'
+const LINK = 'passmanager/link/v1'
+const PROXY_URL = 'wss://proxy.dotrino.com'
 
-// El almacén que espera LocalVault, sobre chrome.storage.local.
 const store = {
   async get (k) { return (await chrome.storage.local.get(k))[k] },
   async set (k, v) { await chrome.storage.local.set({ [k]: v }) },
+  async del (k) { await chrome.storage.local.remove(k) },
 }
 
-const vault = new LocalVault(store)
+let client = null
+let transport = null
+let vault = null
 
 /**
- * MV3 duerme el service worker, así que la CEK no puede vivir en una variable: se
- * guarda en `chrome.storage.session`, que es memoria y se borra al cerrar el
- * navegador. Es el riesgo que el diseño marca (§9) y esta es su respuesta.
+ * La identidad de la extensión la lleva proxy-client, que desde 0.12.0 la persiste en
+ * IndexedDB cuando no hay localStorage — que es el caso de un service worker. Sin
+ * eso el aparato cambiaría de llave cada vez que el worker se duerme, y la bóveda lo
+ * vería como un desconocido en cada petición.
  */
-async function loadKey () {
-  if (vault.key) return true
-  const raw = (await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY]
-  if (!raw) return false
-  vault.unlock(await importVaultKey(fromBase64(raw)))
-  return true
-}
+async function connect () {
+  const link = await store.get(LINK)
+  if (!link) throw new VaultError('no-link', 'esta extensión no está enlazada a ninguna bóveda')
 
-async function rememberKey (key) {
-  await chrome.storage.session.set({ [SESSION_KEY]: toBase64(await exportVaultKey(key)) })
-}
+  if (vault && client?._connected) return vault
 
-async function meta () { return (await store.get(META)) || null }
+  client = new WebSocketProxyClient({
+    url: link.proxy || PROXY_URL,
+    // RTCPeerConnection no existe en un service worker: con WebRTC activo la
+    // negociación revienta. Y tampoco haría falta — los sobres ya van sellados.
+    enableWebRTC: false,
+  })
+  await client.connect()
+
+  const publickey = await getPublicKeyJwk()
+  const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
+  await client.identify({ data, signature: await signData(data) })
+
+  transport = new ProxyTransport({ client, peerPubkey: link.peerPubkey })
+  vault = new RemoteVault(transport)
+  return vault
+}
 
 async function status () {
-  const m = await meta()
-  return { exists: !!m, unlocked: await loadKey() }
-}
-
-async function create (password) {
-  if (await meta()) throw Object.assign(new Error('vault already exists'), { code: 'exists' })
-  const salt = makeSalt()
-  const key = await deriveKeyFromPassword(password, salt, undefined, true)
-  await store.set(META, { salt: toBase64(salt), verifier: await makeVerifier(key), v: 1 })
-  vault.unlock(key)
-  await rememberKey(key)
-  return { unlocked: true }
-}
-
-async function unlock (password) {
-  const m = await meta()
-  if (!m) throw Object.assign(new Error('no vault'), { code: 'no-vault' })
-  const key = await deriveKeyFromPassword(password, fromBase64(m.salt), undefined, true)
-  if (!await checkVerifier(key, m.verifier)) {
-    throw Object.assign(new Error('wrong password'), { code: 'wrong-password' })
+  const link = await store.get(LINK)
+  return {
+    linked: !!link,
+    label: link?.label || null,
+    code: await getPublicKeyJwk().then(p => btoa(p)).catch(() => null),
   }
-  vault.unlock(key)
-  await rememberKey(key)
-  return { unlocked: true }
 }
 
-async function lock () {
-  vault.lock()
-  await chrome.storage.session.remove(SESSION_KEY)
-  return { unlocked: false }
+/** Enlazar es apuntar a QUIÉN se le pide. La bóveda tiene que autorizar por su lado. */
+async function link ({ code, label }) {
+  let peerPubkey
+  try {
+    peerPubkey = atob(String(code || '').trim().replace(/-/g, '+').replace(/_/g, '/'))
+    JSON.parse(peerPubkey)
+  } catch {
+    throw new VaultError('bad-code', 'ese código no es válido')
+  }
+  await store.set(LINK, { peerPubkey, label: label || 'mi bóveda', ts: Date.now() })
+  vault = null
+  return status()
 }
 
-/** Importar entra de a muchas — es lo único que lo hace, y entrar no es salir (§10). */
-async function importText (text) {
-  const { format, entries } = importAuto(text)
-  for (const e of entries) await vault.put(e)
-  return { format, count: entries.length }
+async function unlink () {
+  transport?.close()
+  transport = null
+  vault = null
+  client = null
+  await store.del(LINK)
+  return status()
 }
 
 const OPS = {
   status,
-  create: p => create(p.password),
-  unlock: p => unlock(p.password),
-  lock,
-  find: async p => { await requireUnlocked(); return vault.find(p.url) },
-  get: async p => { await requireUnlocked(); return vault.get(p.id) },
-  put: async p => { await requireUnlocked(); return vault.put(p.entry) },
-  list: async () => { await requireUnlocked(); return vault.list() },
-  remove: async p => { await requireUnlocked(); return vault.remove(p.id) },
-  import: async p => { await requireUnlocked(); return importText(p.text) },
-  totp: async p => {
-    await requireUnlocked()
-    const entry = await vault.get(p.id)
-    return entry.totp ? totpNow(entry.totp) : null
-  },
-}
-
-async function requireUnlocked () {
-  if (!await loadKey()) throw Object.assign(new Error('locked'), { code: 'locked' })
+  link: p => link(p),
+  unlink,
+  find: async p => (await connect()).find(p.url),
+  get: async p => (await connect()).get(p.id),
+  put: async p => (await connect()).put(p.entry),
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const op = OPS[msg?.op]
   if (!op) { sendResponse({ error: { code: 'unknown-op' } }); return false }
 
-  // Un content script solo puede preguntar qué hay para SU sitio y pedir una
-  // credencial. Nunca listar, ni escribir, ni tocar el candado: si la página que
-  // tienes delante pudiera listar la bóveda, el "pide de a una" no valdría nada.
-  const fromPage = !!sender.tab
-  if (fromPage && !['find', 'get', 'status', 'totp'].includes(msg.op)) {
-    sendResponse({ error: { code: 'denied' } })
+  // Una página solo puede preguntar qué hay para su sitio y pedir una credencial.
+  // Nunca enlazar, desenlazar ni escribir: si la página que tienes delante pudiera
+  // cambiar a qué bóveda se le pide, podría apuntar la extensión a la suya.
+  if (sender.tab && !['find', 'get', 'status'].includes(msg.op)) {
+    sendResponse({ error: { code: CODES.DENIED } })
     return false
   }
 
   Promise.resolve(op(msg.payload || {}))
     .then(result => sendResponse({ result }))
     .catch(e => sendResponse({ error: { code: e?.code || 'error', message: e?.message } }))
-  return true // la respuesta es asíncrona
+  return true
 })

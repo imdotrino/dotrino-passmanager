@@ -13,8 +13,9 @@ lectura.
 
 | | | |
 |---|---|---|
-| `lib/` | `@dotrino/passmanager` — modelo, cifrado, interfaz de bóveda | hecho, 19 tests |
-| `extension/` | extensión Chrome MV3 | hecha, sin publicar en la tienda |
+| `lib/` | `@dotrino/passmanager` — modelo, cifrado, protocolo, las dos puntas | hecho, 28 tests |
+| `bin/` | la bóveda que responde (`dotrino-passmanager serve`) | hecha |
+| `extension/` | extensión Chrome MV3 — pide, no guarda | hecha, sin publicar en la tienda |
 | `web/` | landing en [pass.dotrino.com](https://pass.dotrino.com/) | en vivo |
 
 La consola web llega en el paso 2, con el vault: antes no hay nada que sincronice la
@@ -23,14 +24,17 @@ bóveda de la extensión con la de la web. La app nativa es una pantalla de
 
 ## Plan
 
-1. **Bóveda, autocompletado, TOTP e importación** ← aquí estamos
-2. El **vault del PC** responde de a una
+1. **Bóveda, autocompletado, TOTP e importación** — hecho
+2. El **vault del PC** responde de a una ← hecho en su forma mínima (`bin/`); falta
+   que lo atienda el vault del ecosistema, con sus cajones y su bitácora
 3. El **teléfono** responde de a una, con huella
 4. **Passkeys**
 
 ## Desarrollo
 
 ```bash
-cd lib && npm test              # 19 tests, sin dependencias
-cd extension && npm run build   # copia lib/src a src/vendor, luego cargar descomprimida
+cd lib && npm test              # 28 tests, sin dependencias ni red
+node bin/passmanager.js serve   # la bóveda: abre y atiende peticiones
+node test/e2e.mjs aparato       # prueba contra el proxio de verdad (ver el propio archivo)
+cd extension && npm run build   # arma el vendor, luego cargar descomprimida
 ```

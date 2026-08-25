@@ -3,25 +3,44 @@
 Extensión MV3 del gestor de contraseñas. Ver el diseño en
 [`../docs/DISENO.md`](../docs/DISENO.md).
 
-## Estado: paso 1
+## La extensión NO tiene la bóveda
 
-La extensión es **hoy** una bóveda local completa, protegida por una contraseña
-maestra. Eso es el paso 1 del plan y **no es el destino**: en el paso 2 la CEK deja de
-estar aquí y la extensión pasa a pedir de a una al vault (`RemoteVault`, ya escrita en
-`lib`), y en el paso 3 al teléfono. Lo que hoy es la bóveda se convierte entonces en
-la caché de solo lectura del §3.
+No guarda contraseñas, no tiene la llave y no puede listar nada. Cuando hace falta una
+credencial se la pide a la bóveda del usuario por el proxio y recibe **esa sola**. Si
+la bóveda está apagada, la extensión no sabe nada — y eso es el diseño, no una
+carencia.
 
-Por eso todo pasa por el service worker: el día que cambie quién responde, solo cambia
-lo que hay detrás de él.
+Dos consecuencias en el código, por si tientan a «arreglarlas»:
+
+- **`enableWebRTC: false`** al crear el cliente. `RTCPeerConnection` no existe en un
+  service worker, así que con WebRTC activo la negociación revienta. Y tampoco
+  aportaría: los sobres ya van sellados. El día que se quiera, hace falta
+  `chrome.offscreen`.
+- **La identidad la persiste `@dotrino/proxy-client` ≥ 0.12.0** en IndexedDB. Antes se
+  regeneraba en cada llamada sin guardarse, y el aparato cambiaba de llave cada vez
+  que el worker se dormía.
 
 ## Probar
 
 ```bash
-npm run build          # copia lib/src a src/vendor (no se commitea)
+npm run build          # copia lib/src y proxy-client a src/vendor (no se commitea)
 ```
 
 Luego en `chrome://extensions` → «Modo de desarrollador» → «Cargar descomprimida» →
 esta carpeta.
+
+Hace falta una bóveda al otro lado:
+
+```bash
+cd .. && node bin/passmanager.js serve      # imprime su código
+```
+
+Pega ese código en el popup, y autoriza la extensión en la bóveda con el código que el
+propio popup muestra:
+
+```bash
+node bin/passmanager.js link <código-de-la-extensión> "Chrome del portátil"
+```
 
 ## El banco de pruebas de detección
 

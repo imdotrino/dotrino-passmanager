@@ -68,3 +68,10 @@ li.entry {
 .tabs button { flex: 1; }
 .tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); }
 .file { display: block; text-align: center; cursor: pointer; }
+.mycode {
+  display: block; padding: 8px 10px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+  font-size: 10px; line-height: 1.35; word-break: break-all; cursor: pointer;
+  max-height: 68px; overflow: hidden;
+}
+.mycode:hover { color: var(--fg); border-color: var(--dim); }
