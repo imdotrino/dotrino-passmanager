@@ -216,5 +216,31 @@ DOM y sitios que renombran los inputs en cada despliegue.
 - **Recuperación.** Perder el master del acta es perder la cuenta
   (`dotrino-acta-perfil`). Para contraseñas eso es más grave que para cualquier otra
   app del ecosistema, y hay que decidir qué se le ofrece al usuario. **Sin resolver.**
-- **Exportar.** Un gestor del que no puedes sacar tus datos contradice la filosofía;
-  uno que exporta en claro es un agujero. Falta decidir el formato y sus avisos.
+- **La portabilidad hacia otro gestor.** Los demás gestores solo importan **CSV en
+  claro**, y ese archivo se queda olvidado en Descargas, respaldado a la nube del
+  sistema e indexado por el buscador del escritorio. Sin él la portabilidad es una
+  promesa vacía (solo puedes migrar hacia ti mismo); con él hay un archivo peligroso
+  a un clic. **Decisión pendiente del dueño**: si existe, va en el vault (§10) con
+  aprobación desde el teléfono y un aviso que diga lo que pasa —*"este archivo
+  contendrá tus contraseñas legibles; bórralo en cuanto lo hayas importado"*—, no un
+  "¿estás seguro?". Es una advertencia del §5.1: no se esconde detrás de una (i).
+
+## 10. Sacar credenciales en bloque es del vault, no del gestor
+
+> Decidido por el dueño el 2026-08-25.
+
+**El respaldo se hace desde el vault. El gestor no tiene botón de respaldo.** El vault
+ya es quien respalda el acta y la maestra; duplicar esa función en el gestor sería un
+segundo camino hacia lo mismo, con otra superficie y otra bitácora.
+
+La regla general de la que esto es un caso: **el gestor pide de a una (§2); cualquier
+operación que saque más de una credencial a la vez es de la bóveda.** Exportar es lo
+contrario de pedir de a una, así que no le toca al gestor por definición — no por
+prudencia.
+
+De ahí, sin más discusión:
+
+- La **extensión nunca exporta ni respalda**: no tiene la CEK (§3).
+- La **consola web** tampoco: enlaza al vault, no lo reimplementa.
+- El **importar sí** es del gestor (§8, paso 1). Entra de a muchas, pero entrar no es
+  salir: no expone nada que el usuario no tuviera ya en la mano.
