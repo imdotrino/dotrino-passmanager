@@ -213,9 +213,15 @@ DOM y sitios que renombran los inputs en cada despliegue.
   memoria. Hay que resolverlo desde el diseño, no parchearlo después.
 - **La caché opt-in del §3 es la pieza que más fácil se degrada.** Si por comodidad
   acaba activada por defecto, el producto pierde lo único que lo distingue.
-- **Recuperación.** Perder el master del acta es perder la cuenta
-  (`dotrino-acta-perfil`). Para contraseñas eso es más grave que para cualquier otra
-  app del ecosistema, y hay que decidir qué se le ofrece al usuario. **Sin resolver.**
+- **Recuperación: frase de 24 palabras, y la emite el vault.** (Decidido por el dueño
+  el 2026-08-25.) Perder el master del acta es perder la cuenta
+  (`dotrino-acta-perfil`), y en un gestor de contraseñas eso pesa más que en cualquier
+  otra app. La salida es la barata y conocida: una frase que el usuario guarda en
+  papel, **que el vault puede imprimir**. No añade servidor ni obliga a confiar en
+  nadie. Cae del lado del §10 sin forzar nada: emitirla es sacar material de llaves,
+  así que es del vault y no del gestor. La recuperación social (repartir trozos entre
+  contactos) queda descartada por ahora — sería lo más afín al web-of-trust, y también
+  lo más difícil de explicar en lenguaje llano (§9.1).
 
 ## 10. Sacar credenciales en bloque es del vault, no del gestor
 
