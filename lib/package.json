@@ -9,10 +9,14 @@
     ".": "./src/index.js",
     "./match": "./src/match.js",
     "./totp": "./src/totp.js",
-    "./import": "./src/import.js"
+    "./import": "./src/import.js",
+    "./fields": "./src/fields.js",
+    "./generate": "./src/generate.js",
+    "./vault": "./src/vault/local.js"
   },
   "files": [
-    "src"
+    "src",
+    "README.md"
   ],
   "scripts": {
     "test": "node --test \"test/**/*.test.js\""
@@ -27,5 +31,16 @@
     "vault",
     "totp",
     "webauthn"
-  ]
+  ],
+  "dependencies": {
+    "@dotrino/proxy-client": "0.13.0"
+  },
+  "peerDependencies": {
+    "@dotrino/identity": ">=0.53.0"
+  },
+  "peerDependenciesMeta": {
+    "@dotrino/identity": {
+      "optional": true
+    }
+  }
 }
