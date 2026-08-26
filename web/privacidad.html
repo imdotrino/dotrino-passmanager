@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacidad — Dotrino Contraseñas</title>
+<meta name="description" content="Qué datos maneja el gestor de contraseñas de Dotrino y a dónde van. En corto: a ningún servidor nuestro.">
+<link rel="canonical" href="https://pass.dotrino.com/privacidad.html">
+<meta name="theme-color" content="#00658c">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script>window.goatcounter={path:function(p){return location.hostname+p}}</script>
+<script data-goatcounter="https://goat.dotrino.com/count" async src="https://goat.dotrino.com/count.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@dotrino/topbar@0.8/+esm"></script>
+<link rel="stylesheet" href="style.css">
+<style>
+  main { max-width: 720px; }
+  h2 { font-size: 19px; margin: 30px 0 10px; }
+  p, li { color: var(--dim); }
+  li { margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--fg); font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
+  td:first-child { color: var(--fg); font-weight: 600; }
+  .date { font-size: 13px; color: var(--dim); }
+</style>
+</head>
+<body>
+
+<dotrino-topbar
+  brand-name="Privacidad"
+  brand-href="./"
+  support-repo="imdotrino/dotrino-passmanager"
+  support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
+
+<main>
+  <h1>Qué hace la extensión con tus datos</h1>
+  <p class="date">Última actualización: 26 de agosto de 2026</p>
+
+  <p>
+    En una frase: <strong>tus contraseñas no llegan a ningún servidor nuestro</strong>, ni
+    siquiera de paso. Lo que sigue es el detalle de qué toca la extensión y a dónde va
+    cada cosa.
+  </p>
+
+  <h2>Qué guarda la extensión</h2>
+  <p>
+    <strong>Nada de tus contraseñas.</strong> La extensión no tiene la llave que abre tu
+    bóveda y no puede pedir la lista de lo que hay dentro. Cuando necesita una
+    credencial, se la pide a tu bóveda y recibe <strong>esa sola</strong>.
+  </p>
+  <p>En el navegador solo se queda:</p>
+  <ul>
+    <li>a qué bóveda tuya está enlazada (una clave pública, no un secreto);</li>
+    <li>su propia llave de aparato, que la identifica ante tu bóveda;</li>
+    <li>durante la sesión del navegador, en memoria, las credenciales que tu bóveda ya
+      te entregó. Eso se borra al cerrar el navegador y nunca toca el disco.</li>
+  </ul>
+
+  <h2>Qué lee de las páginas que visitas</h2>
+  <p>
+    Lee los formularios de la página que tienes abierta para saber dónde puede ayudarte:
+    los campos, sus etiquetas y la dirección del sitio. <strong>Nada de eso sale de tu
+    navegador.</strong> No se envía, no se guarda y no se comparte.
+  </p>
+  <p>
+    La extensión <strong>no rellena nada por su cuenta</strong>: marca los campos donde
+    puede ayudar y espera a que tú elijas.
+  </p>
+
+  <h2>Qué viaja por la red, y cómo</h2>
+  <p>
+    Solo lo que va entre tus propios aparatos: la petición de una credencial y su
+    respuesta. Viaja por el transporte de Dotrino
+    (<code>proxy.dotrino.com</code>) <strong>cerrado con una llave que solo tienen tus
+    aparatos</strong>. Quien opera ese servidor no puede leer ni a qué sitio le pides una
+    credencial ni cuál se te devuelve.
+  </p>
+  <p>
+    Lo que ese servidor sí ve, y conviene decirlo: <strong>que un aparato tuyo habla con
+    otro aparato tuyo, cuándo y cuánto</strong>. No qué se dicen.
+  </p>
+
+  <h2>Resumen</h2>
+  <table>
+    <tr><th>Dato</th><th>Dónde va</th></tr>
+    <tr><td>Tus contraseñas</td><td>A tu bóveda, en tu equipo. A ningún servidor nuestro.</td></tr>
+    <tr><td>Los formularios que lee</td><td>No salen de tu navegador.</td></tr>
+    <tr><td>A qué sitios les pides credenciales</td><td>Cerrado; nuestro servidor no lo ve.</td></tr>
+    <tr><td>Tu identidad</td><td>Vive en tu bóveda. No creamos cuentas ni pedimos correo.</td></tr>
+    <tr><td>Analítica</td><td>Solo visitas a esta web, agregadas y sin cookies. La extensión no lleva analítica.</td></tr>
+  </table>
+
+  <h2>Lo que no hacemos</h2>
+  <ul>
+    <li>No vendemos ni cedemos datos a nadie. No hay a quién: no los tenemos.</li>
+    <li>No hay anuncios, ni cookies, ni código de terceros dentro de la extensión.</li>
+    <li>No llevamos cuenta de las páginas que visitas.</li>
+    <li>No pedimos cuenta, correo ni teléfono para usarla.</li>
+  </ul>
+
+  <h2>Puedes comprobarlo</h2>
+  <p>
+    Todo el código es abierto (licencia MIT) y está en
+    <a href="https://github.com/imdotrino/dotrino-passmanager">GitHub</a>. Lo que dice
+    esta página se puede verificar leyéndolo.
+  </p>
+</main>
+
+</body>
+</html>

@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Extensión Chrome MV3 del gestor de contraseñas de Dotrino",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "package": "node package.mjs"
   }
 }
