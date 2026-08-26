@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Dotrino — gestor de contraseñas",
-  "short_name": "Dotrino",
+  "name": "__MSG_extName__",
+  "short_name": "__MSG_extShortName__",
   "version": "0.1.0",
-  "description": "Tus contraseñas, custodiadas por tu propia bóveda. El navegador no guarda la bóveda entera.",
+  "description": "__MSG_extDescription__",
   "default_locale": "es",
   "permissions": [
     "storage",

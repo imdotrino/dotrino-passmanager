@@ -21,7 +21,7 @@ execFileSync('node', [join(here, 'build.mjs')], { stdio: 'inherit' })
 
 execFileSync('zip', [
   '-r', '-q', zip,
-  'manifest.json', 'src', 'icons',
+  'manifest.json', 'src', 'icons', '_locales',
   '-x', '*.DS_Store', '*/test/*', 'src/vendor/*/test/*',
 ], { cwd: here })
 

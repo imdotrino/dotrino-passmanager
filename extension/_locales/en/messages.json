@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Dotrino — password manager",
+    "description": "Extension name, shown in the store and in the browser."
+  },
+  "extShortName": {
+    "message": "Dotrino",
+    "description": "Short name, for where the long one does not fit."
+  },
+  "extDescription": {
+    "message": "Your own vault keeps your passwords. The browser gets the one for the site you open, and nothing else.",
+    "description": "Store short description. 132 characters max."
+  }
+}

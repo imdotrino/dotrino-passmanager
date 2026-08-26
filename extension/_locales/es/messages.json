@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Dotrino — gestor de contraseñas",
+    "description": "Nombre de la extensión en la tienda y en el navegador."
+  },
+  "extShortName": {
+    "message": "Dotrino",
+    "description": "Nombre corto, para cuando no cabe el largo."
+  },
+  "extDescription": {
+    "message": "Tus contraseñas las guarda tu propia bóveda. El navegador recibe solo la del sitio que abres, y nada más.",
+    "description": "Descripción corta de la tienda. Máximo 132 caracteres."
+  }
+}

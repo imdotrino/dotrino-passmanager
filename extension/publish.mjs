@@ -10,9 +10,9 @@
 //
 //   CHROME_CLIENT_ID, CHROME_CLIENT_SECRET, CHROME_REFRESH_TOKEN
 //
-// Y el id de la extensión una vez creada en el panel:
+// Y el id de la extensión, que ya está creada:
 //
-//   CHROME_EXTENSION_ID
+//   CHROME_EXTENSION_ID=iheeephdbjdpgfhkhmfnpgbhmdflplpp
 //
 // Cómo se sacan, la primera vez:
 //   1. console.cloud.google.com → proyecto nuevo → activar «Chrome Web Store API»

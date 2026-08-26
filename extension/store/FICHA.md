@@ -6,15 +6,16 @@ sus credenciales.
 
 ## Lo que falta, exactamente
 
-**Solo dos cosas, y las dos son del dueño porque exigen su cuenta:**
+**Hecho (2026-08-26):** cuenta de desarrollador `sandrade` y extensión dada de alta.
 
-1. **Crear la cuenta de desarrollador** en el panel de la tienda (pago único de 5 USD) y
-   dar de alta la extensión una vez, para que le asigne un **ID**.
-2. **Sacar tres credenciales** de un proyecto de Google Cloud con la *Chrome Web Store
-   API* activada: `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`.
-   Los pasos están en la cabecera de `extension/publish.mjs`.
+```
+CHROME_EXTENSION_ID=iheeephdbjdpgfhkhmfnpgbhmdflplpp
+```
 
-Con esas cuatro variables en el entorno, subir es un comando:
+**Queda una cosa, y es del dueño:** sacar tres credenciales de un proyecto de Google
+Cloud con la *Chrome Web Store API* activada — `CHROME_CLIENT_ID`,
+`CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`. Los pasos están en la cabecera de
+`extension/publish.mjs`. Con eso, subir es un comando:
 
 ```bash
 cd extension
@@ -102,12 +103,48 @@ permiso, y por qué es el mínimo:
 pero **no se transmite a terceros ni se vende**; viaja cifrada solo entre los aparatos
 del propio usuario.
 
+## Estado en la tienda (2026-08-26)
+
+**Extensión creada y en borrador.** `ID: iheeephdbjdpgfhkhmfnpgbhmdflplpp`
+
+Hecho desde aquí:
+
+- [x] paquete subido (el zip se aceptó al crear el item)
+- [x] descripción larga en español
+- [x] categoría: **Privacy & Security**
+- [x] nombre y resumen: salen del paquete vía `_locales`, así que la tienda los muestra
+      en el idioma de quien mira
+
+Falta, y son **dos minutos a mano**:
+
+- [ ] **arrastrar las capturas** a «Global screenshots» — están en
+      `store/capturas/1-popup.jpg` y `2-marcador.jpg`, ya en 1280×800 y sin canal alfa.
+      La UI de Google no acepta el archivo inyectado por automatización: hay que soltarlo
+      encima. Es lo único que impide enviar a revisión.
+- [ ] repasar la pestaña **Privacy** (declaración de uso de datos: «información de
+      autenticación», recogida sí, **no** vendida ni cedida)
+- [ ] pulsar **Submit for review**
+
 ## Capturas (1280×800)
 
-Hechas, en `store/capturas/`, sobre las páginas EN VIVO (no maquetas):
+Hechas con la **extensión cargada de verdad** en Chromium, no simuladas:
 
-- [x] `1-landing.png` — la portada, con la promesa
-- [x] `3-privacidad.png` — la política
+- [x] `1-popup.jpg` — el popup real pidiendo enlazar, con su código de aparato
+- [x] `2-marcador.jpg` — los marcadores sobre un formulario de acceso
+- [x] `1-landing.png` / `3-privacidad.png` — las páginas web, por si hacen falta
+
+El popup se captura cargando la extensión y yendo a su URL interna. El id de una
+extensión descomprimida **se deriva de la ruta**: SHA-256 del path absoluto, primeros 16
+bytes, cada nibble mapeado a `a`–`p`.
+
+```bash
+ID=$(python3 -c "import hashlib,os;h=hashlib.sha256(os.path.abspath('.').encode()).hexdigest()[:32];print(''.join(chr(ord('a')+int(c,16)) for c in h))")
+chromium --headless=new --load-extension="$PWD" --window-size=1280,800 \
+  --screenshot=popup.png "chrome-extension://$ID/src/popup.html"
+```
+
+**Sin canal alfa**: la tienda exige JPEG o PNG de 24 bits, y Chromium captura con alfa.
+`convert x.png -alpha remove -alpha off -type TrueColor PNG24:x.png`.
 
 Se regeneran con:
 
