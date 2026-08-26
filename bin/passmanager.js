@@ -142,15 +142,13 @@ async function serve () {
     vault,
     isAllowed: pub => permitidos.has(pub),
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
-    // encendida. Lo marcado `alwaysAsk` se pregunta igual, cada vez.
+    // encendida.
     needsApproval: op => op === 'get',
-    approve: async ({ pubkey, entry }) => {
+    approve: async ({ pubkey }) => {
       const quien = (await aparatos()).find(d => d.pubkey === pubkey)
-      const texto = entry?.alwaysAsk
-        ? `\n¿Entregar «${entry.title}»? (esta se pregunta siempre) [s/N] `
-        : `\n¿Dejar que «${quien?.label || 'un aparato'}» pida credenciales?\n` +
-          `Vale mientras esta bóveda siga encendida. [s/N] `
-      const r = await pregunta(texto)
+      const r = await pregunta(
+        `\n¿Dejar que «${quien?.label || 'un aparato'}» pida credenciales?\n` +
+        `Vale mientras esta bóveda siga encendida. [s/N] `)
       return /^s(i|í)?$/i.test(r.trim())
     },
     onRequest: r => {

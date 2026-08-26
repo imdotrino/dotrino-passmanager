@@ -74,15 +74,18 @@ reconecta constantemente, así que «por conexión» sería pedir el dedo todo e
 hasta que el usuario aprobara sin mirar. Lo que el usuario apaga cuando quiere cortar
 es la bóveda, así que es la bóveda la que manda.
 
+**Y es el ÚNICO permiso.** No se inventa aquí un segundo sistema de aprobación en
+paralelo al del vault: el permiso de pedir aprobación ya existe (`pair --approval`,
+`caps +aprueba`), y duplicarlo con marcas por entrada solo crea dos reglas que acaban
+diciendo cosas distintas. Si hace falta afinar qué se aprueba, se afina **ahí**, donde
+ya viven los permisos de los aparatos.
+
 Dos detalles que evitan que se degrade:
 
 - **Una negativa no queda recordada como aprobación**: decir que no deja al aparato
   como estaba, y la siguiente vuelve a preguntar.
 - **Dos peticiones a la vez producen UN aviso**, no dos. Dos pestañas abriendo el
   mismo sitio no deben hacer sonar el teléfono dos veces.
-
-Lo que sigue preguntándose siempre es lo marcado **`alwaysAsk`** por la bóveda (§3.2):
-la del banco, la del correo.
 
 ### 2.1. Por qué el teléfono es el caso normal, no el PC
 
@@ -144,7 +147,6 @@ distintas y conviene no volver a mezclarlas:
 | la **misma** otra vez | no | **no** — está recordada |
 | una **distinta** | no, el aparato ya está aprobado | sí |
 | se olvida el recuerdo | no | sí |
-| una marcada `alwaysAsk` | **sí, siempre** | sí, siempre |
 
 
 Descartar la copia de la bóveda no obliga a pedirlo todo cada vez. La extensión guarda
@@ -167,9 +169,6 @@ Tres reglas que lo mantienen honesto:
 
 - **Caduca en minutos**, y una caducada se tira al pasar por ella, no se queda ocupando
   sitio.
-- **`alwaysAsk` lo decide la bóveda, no el aparato.** Lo que ella marca así vuelve a
-  preguntarse siempre, por muchas veces que se pida — la del banco, la del correo. El
-  aparato obedece; no es suyo decidir qué merece un dedo encima.
 - **Desenlazar lo borra en el acto.** Si sobreviviera, «desenlazado» sería mentira
   hasta que caducara.
 

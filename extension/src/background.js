@@ -110,7 +110,6 @@ const OPS = {
     const recordada = await cache.get(p.id)
     if (recordada) return recordada
     const entry = await (await connect()).get(p.id)
-    // `alwaysAsk` lo decide la bóveda; aquí solo se obedece.
     await cache.put(p.id, entry)
     return entry
   },
