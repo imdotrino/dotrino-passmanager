@@ -75,3 +75,10 @@ li.entry {
   max-height: 68px; overflow: hidden;
 }
 .mycode:hover { color: var(--fg); border-color: var(--dim); }
+
+/* El pie que dice dónde están las contraseñas: presente pero sin competir. */
+.foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; }
+button.link {
+  background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
+  cursor: pointer; text-decoration: underline;
+}

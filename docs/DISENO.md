@@ -253,7 +253,44 @@ Frontera del §4 de `CONVENCIONES-APPS.md`, aplicada:
 | último dominio usado, tab activo | `sessionStorage` | preferencia efímera de UI |
 | bitácora de entregas | **vault** (central) o el aparato que responda | se reconcilia al reconectar |
 
-## 3.3. Sin daemon también funciona: la bóveda en una pestaña
+## 3.3. Nace funcionando: la extensión ES su propia bóveda
+
+> Pedido por el dueño el 2026-08-26: «antes que emparejar, haz que la extensión sea su
+> propio vault por defecto».
+
+**Recién instalada, la extensión guarda en sí misma.** Su llave es un `CryptoKey` no
+extraíble en IndexedDB (ni su propio código puede sacarla) y las entradas van cifradas en
+`chrome.storage.local`. Sin emparejar nada, sin abrir otra pestaña, sin daemon.
+
+Esto es la regla del ecosistema aplicada donde de verdad se nota: **ninguna app puede
+exigir un daemon encendido**, y el primer minuto de un gestor de contraseñas no puede ser
+pedirle al usuario un código que no tiene. Las dos versiones anteriores de esta sección
+fueron dos intentos de esquivar eso por fuera —primero el daemon, después una pestaña—
+cuando el sitio donde faltaba era la propia extensión.
+
+Enlazar una bóveda (el daemon, o `vault.dotrino.com/vault`) sigue existiendo y es el
+**upgrade**, con lo que la propia no puede dar:
+
+| | La propia | Enlazada |
+|---|---|---|
+| Empezar | ya está | emparejar |
+| Dónde viven | en este navegador | en un solo sitio, para todos tus navegadores |
+| Si desinstalas | se van | siguen ahí |
+| Aprobación | no hay a quién pedírsela | por petición, en la bóveda o el teléfono |
+| Interfaz | **la misma** | **la misma** |
+
+`LocalVault` y `RemoteVault` cumplen el mismo contrato, así que de `connect()` para abajo
+casi nada del gestor distingue una vía de la otra: sin enlace se devuelve la propia y ya.
+Lo único que cambia a propósito es la caché de sesión, que se salta con la bóveda propia
+—existe para no repetir aprobaciones, y aquí no hay ninguna que ahorrar—.
+
+**Deuda anotada:** enlazar todavía usa un código propio (las dos públicas en base64), que
+son 700 caracteres para copiar entre dos pestañas del mismo navegador. El ecosistema ya
+tiene su emparejamiento —invitación corta + código de 6 dígitos, con el aparato quedando
+en el acta y saliendo en `vault.dotrino.com/devices`— y es ahí donde esto tiene que
+acabar: `identity.selfVaultPairing()` / `enrollDevice()`. El código propio se va con eso.
+
+## 3.4. Sin daemon también funciona: la bóveda en una pestaña
 
 > Pedido por el dueño el 2026-08-26.
 

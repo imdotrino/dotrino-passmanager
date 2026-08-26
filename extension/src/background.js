@@ -1,12 +1,20 @@
-// Service worker: el aparato que PIDE. No tiene la bóveda ni la llave.
+// Service worker: la bóveda de esta extensión, y el aparato que pide a otra.
 //
-// Cuando hace falta una credencial, se la pide a la bóveda del usuario por el
-// transporte del ecosistema (@dotrino/proxy-client) y recibe esa sola. Aquí no hay
-// nada que descifrar, nada que guardar entre siestas del worker y nada que perder si
-// alguien se hace con la extensión: sin bóveda al otro lado, esto no sabe nada.
+// **Por defecto la extensión ES su propia bóveda.** Se instala y funciona: guarda aquí,
+// cifrado con una llave que ni este código puede sacar. Sin emparejar nada, sin abrir
+// otra pestaña, sin instalar un daemon. Es la regla del ecosistema aplicada donde toca —
+// el aparato cumple el rol cuando no hay pieza dedicada— y es lo que evita que el primer
+// minuto del gestor sea pedirle al usuario un código que no tiene.
+//
+// Enlazar una bóveda de verdad (el daemon, o `vault.dotrino.com/vault`) es el UPGRADE:
+// entonces esto no guarda nada, pide de a una por el transporte del ecosistema
+// (@dotrino/proxy-client) y las contraseñas viven en un solo sitio para todos tus
+// navegadores. Las dos vías hablan la misma interfaz, así que de aquí para abajo casi
+// nada distingue una de otra.
 
 import { WebSocketProxyClient, getPublicKeyJwk, signData } from './vendor/proxy-client/index.js'
 import { RemoteVault } from './vendor/passmanager/vault/remote.js'
+import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
 import { makeEncKeypair, importEncPrivate, exportEncPrivate } from './vendor/passmanager/transport/sealed.js'
@@ -28,6 +36,54 @@ const store = {
 let client = null
 let transport = null
 let vault = null
+let localVault = null
+
+/**
+ * La llave de la bóveda propia: un `CryptoKey` NO EXTRAÍBLE en IndexedDB.
+ *
+ * En `chrome.storage.local` no cabe —serializa a JSON, y una llave serializada es una
+ * llave que se puede copiar—. IndexedDB la CLONA sin exportarla, así que no existe en
+ * ninguna forma legible: ni este código puede sacarla. Lo que implica y hay que decirlo:
+ * si desinstalas la extensión, la bóveda se va con ella. Para eso está exportar, y para
+ * eso el daemon es el sitio de lo que quieres conservar pase lo que pase.
+ */
+const KEYDB = 'dotrino-passmanager'
+
+function keyStore (mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(KEYDB, 1)
+    open.onupgradeneeded = () => {
+      if (!open.result.objectStoreNames.contains('kv')) open.result.createObjectStore('kv')
+    }
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const db = open.result
+      const tx = db.transaction('kv', mode)
+      const req = fn(tx.objectStore('kv'))
+      req.onsuccess = () => { resolve(req.result); db.close() }
+      req.onerror = () => { reject(req.error); db.close() }
+    }
+  })
+}
+
+async function ownKey () {
+  const saved = await keyStore('readonly', s => s.get('cek'))
+  // Se comprueba QUÉ hay guardado, no solo que haya algo: un valor de otra versión
+  // revienta dentro de WebCrypto con un error que no dice de dónde viene.
+  if (saved instanceof CryptoKey) return saved
+  const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+  await keyStore('readwrite', s => s.put(key, 'cek'))
+  return key
+}
+
+/** La bóveda propia. Las entradas van cifradas, así que su sitio es el storage normal. */
+async function ownVault () {
+  if (localVault) return localVault
+  const v = new LocalVault(store)
+  v.unlock(await ownKey())
+  localVault = v
+  return v
+}
 
 /**
  * Par de CIFRADO de este aparato, aparte del de firma que lleva proxy-client. El de
@@ -80,7 +136,8 @@ const cache = new SessionCache({
  */
 async function connect () {
   const link = await store.get(LINK)
-  if (!link) throw new VaultError('no-link', 'esta extensión no está enlazada a ninguna bóveda')
+  // Sin enlace no hay error: hay bóveda. La propia.
+  if (!link) return ownVault()
 
   if (vault && client?._connected) return vault
 
@@ -117,7 +174,11 @@ async function status () {
     const enc = await encKeypair()
     code = encodeCode({ sign: await getPublicKeyJwk(), enc: enc.encPub })
   } catch { /* sin código: la vista de enlace lo dirá */ }
-  return { linked: !!link, label: link?.label || null, code }
+  // `mode` es lo que el popup enseña: quien no enlazó nada no está «sin bóveda», está
+  // usando la suya. Decirle lo contrario es empujarle a configurar lo que no necesita.
+  let count = 0
+  if (!link) { try { count = (await (await ownVault()).list()).length } catch { /* recién instalada */ } }
+  return { mode: link ? 'linked' : 'own', linked: !!link, label: link?.label || null, code, count }
 }
 
 /** Enlazar es apuntar a QUIÉN se le pide. La bóveda tiene que autorizar por su lado. */
@@ -139,7 +200,8 @@ async function unlink () {
   transport = null
   vault = null
   client = null
-  // Desenlazar tiene que dejar el navegador sin nada: si quedara el recuerdo de lo
+  // Desenlazar deja de nuevo la bóveda propia, que es de donde se venía.
+  // Y el navegador sin recuerdos: si quedara el recuerdo de lo
   // entregado, «desenlazado» sería mentira hasta que caducara.
   await cache.forget()
   await store.del(LINK)
@@ -206,9 +268,13 @@ const OPS = {
   unlink,
   find: async p => (await connect()).find(p.url),
   get: async p => {
+    const v = await connect()
+    // La caché existe para no repetir aprobaciones en el teléfono. Con la bóveda propia
+    // no hay aprobación que ahorrar, y guardar un secreto que no hace falta es peor.
+    if (v === localVault) return v.get(p.id)
     const recordada = await cache.get(p.id)
     if (recordada) return recordada
-    const entry = await (await connect()).get(p.id)
+    const entry = await v.get(p.id)
     await cache.put(p.id, entry)
     return entry
   },

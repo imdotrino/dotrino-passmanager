@@ -1,7 +1,10 @@
-// Popup: enlazar con la bóveda, ver qué hay para este sitio y fill.
+// Popup: qué hay para este sitio, y rellenar.
 //
-// No hay contraseña maestra ni lista completa: esta extensión no tiene la bóveda.
-// Todo lo que se ve aquí lo contestó la bóveda del usuario, de a una petición.
+// Se abre y funciona: la extensión ES su propia bóveda mientras no enlaces otra, así que
+// aquí no hay puerta de entrada que pase por configurar nada. Enlazar el daemon o la
+// pestaña está al pie, para quien quiere sus contraseñas en un solo sitio.
+//
+// No hay contraseña maestra ni lista completa de golpe: cada credencial es una petición.
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
 import { pickLang, t } from './i18n.js'
@@ -62,15 +65,14 @@ async function tellPage (op, payload) {
 
 // --- vistas ------------------------------------------------------------------
 
+/**
+ * Enlazar OTRA bóveda. No es la puerta de entrada de nada: la extensión ya tiene la suya
+ * y se llega aquí desde «usar otra bóveda».
+ *
+ * Sirve para lo que la propia no puede: que tus contraseñas estén en un solo sitio para
+ * todos tus navegadores, y que sobrevivan a desinstalar esto.
+ */
 function renderLink (myCode) {
-  /**
-   * Lo primero es ABRIR UNA BÓVEDA, no pegar un código.
-   *
-   * Sin esto, alguien que instala la extensión se encuentra pidiéndole un código que no
-   * tiene y sin forma de saber de dónde sale: el gestor exigía levantar un daemon antes
-   * de poder hacer nada. La pestaña ES una bóveda, así que se ofrece primero y lo de
-   * pegar un código queda para quien ya tenga la suya.
-   */
   const openVaultBtn = el('button', { className: 'primary', textContent: t(lang, 'openVault') })
   openVaultBtn.onclick = () => {
     chrome.tabs.create({ url: 'https://vault.dotrino.com/vault' })
@@ -99,15 +101,19 @@ function renderLink (myCode) {
     navigator.clipboard.writeText(myCode || '').then(() => toast(t(lang, 'copied')))
   }
 
+  const backBtn = el('button', { className: 'ghost', textContent: t(lang, 'back') })
+  backBtn.onclick = render
+
   view.replaceChildren(
     el('h2', { textContent: t(lang, 'linkTitle') }),
     el('p', { className: 'hint', textContent: t(lang, 'linkHint') }),
     openVaultBtn,
-    el('p', { className: 'hint', textContent: t(lang, 'abrirHint') }),
-    el('p', { className: 'hint', style: 'margin-top:14px', textContent: t(lang, 'oPega') }),
+    el('p', { className: 'hint', textContent: t(lang, 'openVaultHint') }),
+    el('p', { className: 'hint', style: 'margin-top:14px', textContent: t(lang, 'orPaste') }),
     code, err, go,
     el('p', { className: 'hint', textContent: t(lang, 'myCode') }),
     mine,
+    backBtn,
   )
 }
 
@@ -125,8 +131,10 @@ function entryRow (e, { onFill, onCopy }) {
   ])
 }
 
-async function renderSite (link) {
-  lockBtn.hidden = false
+async function renderSite (estado0) {
+  const propia = estado0.mode === 'own'
+  // Con la bóveda propia no hay nada que desenlazar; el botón de arriba sobra.
+  lockBtn.hidden = propia
   lockBtn.textContent = t(lang, 'unlink')
 
   const url = await currentUrl()
@@ -193,7 +201,19 @@ async function renderSite (link) {
     } catch (err) { toast(humanError(err), 'error') }
   }
 
-  view.replaceChildren(el('h2', { textContent: link.label || t(lang, 'onThisSite') }), list, estado, saveHere)
+  // El pie dice DÓNDE están tus contraseñas, y es lo único que distingue las dos vías
+  // a ojos del usuario. Quien no enlazó nada no está a medio configurar: está usando la
+  // suya, y se le dice así.
+  const pie = el('p', { className: 'hint foot' })
+  if (propia) {
+    const otra = el('button', { className: 'link', textContent: t(lang, 'useOther') })
+    otra.onclick = () => renderLink(estado0.code)
+    pie.append(el('span', { textContent: t(lang, 'ownVault') + ' ' }), otra)
+  } else {
+    pie.textContent = t(lang, 'linkedTo') + ' ' + (estado0.label || '')
+  }
+
+  view.replaceChildren(el('h2', { textContent: estado0.label || t(lang, 'onThisSite') }), list, estado, saveHere, pie)
 
   try {
     const items = await ask('find', { url })
@@ -212,8 +232,9 @@ async function renderSite (link) {
 async function render () {
   try {
     const s = await ask('status')
-    lockBtn.hidden = !s.linked
-    return s.linked ? renderSite(s) : renderLink(s.code)
+    // Siempre la vista del sitio: hay bóveda desde el primer segundo, sea la propia o
+    // la enlazada. Antes se abría pidiendo un código, que es lo mismo que no abrir.
+    return renderSite(s)
   } catch (e) {
     view.replaceChildren(el('p', { className: 'error', textContent: humanError(e) }))
   }
