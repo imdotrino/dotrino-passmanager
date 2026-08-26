@@ -16,11 +16,10 @@
 > 10 tests propios, 259 en la suite del vault. Detalle en
 > `dotrino-vault/docs/passwords.md`.
 >
-> **En la Chrome Web Store:** enviada a revisión el 2026-08-26
-> (`iheeephdbjdpgfhkhmfnpgbhmdflplpp`), y se publica sola al pasarla. Google avisa de
-> que tardará más por los permisos de host amplios, que no se acotan por lo que dice el
-> §4.2: un gestor tiene que reconocer formularios donde el usuario tenga cuenta, y esa
-> lista no se sabe de antemano.
+> **En la Chrome Web Store:** en **borrador** con la 0.1.1
+> (`iheeephdbjdpgfhkhmfnpgbhmdflplpp`). Se envió a revisión y se canceló: la versión
+> enviada no se había usado nunca de punta a punta, y probarla destapó tres fallos. La
+> tienda es el último paso, no un hito de progreso.
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).

@@ -131,17 +131,23 @@ También hecho:
       la revisión.
 - [x] **correo de contacto del publisher**: `sandrade@dotrino.com`, verificación enviada.
 
-- [x] **ENVIADA A REVISIÓN** (2026-08-26). `Status: Pending review`, y se publica sola
-      en cuanto pase.
+## Se trabaja en BORRADOR, y se envía cuando esté probado
 
-**La 0.1.1 espera a que termine esa revisión.** Con una revisión en curso el botón
-«Upload new package» está DESHABILITADO, y la revisión **no se puede cancelar** (no hay
-opción en el menú, y el propio diálogo de envío lo avisa: despublicar tampoco la
-cancela). El arreglo que lleva la 0.1.1 —el popup abierto como pestaña no podía
-enlazar— no afecta al uso normal desde el icono, así que no urge.
+> Decidido por el dueño el 2026-08-26, después de cancelar la primera revisión.
 
-Mientras tanto la 0.1.1 **sí se descarga de `pass.dotrino.com`**, que es como se instala
-hoy de todas formas.
+Se envió a revisión una versión que **nadie había usado**: estaba verificada por piezas
+—tests, el popup cargando, capturas— pero no de punta a punta. Probarla en serio destapó
+tres fallos, dos de ellos capaces de romper el producto en cuanto alguien reiniciara la
+bóveda. La revisión se canceló y ahora el borrador es el sitio de trabajo.
+
+La regla: **la tienda es el último paso, no un hito de progreso.** Se sube el paquete al
+borrador, se prueba con una bóveda de verdad, y solo entonces se envía.
+
+Con una revisión en curso el botón «Upload new package» queda **deshabilitado** y no hay
+forma de dejar nada en borrador — otra razón para no enviar antes de tiempo.
+
+**Estado: borrador con la 0.1.1**, dos idiomas reconocidos y los cuatro permisos
+declarados. También se descarga de `pass.dotrino.com`, que es como se instala hoy.
 
 Google avisó de que **la revisión será más lenta por los permisos de host amplios**, y
 sugirió acotarlos. No se acotan y el motivo está en la tabla de permisos de más abajo:
