@@ -18,6 +18,7 @@ const T = {
     linkTitle: 'Enlaza esta consola con tu bóveda',
     linkHint: 'Pega el código que muestra tu bóveda al ponerse a escuchar. Esta página no guarda tus contraseñas: solo administra qué aparatos pueden pedírtelas.',
     linkGo: 'Enlazar',
+    linkCode: 'Código de la bóveda',
     myCode: 'Y autoriza esta consola en tu bóveda con:',
     devices: 'Aparatos que pueden pedir credenciales',
     none: 'No hay ningún aparato autorizado.',
@@ -36,6 +37,7 @@ const T = {
     linkTitle: 'Link this console to your vault',
     linkHint: 'Paste the code your vault shows when it starts listening. This page does not keep your passwords: it only manages which devices may ask for them.',
     linkGo: 'Link',
+    linkCode: 'Vault code',
     myCode: 'And authorise this console in your vault with:',
     devices: 'Devices that may ask for credentials',
     none: 'No authorised devices.',
@@ -62,7 +64,19 @@ const t = (k, ...a) => {
 
 document.addEventListener('dotrino-lang', (e) => {
   lang = e.detail?.lang === 'en' ? 'en' : 'es'
-  render()
+  /**
+ * El botón de perfil del topbar necesita la identidad para abrir su modal (§6.1). Sin
+ * esto el botón sale pero no hace nada al pulsarlo, que es peor que no tenerlo.
+ */
+async function cablearTopbar () {
+  try {
+    const bar = document.querySelector('dotrino-topbar')
+    if (bar) bar.identity = await getIdentity()
+  } catch { /* sin vault, el topbar se queda sin perfil y la consola lo dirá igual */ }
+}
+
+cablearTopbar()
+render()
 })
 
 const el = (tag, props = {}, kids = []) => {
@@ -143,7 +157,7 @@ function humano (e) {
 // --- vistas -------------------------------------------------------------------
 
 async function renderLink () {
-  const input = el('input', { type: 'text', placeholder: t('linkGo'), autofocus: true })
+  const input = el('input', { type: 'text', placeholder: t('linkCode'), autofocus: true })
   const boton = el('button', { textContent: t('linkGo') })
   const error = el('p', { className: 'err', hidden: true })
 
@@ -151,7 +165,19 @@ async function renderLink () {
     try {
       saveLink(decodeCode(input.value))
       transport = null
-      render()
+      /**
+ * El botón de perfil del topbar necesita la identidad para abrir su modal (§6.1). Sin
+ * esto el botón sale pero no hace nada al pulsarlo, que es peor que no tenerlo.
+ */
+async function cablearTopbar () {
+  try {
+    const bar = document.querySelector('dotrino-topbar')
+    if (bar) bar.identity = await getIdentity()
+  } catch { /* sin vault, el topbar se queda sin perfil y la consola lo dirá igual */ }
+}
+
+cablearTopbar()
+render()
     } catch (e) { error.textContent = humano(e); error.hidden = false }
   }
   input.onkeydown = (e) => { if (e.key === 'Enter') boton.click() }
@@ -189,7 +215,19 @@ async function renderDevices (link) {
       quitar.textContent = t('waiting')
       try {
         await transport.request('unlink', { pubkey: d.pubkey })
-        render()
+        /**
+ * El botón de perfil del topbar necesita la identidad para abrir su modal (§6.1). Sin
+ * esto el botón sale pero no hace nada al pulsarlo, que es peor que no tenerlo.
+ */
+async function cablearTopbar () {
+  try {
+    const bar = document.querySelector('dotrino-topbar')
+    if (bar) bar.identity = await getIdentity()
+  } catch { /* sin vault, el topbar se queda sin perfil y la consola lo dirá igual */ }
+}
+
+cablearTopbar()
+render()
       } catch (e) {
         quitar.disabled = false
         quitar.textContent = t('remove')
@@ -218,7 +256,19 @@ async function renderDevices (link) {
 
 function botonDesenlazar () {
   const b = el('button', { className: 'danger', textContent: t('unlinkThis'), style: 'margin-top:20px' })
-  b.onclick = () => { localStorage.removeItem(LINK); transport = null; render() }
+  b.onclick = () => { localStorage.removeItem(LINK); transport = null; /**
+ * El botón de perfil del topbar necesita la identidad para abrir su modal (§6.1). Sin
+ * esto el botón sale pero no hace nada al pulsarlo, que es peor que no tenerlo.
+ */
+async function cablearTopbar () {
+  try {
+    const bar = document.querySelector('dotrino-topbar')
+    if (bar) bar.identity = await getIdentity()
+  } catch { /* sin vault, el topbar se queda sin perfil y la consola lo dirá igual */ }
+}
+
+cablearTopbar()
+render() }
   return b
 }
 
@@ -232,4 +282,16 @@ async function render () {
   }
 }
 
+/**
+ * El botón de perfil del topbar necesita la identidad para abrir su modal (§6.1). Sin
+ * esto el botón sale pero no hace nada al pulsarlo, que es peor que no tenerlo.
+ */
+async function cablearTopbar () {
+  try {
+    const bar = document.querySelector('dotrino-topbar')
+    if (bar) bar.identity = await getIdentity()
+  } catch { /* sin vault, el topbar se queda sin perfil y la consola lo dirá igual */ }
+}
+
+cablearTopbar()
 render()

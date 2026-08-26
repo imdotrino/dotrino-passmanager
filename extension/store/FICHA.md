@@ -102,13 +102,29 @@ permiso, y por qué es el mínimo:
 pero **no se transmite a terceros ni se vende**; viaja cifrada solo entre los aparatos
 del propio usuario.
 
-## Capturas (1280×800 o 640×400)
+## Capturas (1280×800)
 
-Faltan y hay que hacerlas con la extensión cargada de verdad, no simuladas:
+Hechas, en `store/capturas/`, sobre las páginas EN VIVO (no maquetas):
+
+- [x] `1-landing.png` — la portada, con la promesa
+- [x] `2-aparatos.png` — la consola de aparatos
+- [x] `3-privacidad.png` — la política
+
+Se regeneran con:
+
+```bash
+chromium --headless --window-size=1280,800 \
+  --screenshot=extension/store/capturas/1-landing.png https://pass.dotrino.com/
+```
+
+Faltan las dos que **exigen la extensión cargada**, y esas hay que hacerlas a mano
+porque no se pueden sacar de una página servida:
 
 - [ ] el popup enlazado, con lo que hay para un sitio
 - [ ] el botón sobre un campo y su modal abierto
-- [ ] la consola de aparatos (`pass.dotrino.com/vault.html`)
+
+En `chrome://extensions` → «Cargar descomprimida» → carpeta `extension/`, con una bóveda
+corriendo al otro lado.
 
 ## Lo que hay que esperar
 
