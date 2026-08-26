@@ -19,7 +19,7 @@
 // aparato y su par de cifrado. Dos bóvedas no ven el mismo aparato, y por tanto no
 // pueden cruzar lo que hace uno con lo que hace el otro.
 
-import { WebSocketProxyClient, getPublicKeyJwk, signData, setKeypairStore } from './vendor/proxy-client/index.js'
+import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { RemoteVault } from './vendor/passmanager/vault/remote.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
@@ -29,20 +29,14 @@ import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
 import {
   createCredential, signAssertion, credentialMatches, b64urlDecode,
 } from './vendor/passmanager/webauthn.js'
+// Estático a propósito: un service worker no admite `import()` dinámico.
+import { identity } from './identity-core.js'
 
-const PROFILES = 'passmanager/profiles/v1'
-const LINK = 'passmanager/link/v1'
 const ENC = 'passmanager/enc/v1'
 const PROXY_URL = 'wss://proxy.dotrino.com'
 
-/** El perfil que nace con la extensión. Su nombre de clave es el de siempre, sin sufijo. */
-const OWN = 'own'
-
-/**
- * Las claves del perfil por defecto NO llevan sufijo. Así lo que ya estaba guardado
- * sigue siendo suyo sin migrar nada, y solo los perfiles nuevos añaden el suyo.
- */
-const keyFor = (id, name) => (id === OWN ? name : `${name}/${id}`)
+/** Cada perfil guarda lo suyo aparte: sin esto, dos bóvedas propias se pisarían. */
+const keyFor = (id, name) => `${name}/${id}`
 
 const store = {
   async get (k) { return (await chrome.storage.local.get(k))[k] },
@@ -116,107 +110,9 @@ async function ownVault (id) {
 }
 
 /**
- * La identidad de APARATO del perfil: su llave de firma, en IndexedDB y no extraíble.
- *
- * Se le inyecta a proxy-client con `setKeypairStore`, que además tira su caché — es lo
- * que hace que cambiar de perfil cambie de verdad quién eres ante la bóveda. Sin esto,
- * dos bóvedas verían el mismo aparato y podrían cruzar lo que hace uno con lo del otro.
- */
-function useIdentityOf (id) {
-  const k = keyFor(id, 'signkey')
-  setKeypairStore({
-    async get () { return keyStore('readonly', s => s.get(k)) },
-    async set (entry) { return keyStore('readwrite', s => s.put(entry, k)) },
-  })
-}
-
-// --- perfiles -----------------------------------------------------------------
-
-/**
- * La lista de perfiles y cuál está activo. Si no hay nada, nace el propio: la extensión
- * tiene bóveda desde el primer segundo y no hay estado «sin configurar».
- */
-async function profiles () {
-  const saved = await store.get(PROFILES)
-  if (saved?.list?.length) return saved
-  // Un enlace de la versión anterior a los perfiles pasa a ser un perfil más, y el
-  // propio se queda con lo que ya tenía guardado.
-  const viejo = await store.get(LINK)
-  const list = [{ id: OWN, kind: 'own', label: null, createdAt: Date.now() }]
-  if (viejo) list.push({ id: 'p1', kind: 'linked', label: viejo.label || null, link: viejo, createdAt: viejo.ts || Date.now() })
-  const fresh = { active: viejo ? 'p1' : OWN, list }
-  await store.set(PROFILES, fresh)
-  return fresh
-}
-
-const findProfile = (p, id) => p.list.find(x => x.id === id) || p.list[0]
-
-async function activeProfile () {
-  const p = await profiles()
-  return findProfile(p, p.active)
-}
-
-async function saveProfiles (p) {
-  await store.set(PROFILES, p)
-  // Lo abierto era del perfil de antes: se cierra, no se reutiliza.
-  transport = null
-  vault = null
-  vaultOf = null
-  try { client?.close?.() } catch (_) {}
-  client = null
-}
-
-async function useProfile ({ id }) {
-  const p = await profiles()
-  if (!p.list.some(x => x.id === id)) throw new VaultError('not-found', 'no hay ningún perfil con ese id')
-  await saveProfiles({ ...p, active: id })
-  await cache.forget()
-  return status()
-}
-
-/**
- * Otro perfil con su bóveda en esta misma extensión. La personal y la del trabajo sin
- * mezclarse, sin que ninguna de las dos necesite nada fuera del navegador.
- */
-async function addProfile ({ label } = {}) {
-  const p = await profiles()
-  const id = 'p' + (Math.max(0, ...p.list.map(x => Number(String(x.id).slice(1)) || 0)) + 1)
-  const list = [...p.list, { id, kind: 'own', label: String(label || '').trim() || null, createdAt: Date.now() }]
-  await saveProfiles({ active: id, list })
-  await cache.forget()
-  return status()
-}
-
-async function renameProfile ({ id, label }) {
-  const p = await profiles()
-  const list = p.list.map(x => (x.id === id ? { ...x, label: String(label || '').trim() || null } : x))
-  await saveProfiles({ ...p, list })
-  return status()
-}
-
-/**
- * Quitar un perfil. Se lleva TODO lo suyo: si quedara algo, «lo quité» sería mentira.
- *
- * El propio no se puede quitar mientras sea el único, porque dejaría la extensión sin
- * bóveda — que es justo el estado que este diseño existe para que no ocurra.
- */
-async function removeProfile ({ id }) {
-  const p = await profiles()
-  if (p.list.length <= 1) throw new VaultError('denied', 'es el único perfil que hay')
-  const list = p.list.filter(x => x.id !== id)
-  await store.del(keyFor(id, 'passmanager/entries/v1'))
-  await store.del(keyFor(id, ENC))
-  try { await keyStore('readwrite', s => s.delete(keyFor(id, 'cek'))) } catch (_) {}
-  try { await keyStore('readwrite', s => s.delete(keyFor(id, 'signkey'))) } catch (_) {}
-  await saveProfiles({ active: p.active === id ? list[0].id : p.active, list })
-  await cache.forget()
-  return status()
-}
-
-/**
- * Par de CIFRADO de este aparato, aparte del de firma que lleva proxy-client. El de
- * firma dice quién soy al proxio; a este se le sella el contenido, para que el proxio
- * no vea a qué sitio se pide credencial ni cuál se devuelve.
+ * Par de CIFRADO del perfil, aparte del de firma. El de firma dice quién eres; a este se
+ * le sella el contenido, para que el proxio no vea a qué sitio se pide credencial ni
+ * cuál se devuelve.
  */
 async function encKeypair (id) {
   const guardado = await store.get(keyFor(id, ENC))
@@ -247,21 +143,94 @@ function decodeCode (codigo) {
  * Recuerdo de lo que la bóveda YA entregó, en memoria de sesión: entrar tres veces al
  * mismo sitio en una tarde no debería ser tres aprobaciones en el teléfono.
  *
- * `chrome.storage.session` nunca toca el disco y se vacía al cerrar el navegador. No
- * es la caché descartada del diseño (§3.1): aquí no hay llave ni copia de la bóveda,
- * solo lo poco que ya pasó por delante.
+ * `chrome.storage.session` nunca toca el disco y se vacía al cerrar el navegador. No es
+ * la caché descartada del diseño (§3.1): aquí no hay llave ni copia de la bóveda, solo
+ * lo poco que ya pasó por delante.
  */
 const cache = new SessionCache({
   async get (k) { return (await chrome.storage.session.get(k))[k] },
   async set (k, v) { await chrome.storage.session.set({ [k]: v }) },
 })
 
+// --- perfiles: los del ECOSISTEMA, no unos inventados aquí ---------------------
+//
+// La lista, cuál está activo y la llave de cada uno son de `@dotrino/identity`: el mismo
+// multi-perfil que el resto del ecosistema, con su acta y sus delegaciones, corriendo
+// dentro del service worker (`identity-core.js`). Lo que el gestor añade encima es una
+// sola cosa por perfil: DÓNDE guarda — en su propia bóveda aquí, o en una conectada.
+
+/** Lo que el gestor sabe de un perfil. Sin registro, es de los que guardan aquí. */
+async function pmOf (id) {
+  return (await store.get(`passmanager/profile/${id}`)) || { kind: 'own' }
+}
+
+const setPmOf = (id, v) => store.set(`passmanager/profile/${id}`, v)
+
+async function activeProfile () {
+  const cur = await identity.current()
+  const pm = await pmOf(cur.id)
+  return { id: cur.id, label: cur.name || null, ...pm }
+}
+
+/** Cerrar lo abierto: era del perfil de antes y no se reutiliza con otra identidad. */
+function dropOpen () {
+  transport = null
+  vault = null
+  vaultOf = null
+  try { client?.close?.() } catch (_) {}
+  client = null
+}
+
+async function listProfiles () {
+  const list = await identity.profiles()
+  return Promise.all(list.map(async p => ({
+    id: p.id,
+    label: p.name || null,
+    avatar: p.avatar || null,
+    current: !!p.current,
+    kind: (await pmOf(p.id)).kind,
+  })))
+}
+
 /**
- * La identidad de la extensión la lleva proxy-client, que desde 0.12.0 la persiste en
- * IndexedDB cuando no hay localStorage — que es el caso de un service worker. Sin
- * eso el aparato cambiaría de llave cada vez que el worker se duerme, y la bóveda lo
- * vería como un desconocido en cada petición.
+ * Otro perfil con su bóveda en esta misma extensión. La personal y la del trabajo sin
+ * mezclarse, sin que ninguna de las dos necesite nada fuera del navegador.
  */
+async function addProfile ({ label } = {}) {
+  const p = await identity.create(label)
+  await setPmOf(p.id, { kind: 'own' })
+  dropOpen()
+  await cache.forget()
+  return status()
+}
+
+async function useProfile ({ id }) {
+  await identity.use(id)
+  dropOpen()
+  await cache.forget()
+  return status()
+}
+
+async function renameProfile ({ id, label }) {
+  await identity.rename(id, label)
+  return status()
+}
+
+/**
+ * Quitar un perfil. Se lleva TODO lo suyo —la identidad la borra el núcleo, la bóveda la
+ * borramos aquí—: si quedara algo, «lo quité» sería mentira.
+ */
+async function removeProfile ({ id }) {
+  await store.del(keyFor(id, 'passmanager/entries/v1'))
+  await store.del(keyFor(id, ENC))
+  await store.del(`passmanager/profile/${id}`)
+  try { await keyStore('readwrite', s => s.delete(keyFor(id, 'cek'))) } catch (_) {}
+  await identity.remove(id)
+  dropOpen()
+  await cache.forget()
+  return status()
+}
+
 async function connect () {
   const prof = await activeProfile()
   if (vault && vaultOf === prof.id && (prof.kind === 'own' || client?._connected)) return vault
@@ -274,7 +243,6 @@ async function connect () {
   }
 
   const link = prof.link
-  useIdentityOf(prof.id)
   const enc = await encKeypair(prof.id)
   client = new WebSocketProxyClient({
     url: link.proxy || PROXY_URL,
@@ -288,9 +256,12 @@ async function connect () {
   })
   await client.connect()
 
-  const publickey = await getPublicKeyJwk()
+  // Identificarse con la llave del PERFIL: la identidad de red y la de firma son la
+  // misma, que es lo que hace que la bóveda reconozca al aparato que ya conoce.
+  const publickey = await identity.publickey()
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
-  await client.identify({ data, signature: await signData(data) })
+  const { signature } = await identity.sign(data)
+  await client.identify({ data, signature })
 
   transport = new ProxyTransport({
     client,
@@ -303,14 +274,14 @@ async function connect () {
 }
 
 async function status () {
-  const p = await profiles()
-  const prof = findProfile(p, p.active)
-  // El código de enlace es del PERFIL: es su llave la que la bóveda va a autorizar.
+  const prof = await activeProfile()
+
+  // El código de enlace lleva la pública del PERFIL: es la identidad que la bóveda va a
+  // autorizar, y la misma con la que este aparato se identifica en el proxio.
   let code = null
   try {
-    useIdentityOf(prof.id)
     const enc = await encKeypair(prof.id)
-    code = encodeCode({ sign: await getPublicKeyJwk(), enc: enc.encPub })
+    code = encodeCode({ sign: await identity.publickey(), enc: enc.encPub })
   } catch { /* sin código: la vista de enlace lo dirá */ }
 
   // Cuántas hay guardadas, solo para la bóveda propia: preguntárselo a una remota sería
@@ -322,9 +293,9 @@ async function status () {
 
   return {
     profile: { id: prof.id, kind: prof.kind, label: prof.label },
-    profiles: p.list.map(x => ({ id: x.id, kind: x.kind, label: x.label })),
-    active: p.active,
-    mode: prof.kind === 'own' ? 'own' : 'linked',
+    profiles: await listProfiles(),
+    active: prof.id,
+    mode: prof.kind,
     linked: prof.kind === 'linked',
     label: prof.label || null,
     code,
@@ -341,25 +312,17 @@ async function status () {
 async function link ({ code, label }) {
   let c
   try { c = decodeCode(code) } catch { throw new VaultError('bad-code', 'ese código no es válido') }
-  const p = await profiles()
-  const id = 'p' + (Math.max(0, ...p.list.map(x => Number(String(x.id).slice(1)) || 0)) + 1)
-  const list = [...p.list, {
-    id,
-    kind: 'linked',
-    label: label || null,
-    link: { peerPubkey: c.sign, peerEncPub: c.enc, ts: Date.now() },
-    createdAt: Date.now(),
-  }]
-  // Se queda activo: acabas de conectarlo, es lo que quieres ver.
-  await saveProfiles({ active: id, list })
+  const p = await identity.create(label)
+  await setPmOf(p.id, { kind: 'linked', link: { peerPubkey: c.sign, peerEncPub: c.enc, ts: Date.now() } })
+  dropOpen()
   await cache.forget()
   return status()
 }
 
-/** Desconectar = quitar ESTE perfil, con todo lo suyo. El propio no se toca. */
+/** Desconectar = quitar ESTE perfil, con todo lo suyo. */
 async function unlink () {
-  const p = await profiles()
-  return removeProfile({ id: p.active })
+  const prof = await activeProfile()
+  return removeProfile({ id: prof.id })
 }
 
 // --- passkeys ----------------------------------------------------------------
@@ -420,7 +383,7 @@ const OPS = {
   'webauthn-get': webauthnGet,
   link: p => link(p),
   unlink,
-  profiles: async () => (await profiles()).list.map(x => ({ id: x.id, kind: x.kind, label: x.label })),
+  profiles: listProfiles,
   'profile-add': addProfile,
   'profile-use': useProfile,
   'profile-rename': renameProfile,

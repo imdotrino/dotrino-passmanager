@@ -285,17 +285,41 @@ de perfil cambie de verdad quién eres ante la bóveda.
 Las claves del **primer** perfil no llevan sufijo: lo que ya estaba guardado sigue siendo
 suyo sin migrar nada, y solo los nuevos añaden el suyo.
 
-**Lo que este diseño NO recicla, y por qué.** El multi-perfil del ecosistema vive en
-`@dotrino/identity`, y lo natural sería usarlo tal cual. La clase `Identity` no entra: es
-el cliente que monta un **iframe** contra `id.dotrino.com`, y un service worker MV3 no
-tiene DOM — y el worker es justo quien pide credenciales y firma. Lo que sí es
-reutilizable es la **librería** de debajo: `createIdentityCore({ kv, keyStore })` no toca
-DOM y ya trae `listProfiles` / `currentProfile` / `switchProfile` / `createProfile`, más
-la identidad de verdad (llave P por perfil, acta, delegaciones) que haría falta para
-emparejar con el método del ecosistema en vez del código propio. Pide un `kv` síncrono
-estilo `localStorage`, que en el worker se resuelve hidratando `chrome.storage.local` en
-memoria al arrancar. **Es el siguiente paso**, y se lleva por delante la deuda del código
-de 700 caracteres que sigue abajo.
+**Los perfiles son los del ecosistema, no unos inventados aquí.** La lista, cuál está
+activo y la llave de cada uno salen de `@dotrino/identity` corriendo DENTRO del service
+worker (`extension/src/identity-core.js`). Lo que el gestor añade encima es una sola cosa
+por perfil: **dónde guarda** —su propia bóveda aquí, o una conectada—. Todo lo demás
+(acta, delegaciones, identicon, «no reactivo») es el mismo código que el resto del
+ecosistema, y por eso se comporta igual.
+
+Lo que NO entra es la clase `Identity`: es el cliente que habla con `id.dotrino.com`
+montando un **iframe**, y un service worker MV3 no tiene DOM. El núcleo de debajo,
+`createIdentityCore({ kv, peers, keyStore })`, no toca DOM. Tres cosas hubo que resolver
+para meterlo, y ninguna es evidente:
+
+| Lo que pasaba | Por qué | Cómo se resuelve |
+|---|---|---|
+| el worker moría al cargar | `capabilities.js` re-exporta `avatar.js`, que no viajaba | vendorizarlo también |
+| `import() is disallowed on ServiceWorkerGlobalScope` | el núcleo carga el transporte perezosamente, que en una página es lo correcto | el build lo convierte en estático, apuntando a la copia que viaja |
+| el perfil recién creado se esfumaba | el `kv` es síncrono y vuelca detrás; el núcleo nuevo leía el estado de ANTES | esperar a `kv.flushed` antes de rearrancar |
+
+Y dos detalles del núcleo que se pagan si no se leen: `createProfile` crea el perfil y lo
+abre en memoria, pero **no lo deja activo** (eso es `switchProfile`), y cambiar de perfil
+obliga a **rearrancar** el núcleo — en una app del ecosistema eso lo hace recargar la
+página; aquí, como no hay página, se tira y se levanta otro.
+
+**La identidad de red es la del perfil.** El aparato se identifica en el proxio firmando
+con la llave del perfil (`handlers.signData`), no con una llave suelta del transporte: es
+la regla del ecosistema —la identidad de red coincide con la de firma— y es lo que hace
+que la bóveda reconozca al aparato que ya conoce. Comprobado que el código de enlace
+cambia al cambiar de perfil: dos bóvedas no ven el mismo aparato y no pueden cruzar lo
+que hace uno con lo del otro.
+
+**Deuda que sigue abierta:** enlazar todavía usa un código propio (las dos públicas en
+base64), que son 700 caracteres para copiar entre dos pestañas del mismo navegador. Ahora
+que cada perfil tiene identidad de verdad, el camino está despejado para el emparejamiento
+del ecosistema —invitación corta + código de 6 dígitos, con el aparato quedando en el acta
+y saliendo en `vault.dotrino.com/devices`— con `enrollDevice()` del mismo núcleo.
 
 ## 3.3.1. Nace funcionando: la extensión ES su propia bóveda
 

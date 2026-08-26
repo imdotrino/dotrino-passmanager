@@ -33,6 +33,26 @@ await mkdir(join(vendor, 'identity'), { recursive: true })
 await cp(join(here, '../../dotrino-identity/vault/content.js'), join(vendor, 'identity/content.js'))
 console.log('vendor: dotrino-identity/vault/content.js → extension/src/vendor/identity/content.js')
 
+// El NÚCLEO de identidad, para que cada perfil tenga su llave de verdad (acta,
+// delegaciones, certificados). Se vendoriza el núcleo, NO la clase `Identity`: esa monta
+// un iframe contra id.dotrino.com y un service worker no tiene DOM.
+for (const f of ['core.js', 'acta.js', 'capabilities.js', 'remote.js', 'keyid.js', 'avatar.js']) {
+  await cp(join(here, '../../dotrino-identity/vault/', f), join(vendor, 'identity/', f))
+}
+
+// Un service worker no admite `import()` DINÁMICO (lo prohíbe la especificación, no
+// Chrome). El núcleo lo usa para cargar el transporte perezosamente, que en una página
+// es lo correcto; aquí se convierte en estático y apuntando a la copia que viaja.
+for (const f of ['core.js', 'remote.js']) {
+  const at = join(vendor, 'identity/', f)
+  const code = await readFile(at, 'utf8')
+  if (!code.includes("await import('@dotrino/proxy-client')")) continue
+  await writeFile(at,
+    "import * as __proxy from '../proxy-client/index.js'\n" +
+    code.replace(/await import\('@dotrino\/proxy-client'\)/g, '__proxy'))
+}
+console.log('vendor: dotrino-identity/vault/{core,acta,capabilities,remote,keyid,avatar}.js')
+
 // `@dotrino/identity` es peer dependency del sellado: en el navegador se le entrega la
 // copia que viaja, en vez de que intente resolver un import desnudo.
 const sealingPath = join(vendor, 'proxy-client/sealing.js')

@@ -91,3 +91,5 @@ button.link {
 }
 .profile.on { border-color: var(--accent); color: var(--fg); }
 .profile.add { padding: 4px 8px; font-weight: 700; }
+.profile { display: inline-flex; align-items: center; gap: 5px; }
+.profile .face { width: 14px; height: 14px; border-radius: 50%; }

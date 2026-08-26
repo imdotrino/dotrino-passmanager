@@ -130,9 +130,10 @@ function profileBar (s) {
     const activo = p.id === s.active
     const b = el('button', {
       className: 'profile' + (activo ? ' on' : ''),
-      textContent: p.label || (p.kind === 'own' ? t(lang, 'thisBrowser') : t(lang, 'aVault')),
       title: p.kind === 'own' ? t(lang, 'ownVault') : t(lang, 'linkedTo'),
     })
+    if (p.avatar) b.append(el('img', { className: 'face', src: p.avatar, alt: '' }))
+    b.append(el('span', { textContent: p.label || (p.kind === 'own' ? t(lang, 'thisBrowser') : t(lang, 'aVault')) }))
     b.setAttribute('aria-pressed', String(activo))
     b.onclick = async () => {
       if (activo) return
