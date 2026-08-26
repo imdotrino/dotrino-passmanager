@@ -105,6 +105,50 @@ function mensaje (code) {
   return 'No se pudo hablar con tu bóveda.'
 }
 
+// --- lo que puede pedir el POPUP -------------------------------------------
+//
+// El popup es UI de la extensión, con el usuario delante; la página no. Por eso estas
+// dos operaciones existen aquí y nada de esto lo puede disparar el sitio.
+
+/** Rellena el primer formulario de acceso con una credencial que el usuario eligió. */
+async function rellenarAcceso ({ username, secret }) {
+  const { detect, ui } = await mods
+  const forms = lastForms.length ? lastForms : await scan()
+  const f = forms[0]
+  if (!f) return false
+  let hecho = false
+  if (f.username && username) hecho = detect.fillField(f.username, username) || hecho
+  if (f.password && secret) hecho = detect.fillField(f.password, secret) || hecho
+  ui.reposition()
+  return hecho
+}
+
+/** Lo que hay escrito en el formulario, para poder guardarlo en la bóveda. */
+async function leerFormulario () {
+  const forms = lastForms.length ? lastForms : await scan()
+  for (const f of forms) {
+    const secret = f.password?.value || ''
+    if (!secret) continue
+    return { username: f.username?.value || '', secret, url: location.href }
+  }
+  return null
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Solo del propio popup: un mensaje con `sender.tab` viene de una página.
+  if (sender.tab) { sendResponse({ error: { code: 'denied' } }); return false }
+
+  if (msg?.op === 'page-fill') {
+    rellenarAcceso(msg.payload || {}).then(filled => sendResponse({ result: { filled } }))
+    return true
+  }
+  if (msg?.op === 'page-credentials') {
+    leerFormulario().then(r => sendResponse({ result: r }))
+    return true
+  }
+  return false
+})
+
 // Las SPA remontan el formulario después de cargar; sin esto el gestor funciona en la
 // primera visita y deja de funcionar al navegar dentro del sitio.
 let t = null

@@ -115,10 +115,49 @@ async function renderSite (link) {
   const url = await currentUrl()
   const list = el('ul', { className: 'entries' })
   const estado = el('p', { className: 'hint', textContent: t(lang, 'waiting') })
-  view.replaceChildren(el('h2', { textContent: link.label || t(lang, 'onThisSite') }), list, estado)
 
   // Cada credencial sale de una petición aparte: la lista de arriba nunca las llevó.
   const pedirUna = async (e) => ask('get', { id: e.id })
+
+  /**
+   * Guardar lo que hay escrito en la página. La acción nace AQUÍ, en la UI de la
+   * extensión y con el usuario delante — nunca en la página, que si pudiera guardar
+   * por su cuenta llenaría la bóveda de entradas inventadas.
+   */
+  const guardar = el('button', { className: 'ghost file', textContent: t(lang, 'saveHere'), hidden: true })
+  guardar.onclick = async () => {
+    const cred = await tellPage('page-credentials')
+    if (!cred?.secret) return toast(t(lang, 'nothingToSave'), 'error')
+
+    const host = (() => { try { return new URL(url).hostname } catch { return '' } })()
+    const nombre = el('input', { type: 'text', value: host, placeholder: t(lang, 'saveName') })
+    const ok = el('button', { className: 'primary', textContent: t(lang, 'save') })
+    const cancelar = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
+
+    ok.onclick = async () => {
+      try {
+        await ask('put', {
+          entry: {
+            type: 'login',
+            title: nombre.value.trim() || host,
+            sites: host ? [host] : [],
+            username: cred.username,
+            secret: cred.secret,
+          },
+        })
+        toast(t(lang, 'saved'))
+        render()
+      } catch (e) { toast(humano(e), 'error') }
+    }
+    cancelar.onclick = render
+
+    view.replaceChildren(
+      el('h2', { textContent: t(lang, 'saveHere') }),
+      el('p', { className: 'hint', textContent: cred.username || host }),
+      nombre, ok, cancelar,
+    )
+    nombre.focus()
+  }
 
   const onFill = async (e) => {
     try {
@@ -137,10 +176,16 @@ async function renderSite (link) {
     } catch (err) { toast(humano(err), 'error') }
   }
 
+  view.replaceChildren(el('h2', { textContent: link.label || t(lang, 'onThisSite') }), list, estado, guardar)
+
   try {
     const items = await ask('find', { url })
     list.replaceChildren(...items.map(e => entryRow(e, { onFill, onCopy })))
-    estado.textContent = items.length ? t(lang, 'importHint') : t(lang, 'noneHere')
+    estado.textContent = items.length ? '' : t(lang, 'noneHere')
+
+    // El botón de guardar solo aparece si hay algo escrito que guardar.
+    const cred = await tellPage('page-credentials')
+    guardar.hidden = !cred?.secret
   } catch (e) {
     estado.className = 'error'
     estado.textContent = humano(e)

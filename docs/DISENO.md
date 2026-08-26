@@ -239,6 +239,22 @@ Frontera del §4 de `CONVENCIONES-APPS.md`, aplicada:
 | último dominio usado, tab activo | `sessionStorage` | preferencia efímera de UI |
 | bitácora de entregas | **vault** (central) o el aparato que responda | se reconcilia al reconectar |
 
+## 4.0. Crear y editar
+
+La bóveda se llena desde donde vive: `dotrino-passmanager` (`ls`, `add`, `edit`,
+`show`, `rm`, `gen`, `import`). Ahí está el generador de contraseñas, que **no es un
+extra**: un gestor que no genera obliga a inventárselas, y ahí es donde se repite la de
+siempre.
+
+Y desde el navegador hay un solo caso, el que ocurre de verdad: **guardar la contraseña
+que acabas de escribir**. Está en el popup y no en la página, y esa diferencia es de
+seguridad, no de estética — si la página pudiera guardar por su cuenta, llenaría la
+bóveda de entradas inventadas. El popup es UI de la extensión, con el usuario delante;
+el content script solo atiende peticiones que vienen de él (`sender.tab` las delata).
+
+Editar desde el navegador **no está**, y es deliberado por ahora: son formularios
+enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóveda.
+
 ## 4.1. El gestor NO autocompleta
 
 > Decidido por el dueño el 2026-08-25.
