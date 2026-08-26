@@ -3,7 +3,7 @@
 // Incluye el `vendor/` (que no se commitea pero SÍ tiene que viajar: MV3 solo importa
 // de la propia carpeta) y deja fuera lo que no es la extensión.
 
-import { rm, mkdir, readFile } from 'node:fs/promises'
+import { rm, mkdir, readFile, cp } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,3 +28,11 @@ execFileSync('zip', [
 // La versión va en el nombre del archivo (CONVENCIONES §11.5): así se sabe qué es cada
 // zip en el disco sin abrirlo.
 console.log('listo:', zip)
+
+// Y se copia a la web, que es de donde se instala mientras no esté en la tienda. Si se
+// quedara aquí, `npm run package` diría «listo» y la descarga seguiría sirviendo la
+// versión anterior sin que nadie lo notara.
+const enLaWeb = join(here, '../web/app', `dotrino-passmanager-${manifest.version}.zip`)
+await mkdir(dirname(enLaWeb), { recursive: true })
+await cp(zip, enLaWeb)
+console.log('y en la web:', enLaWeb)
