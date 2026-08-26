@@ -319,7 +319,7 @@ que hace uno con lo del otro.
 base64), que son 700 caracteres para copiar entre dos pestañas del mismo navegador. Ahora
 que cada perfil tiene identidad de verdad, el camino está despejado para el emparejamiento
 del ecosistema —invitación corta + código de 6 dígitos, con el aparato quedando en el acta
-y saliendo en `vault.dotrino.com/devices`— con `enrollDevice()` del mismo núcleo.
+y saliendo en `vault.dotrino.com/vault`— con `enrollDevice()` del mismo núcleo.
 
 ## 3.3.1. Nace funcionando: la extensión ES su propia bóveda
 
@@ -355,7 +355,7 @@ Lo único que cambia a propósito es la caché de sesión, que se salta con la b
 **Deuda anotada:** enlazar todavía usa un código propio (las dos públicas en base64), que
 son 700 caracteres para copiar entre dos pestañas del mismo navegador. El ecosistema ya
 tiene su emparejamiento —invitación corta + código de 6 dígitos, con el aparato quedando
-en el acta y saliendo en `vault.dotrino.com/devices`— y es ahí donde esto tiene que
+en el acta y saliendo en `vault.dotrino.com/vault`— y es ahí donde esto tiene que
 acabar: `identity.selfVaultPairing()` / `enrollDevice()`. El código propio se va con eso.
 
 ## 3.4. Sin daemon también funciona: la bóveda en una pestaña
@@ -370,6 +370,11 @@ Así que `vault.dotrino.com/vault` **es** una bóveda mientras esté abierta: gu
 responde de a una y pide aprobación en la propia página. Se instala la extensión, se abre
 eso, y funciona — sin instalar nada más. El popup ofrece «Abrir mi bóveda» antes que pedir
 un código, porque pedir un código a quien no tiene ninguno es no tener por dónde empezar.
+
+**Esa página ya no hay que elegirla.** Al abrirla, mira si la cuenta tiene bóveda en otra
+máquina: si no la tiene, la bóveda es este aparato y el mostrador se enciende solo (el de
+aparatos y el de contraseñas); si la tiene, se conecta a ella y aquí no se levanta ningún
+mostrador, porque una cuenta no tiene dos bóvedas.
 
 **Y vive en el vault, no aquí.** La primera versión la puso en `pass.dotrino.com`, que
 era el error de siempre visto de cerca: la bóveda es del vault y las apps le piden. Una
@@ -516,10 +521,11 @@ list()           // exige la CEK
 
 `pass.dotrino.com/` es la **landing**: qué es, cómo se instala la extensión, enlace
 al wiki. No ejecuta nada, y es lo ÚNICO que hay en este dominio. Lo administrativo está
-en `vault.dotrino.com` — la bóveda en `/vault` y los aparatos en `/devices` — porque es
-donde ya vivía. La documentación de uso va al wiki (§9.2).
+en `vault.dotrino.com/vault` — la bóveda y sus aparatos, que desde 2026-08-26 son UNA
+sola página: dice dónde vive tu bóveda y, si es este aparato, es ella misma la que
+responde. La documentación de uso va al wiki (§9.2).
 
-**Hubo aquí una consola de aparatos y se borró.** Duplicaba `vault.dotrino.com/devices`,
+**Hubo aquí una consola de aparatos y se borró.** Duplicaba `vault.dotrino.com/vault`,
 que se declara a sí misma la única pantalla del ecosistema donde se gestionan los
 dispositivos de un perfil. Dos pantallas que administran lo mismo se desincronizan y
 después cada una dice una cosa. Lo que sigue explica por qué esa consola no podía listar
@@ -539,7 +545,7 @@ no lista no es una consola. Las salidas eran tres, y solo una no se contradice:
 | un permiso especial de listar | el mismo agujero, con un nombre más largo |
 | **la consola administra APARATOS, no credenciales** | ✔ lo que hoy solo se puede por consola de órdenes |
 
-Así que `vault.dotrino.com/devices` administra **aparatos**: cuáles hay, cuándo se
+Así que `vault.dotrino.com/vault` administra **aparatos**: cuáles hay, cuándo se
 enlazaron, y retirar el que sobre. De credenciales enseña lo mismo que cualquier
 aparato: lo que hay para un sitio, de a una y bajo aprobación. **Listar la bóveda entera
 sigue siendo cosa de quien tiene la llave** — la consola de órdenes y la app nativa.
