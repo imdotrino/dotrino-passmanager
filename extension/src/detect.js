@@ -88,6 +88,63 @@ export function findLoginForms (doc = document) {
   return forms
 }
 
+// --- Campos que no son usuario ni contraseña ---------------------------------
+//
+// Correo, teléfono, dirección, cédula: lo que el usuario guardó con una `kind`. Se
+// mira primero el `autocomplete` que declara el sitio —cuando está, no hay nada que
+// adivinar— y solo si no lo declara se recurre a las pistas del nombre.
+
+import { AUTOCOMPLETE_BY_KIND, HINTS_BY_KIND } from './vendor/passmanager/fields.js'
+
+const AUTOCOMPLETE_TO_KIND = {}
+for (const [kind, tokens] of Object.entries(AUTOCOMPLETE_BY_KIND)) {
+  for (const t of tokens) AUTOCOMPLETE_TO_KIND[t] = kind
+}
+
+/** Qué clase de dato pide este input, o null si no se sabe. */
+export function kindOf (el) {
+  if (el.type === 'password') return null
+
+  // 1. Lo que el sitio declara. `autocomplete` admite prefijos de sección y de tipo
+  //    (`shipping email`, `section-a billing tel`): manda el último token conocido.
+  const declared = (el.getAttribute('autocomplete') || '').toLowerCase().trim()
+  if (declared && declared !== 'off' && declared !== 'on') {
+    for (const token of declared.split(/\s+/).reverse()) {
+      if (AUTOCOMPLETE_TO_KIND[token]) return AUTOCOMPLETE_TO_KIND[token]
+    }
+  }
+
+  // 2. El tipo del input, que también es una declaración.
+  if (el.type === 'email') return 'email'
+  if (el.type === 'tel') return 'tel'
+
+  // 3. Y si no, las pistas. Un buscador nunca es un dato personal.
+  const h = haystack(el)
+  if (SEARCH_HINTS.some(x => h.includes(x))) return null
+  for (const [kind, hints] of Object.entries(HINTS_BY_KIND)) {
+    if (hints.some(x => h.includes(x))) return kind
+  }
+  return null
+}
+
+/**
+ * Campos rellenables de la página que NO son usuario ni contraseña.
+ * Devuelve `[{ el, kind }]`, sin repetir clase: si hay dos casillas de correo, se
+ * rellena la primera visible y no se inventa nada con la otra.
+ */
+export function findDataFields (doc = document) {
+  const out = []
+  const vistos = new Set()
+  for (const el of collectInputs(doc).filter(isVisible)) {
+    if (el.type === 'password' || el.type === 'hidden') continue
+    const kind = kindOf(el)
+    if (!kind || vistos.has(kind)) continue
+    vistos.add(kind)
+    out.push({ el, kind })
+  }
+  return out
+}
+
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */
 export function fillField (el, value) {
   if (!el) return false

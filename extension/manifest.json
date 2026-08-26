@@ -43,7 +43,9 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/detect.js"
+        "src/detect.js",
+        "src/ui.js",
+        "src/vendor/passmanager/fields.js"
       ],
       "matches": [
         "https://*/*",

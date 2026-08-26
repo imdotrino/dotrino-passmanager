@@ -1,23 +1,18 @@
-// Content script: encuentra el formulario de acceso y rellena cuando se lo piden.
+// Content script: marca los campos donde el gestor puede ayudar, y espera.
 //
-// No tiene la bóveda ni la CEK: le pregunta al service worker qué hay para ESTE sitio
-// y solo pide una credencial cuando el usuario elige (DISENO §2). Por eso ni siquiera
-// puede llamar a `list` — el propio worker se lo niega.
+// **No autocompleta nada.** No tiene la bóveda ni la llave: le pregunta al service
+// worker qué hay para ESTE sitio y solo pide una credencial cuando el usuario elige
+// una en el modal. Rellenar es siempre un acto suyo, sobre un campo concreto.
 
-// Un content script MV3 no se carga como módulo, así que la detección entra por
-// import dinámico desde `web_accessible_resources`. Es el patrón estándar, y evita
-// tener que meter un empaquetador solo para esto.
-const detect = import(chrome.runtime.getURL('src/detect.js'))
+// Un content script MV3 no se carga como módulo: la detección y la UI entran por
+// import dinámico desde `web_accessible_resources`.
+const mods = Promise.all([
+  import(chrome.runtime.getURL('src/detect.js')),
+  import(chrome.runtime.getURL('src/ui.js')),
+]).then(([detect, ui]) => ({ detect, ui }))
 
 let lastForms = []
-
-async function scan () {
-  try {
-    const { findLoginForms } = await detect
-    lastForms = findLoginForms(document)
-  } catch { lastForms = [] }
-  return lastForms
-}
+let lastData = []
 
 function ask (op, payload) {
   return new Promise(resolve => {
@@ -28,40 +23,104 @@ function ask (op, payload) {
   })
 }
 
-async function fillInto (target, { username, secret }) {
-  if (!target) return false
-  const { fillField } = await detect
-  let done = false
-  if (target.username && username) done = fillField(target.username, username) || done
-  if (target.password && secret) done = fillField(target.password, secret) || done
-  return done
+/** Los campos marcables: el usuario/contraseña de cada acceso, y los datos sueltos. */
+async function scan () {
+  const { detect, ui } = await mods
+  try {
+    lastForms = detect.findLoginForms(document)
+    lastData = detect.findDataFields(document)
+  } catch { lastForms = []; lastData = [] }
+
+  const marcables = []
+  for (const f of lastForms) {
+    if (f.username) marcables.push({ el: f.username, kind: null, form: f })
+    if (f.password) marcables.push({ el: f.password, kind: null, form: f })
+  }
+  for (const d of lastData) {
+    // Un campo ya marcado como parte de un acceso no se marca dos veces.
+    if (!marcables.some(m => m.el === d.el)) marcables.push(d)
+  }
+
+  ui.mountMarkers(marcables, onPick)
+  return marcables
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.op === 'page-forms') {
-    scan().then(forms => sendResponse({
-      result: { count: forms.length, hasUsername: forms.some(f => f.username) },
-    }))
-    return true
-  }
-  if (msg?.op === 'page-fill') {
-    (lastForms.length ? Promise.resolve(lastForms) : scan())
-      .then(forms => fillInto(forms[0], msg.payload || {}))
-      .then(filled => sendResponse({ result: { filled } }))
-    return true
-  }
-  return false
-})
+/** El usuario pulsó el botón de un campo: se le enseña qué puede poner ahí. */
+async function onPick (field) {
+  const { ui } = await mods
+  const r = await ask('find', { url: location.href })
 
-// Las SPA remontan el formulario después de cargar la página; sin esto el gestor
-// funciona en la primera visita y deja de funcionar al navegar dentro del sitio.
+  if (r.error) {
+    ui.showModal({ title: 'Dotrino', empty: mensaje(r.error.code) })
+    return
+  }
+
+  const entries = r.result || []
+  const esDato = !!field.kind
+  const options = entries
+    .filter(e => esDato ? e.hasFields : (e.hasSecret || e.type === 'login'))
+    .map(e => ({ id: e.id, name: e.title || e.sites?.[0] || '—', hint: e.hint || e.sites?.[0] || '' }))
+
+  ui.showModal({
+    title: 'Dotrino',
+    what: esDato ? field.kind : 'acceso',
+    options,
+    empty: 'Nada guardado para este campo.',
+    onChoose: async (opt) => {
+      // Aquí, y solo aquí, se pide UNA credencial: al elegirla el usuario.
+      const got = await ask('get', { id: opt.id })
+      if (got.error) return ui.showModal({ title: 'Dotrino', empty: mensaje(got.error.code) })
+      await rellenar(field, got.result)
+    },
+  })
+}
+
+async function rellenar (field, entry) {
+  const { detect, ui } = await mods
+
+  if (!field.kind) {
+    // Un acceso: usuario y contraseña de su formulario, no de toda la página.
+    const form = field.form
+    if (form?.username && entry.username) detect.fillField(form.username, entry.username)
+    if (form?.password && entry.secret) detect.fillField(form.password, entry.secret)
+    ui.reposition()
+    return
+  }
+
+  const campos = parseFields(entry.fields)
+  const campo = campos.find(f => f.kind === field.kind)
+  if (campo) detect.fillField(field.el, campo.value)
+  ui.reposition()
+}
+
+function parseFields (raw) {
+  if (Array.isArray(raw)) return raw
+  try { return JSON.parse(raw || '[]') } catch { return [] }
+}
+
+function mensaje (code) {
+  if (code === 'no-link' || code === 'unreachable') return 'Esta extensión no está enlazada a ninguna bóveda.'
+  if (code === 'denied') return 'Tu bóveda no autoriza a esta extensión todavía.'
+  if (code === 'approval-timeout') return 'Tu bóveda no respondió. ¿Está encendida?'
+  return 'No se pudo hablar con tu bóveda.'
+}
+
+// Las SPA remontan el formulario después de cargar; sin esto el gestor funciona en la
+// primera visita y deja de funcionar al navegar dentro del sitio.
+let t = null
 const observer = new MutationObserver(() => {
-  clearTimeout(observer._t)
-  observer._t = setTimeout(scan, 300)
+  clearTimeout(t)
+  t = setTimeout(scan, 300)
 })
 observer.observe(document.documentElement, { childList: true, subtree: true })
-scan().then(forms => {
-  // Aviso al worker de que aquí hay un formulario, para que la extensión pueda
-  // señalarlo sin que el usuario abra el popup a ciegas.
-  if (forms.length) ask('status')
-})
+
+// Los botones van pegados a sus campos: si la página se mueve, ellos también.
+let raf = null
+const seguir = () => {
+  if (raf) return
+  raf = requestAnimationFrame(async () => { raf = null; (await mods).ui.reposition() })
+}
+addEventListener('scroll', seguir, { passive: true, capture: true })
+addEventListener('resize', seguir, { passive: true })
+
+scan()

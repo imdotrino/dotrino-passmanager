@@ -1,0 +1,25 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Campos</title>
+<style>body{font:14px system-ui;padding:20px;max-width:520px} input{display:block;width:100%;padding:8px;margin:6px 0 14px;box-sizing:border-box}</style>
+</head><body>
+<h3>Checkout con autocomplete declarado</h3>
+<form id="f1">
+  <input autocomplete="email" placeholder="correo">
+  <input autocomplete="shipping tel" placeholder="teléfono">
+  <input autocomplete="street-address" placeholder="dirección">
+  <input autocomplete="postal-code" placeholder="CP">
+  <input autocomplete="off" placeholder="cupón (autocomplete off)">
+</form>
+
+<h3>Sin autocomplete: solo pistas</h3>
+<form id="f2">
+  <input name="cedula" placeholder="Cédula">
+  <input name="company" placeholder="Empresa">
+  <input type="search" name="search" placeholder="Buscar (NO es un dato)">
+</form>
+
+<h3>Acceso</h3>
+<form id="f3">
+  <input name="email" type="email" placeholder="correo">
+  <input name="password" type="password" placeholder="contraseña">
+</form>
+</body></html>

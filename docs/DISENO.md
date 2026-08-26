@@ -184,6 +184,53 @@ Frontera del §4 de `CONVENCIONES-APPS.md`, aplicada:
 | último dominio usado, tab activo | `sessionStorage` | preferencia efímera de UI |
 | bitácora de entregas | **vault** (central) o el aparato que responda | se reconcilia al reconectar |
 
+## 4.1. El gestor NO autocompleta
+
+> Decidido por el dueño el 2026-08-25.
+
+**Nada se rellena solo.** El gestor marca los campos donde puede ayudar con un botón
+—un cuarto de circunferencia azul en la esquina superior derecha del campo— y espera.
+Al pulsarlo aparece un modal con lo que se puede poner **ahí**, y solo al elegir una
+opción se escribe.
+
+Por qué importa, más allá del gusto: rellenar solo obliga a decidir por el usuario en
+qué campo va cada dato, y equivocarse significa escribir una credencial en el sitio
+equivocado. Marcando y esperando, la decisión es suya y es explícita — que es la misma
+regla que rige todo lo demás aquí.
+
+Consecuencias en el código:
+
+- La petición de la credencial (`get`) sale **al elegir en el modal**, no al detectar
+  el campo. Abrir una página no pide nada a la bóveda.
+- El botón y el modal viven en un **Shadow DOM cerrado**: ni heredan los estilos del
+  sitio ni el sitio los alcanza.
+- Los botones siguen a sus campos en scroll y resize, y se remontan cuando la SPA
+  cambia el formulario.
+
+## 4.2. Campos libres, atados o no a un dominio
+
+Una entrada puede llevar **campos sueltos** además de usuario y contraseña: correo,
+teléfono, dirección, cédula, el código del portal — cualquier cosa. Son
+`{ label, value, kind }`, y ni las etiquetas ni el número están fijados.
+
+Dos reglas:
+
+- **«Sirve en cualquier sitio» es no tener `sites`**, no un tipo aparte. Con sitios,
+  la entrada solo vale ahí; sin ellos, vale en todas partes y siempre por debajo de lo
+  que sí es de ese sitio. Una sola regla de emparejamiento, no dos.
+- **`kind` es opcional y solo sirve para colocar el dato**: dice qué es (un correo, un
+  teléfono) para saber en qué hueco va. Sin `kind` el campo se guarda y se copia
+  igual — solo no aparece ofrecido en un campo del formulario.
+
+Para reconocer el hueco se mira primero el **`autocomplete` que declara el sitio**
+(cuando está, no hay nada que adivinar, y se respeta `off`), y solo si no lo declara
+se recurre a las pistas del nombre. Un buscador nunca se toma por un dato personal.
+
+**Esto no tiene que ver con el perfil de Dotrino.** El perfil es tu identidad en el
+ecosistema, con sus flags de visibilidad y su reputación; esto son datos que rellenas
+en formularios ajenos, y puedes querer varios juegos (los de casa y los del trabajo)
+sin que ninguno sea «quién eres».
+
 ## 5. Modelo de datos
 
 Una entrada, con el hueco de WebAuthn **reservado desde v1** aunque las passkeys
