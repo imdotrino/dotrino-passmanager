@@ -132,9 +132,25 @@ aparato habla con esta bóveda, cuándo y cuánto. No ve qué se pide ni qué se
 pero el patrón existe. Decirlo es parte de la promesa; una promesa que se calla sus
 límites no es fuerte, es publicidad.
 
-Comprobado, no supuesto: hay un test que espía el cable y falla si aparece el sitio, la
-operación o la credencial, y el E2E contra `proxy.dotrino.com` hace la misma
-comprobación sobre el tráfico real.
+**El cifrado no es opcional, y eso hay que hacerlo cumplir en las DOS direcciones.**
+Sellar de salida no basta: si la otra punta acepta texto plano, mandarlo así se salta el
+sellado entero. Y no solo para leer — alguien que nunca leyera nada podría contestar por
+la bóveda y colar una credencial falsa en un formulario. Por eso:
+
+- lo que llega sin sellar se **descarta**, y en la bóveda queda anotado como `unsealed`
+- sin llave de cifrado del otro lado **no sale nada**, con código propio
+- el código del error se **conserva**: «no tengo la llave» y «se cayó la red» no pueden
+  verse igual desde arriba, porque una se arregla enlazando y la otra esperando
+
+**Y esto vive en el PILAR, no aquí.** Se escribió primero en este repo y se movió a
+`@dotrino/proxy-client` 0.13.0 (`sendSealed`, `requireSealed`, `meta.sealed`) en cuanto
+quedó claro que la garantía no puede ser de una sola app. El gestor lo consume; no
+mantiene una segunda implementación.
+
+Comprobado, no supuesto: hay tests que espían el cable y fallan si aparece el sitio, la
+operación o la credencial; otros que mandan una petición y una respuesta en claro para
+ver que se rechazan; y el E2E contra `proxy.dotrino.com` repite la comprobación sobre
+el tráfico real, con `requireSealed` en las dos puntas.
 
 ## 3. Cifrado y reparto de llaves
 

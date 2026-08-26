@@ -16,7 +16,7 @@ import { LocalVault } from '../lib/src/vault/local.js'
 import { RemoteVault } from '../lib/src/vault/remote.js'
 import { VaultResponder } from '../lib/src/vault/responder.js'
 import { ProxyTransport } from '../lib/src/transport/proxy.js'
-import { makeEncKeypair, importEncPrivate, exportEncPrivate } from '../lib/src/transport/sealed.js'
+import { makeEncKeypair, importEncPrivate, exportEncPrivate, setSealingPrimitives } from '../lib/src/transport/sealed.js'
 import { makeVaultKey } from '../lib/src/crypto.js'
 
 const URL = 'wss://proxy.dotrino.com'
@@ -60,8 +60,14 @@ async function encKeypair () {
   return { privateKey: nuevo.privateKey, encPub: nuevo.encPub }
 }
 
-async function conectar () {
-  const c = new WebSocketProxyClient({ url: URL, enableWebRTC: false })
+async function conectar (myEncPrivateKey) {
+  const c = new WebSocketProxyClient({
+    url: URL,
+    enableWebRTC: false,
+    // La garantía, activada: nada en claro sale ni entra.
+    requireSealed: true,
+    myEncPrivateKey,
+  })
   await c.connect()
   const publickey = await getPublicKeyJwk()
   const data = { op: 'identify', publickey, token: c.token, ts: Date.now() }
@@ -70,7 +76,8 @@ async function conectar () {
 }
 
 if (rol === 'boveda') {
-  const { c, publickey, identify } = await conectar()
+  const encPrev = await encKeypair()
+  const { c, publickey, identify } = await conectar(encPrev.privateKey)
   const vault = new LocalVault({ _m: new Map(), async get (k) { return this._m.get(k) }, async set (k, v) { this._m.set(k, v) } })
   vault.unlock(await makeVaultKey())
   await vault.put({ title: 'Salesforce', sites: ['salesforce.com'], username: 'sandrade@dotrino.com', secret: 'hunter2' })
@@ -78,11 +85,10 @@ if (rol === 'boveda') {
 
   const permitido = process.env.APARATO_PUBKEY
   const permitidoEnc = process.env.APARATO_ENCPUB
-  const enc = await encKeypair()
+  const enc = encPrev
   const responder = new VaultResponder({
     client: c,
     vault,
-    myEncPrivateKey: enc.privateKey,
     encPubOf: pub => (pub === permitido ? permitidoEnc : null),
     isAllowed: pub => pub === permitido,
     needsApproval: () => false,
@@ -96,8 +102,8 @@ if (rol === 'boveda') {
 }
 
 if (rol === 'aparato') {
-  const { c, publickey } = await conectar()
   const enc = await encKeypair()
+  const { c, publickey } = await conectar(enc.privateKey)
   console.log('APARATO_PUBKEY', Buffer.from(publickey).toString('base64url'))
   console.log('APARATO_ENCPUB', Buffer.from(enc.encPub).toString('base64url'))
   if (!process.env.BOVEDA_PUBKEY) process.exit(0)
@@ -107,12 +113,11 @@ if (rol === 'aparato') {
 
   // Espiamos el cable: esto es exactamente lo que el proxio llega a ver.
   const porElCable = []
-  const enviarOriginal = c.sendByPubkey.bind(c)
-  c.sendByPubkey = (to, payload) => { porElCable.push(payload); return enviarOriginal(to, payload) }
+  const enviarOriginal = c._sendByPubkeyRaw.bind(c)
+  c._sendByPubkeyRaw = (to, payload, opts) => { porElCable.push(payload); return enviarOriginal(to, payload, opts) }
 
   const remota = new RemoteVault(new ProxyTransport({
-    client: c, peerPubkey: peer, peerEncPub: peerEnc,
-    myEncPrivateKey: enc.privateKey, timeoutMs: 20000,
+    client: c, peerPubkey: peer, peerEncPub: peerEnc, timeoutMs: 20000,
   }))
 
   const hits = await remota.find('https://login.salesforce.com/')

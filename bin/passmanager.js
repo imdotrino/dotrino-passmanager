@@ -158,11 +158,15 @@ async function autorizar ({ sign, enc }, label) {
 
 async function serve () {
   const vault = await abrirBoveda()
+  const enc = await encKeypair()
   const client = new WebSocketProxyClient({
     url: process.env.DOTRINO_PROXY || 'wss://proxy.dotrino.com',
-    // Sin WebRTC: aquí no aporta nada (los sobres ya van sellados) y añade una pila
-    // entera a la pieza que reparte credenciales.
+    // Sin WebRTC: aquí no aporta y añade una pila entera a la pieza que reparte
+    // credenciales.
     enableWebRTC: false,
+    // La garantía: nada en claro sale ni entra.
+    requireSealed: true,
+    myEncPrivateKey: enc.privateKey,
   })
 
   await client.connect()
@@ -170,7 +174,6 @@ async function serve () {
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
   await client.identify({ data, signature: await signData(data) })
 
-  const enc = await encKeypair()
   let conocidos = await aparatos()
   const refrescar = async () => { conocidos = await aparatos() }
 
@@ -178,7 +181,6 @@ async function serve () {
     client,
     vault,
     isAllowed: pub => conocidos.some(d => d.pubkey === pub),
-    myEncPrivateKey: enc.privateKey,
     encPubOf: pub => conocidos.find(d => d.pubkey === pub)?.encPub || null,
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
     // encendida.

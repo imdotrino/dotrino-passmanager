@@ -81,11 +81,16 @@ async function connect () {
 
   if (vault && client?._connected) return vault
 
+  const enc = await encKeypair()
   client = new WebSocketProxyClient({
     url: link.proxy || PROXY_URL,
     // RTCPeerConnection no existe en un service worker: con WebRTC activo la
-    // negociación revienta. Y tampoco haría falta — los sobres ya van sellados.
+    // negociación revienta. Y tampoco haría falta aquí.
     enableWebRTC: false,
+    // La garantía: nada en claro sale ni entra. Sin esto el proxio vería a qué sitio
+    // se le pide credencial y cuál se devuelve.
+    requireSealed: true,
+    myEncPrivateKey: enc.privateKey,
   })
   await client.connect()
 
@@ -93,12 +98,10 @@ async function connect () {
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
   await client.identify({ data, signature: await signData(data) })
 
-  const enc = await encKeypair()
   transport = new ProxyTransport({
     client,
     peerPubkey: link.peerPubkey,
     peerEncPub: link.peerEncPub,
-    myEncPrivateKey: enc.privateKey,
   })
   vault = new RemoteVault(transport)
   return vault

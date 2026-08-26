@@ -12,6 +12,6 @@
     "serve": "node bin/passmanager.js serve"
   },
   "dependencies": {
-    "@dotrino/proxy-client": "0.12.0"
+    "@dotrino/proxy-client": "0.13.0"
   }
 }

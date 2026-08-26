@@ -13,12 +13,12 @@ await mkdir(vendor, { recursive: true })
 await cp(join(here, '../lib/src'), join(vendor, 'passmanager'), { recursive: true })
 console.log('vendor: lib/src → extension/src/vendor/passmanager')
 
-// Un navegador no resuelve imports desnudos: `@dotrino/identity/content` pasa a ser
-// la copia que viaja al lado.
+// Un navegador no resuelve imports desnudos: los de los pilares pasan a ser las
+// copias que viajan al lado.
 const sealedPath = join(vendor, 'passmanager/transport/sealed.js')
 const sealed = await readFile(sealedPath, 'utf8')
 await writeFile(sealedPath, sealed.replace(
-  "from '@dotrino/identity/content'", "from '../../identity/content.js'"))
+  "from '@dotrino/proxy-client/sealing'", "from '../../proxy-client/sealing.js'"))
 
 // El transporte del ecosistema viaja con la extensión: MV3 solo importa de su propia
 // carpeta. Se toma del repo hermano mientras 0.12.0 no esté en npm — es la versión
@@ -32,3 +32,13 @@ console.log('vendor: dotrino-proxy-client/src → extension/src/vendor/proxy-cli
 await mkdir(join(vendor, 'identity'), { recursive: true })
 await cp(join(here, '../../dotrino-identity/vault/content.js'), join(vendor, 'identity/content.js'))
 console.log('vendor: dotrino-identity/vault/content.js → extension/src/vendor/identity/content.js')
+
+// `@dotrino/identity` es peer dependency del sellado: en el navegador se le entrega la
+// copia que viaja, en vez de que intente resolver un import desnudo.
+const sealingPath = join(vendor, 'proxy-client/sealing.js')
+const sealing = await readFile(sealingPath, 'utf8')
+await writeFile(sealingPath,
+  "import * as __identityContent from '../identity/content.js'\n" +
+  sealing.replace(
+    "let primitives = null",
+    "let primitives = __identityContent"))
