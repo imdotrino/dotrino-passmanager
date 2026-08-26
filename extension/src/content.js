@@ -23,7 +23,7 @@ function ask (op, payload) {
   })
 }
 
-/** Los campos marcables: el usuario/contraseña de cada acceso, y los datos sueltos. */
+/** Los campos markable: el usuario/contraseña de cada acceso, y los datos sueltos. */
 async function scan () {
   const { detect, ui } = await mods
   try {
@@ -31,18 +31,18 @@ async function scan () {
     lastData = detect.findDataFields(document)
   } catch { lastForms = []; lastData = [] }
 
-  const marcables = []
+  const markable = []
   for (const f of lastForms) {
-    if (f.username) marcables.push({ el: f.username, kind: null, form: f })
-    if (f.password) marcables.push({ el: f.password, kind: null, form: f })
+    if (f.username) markable.push({ el: f.username, kind: null, form: f })
+    if (f.password) markable.push({ el: f.password, kind: null, form: f })
   }
   for (const d of lastData) {
     // Un campo ya marcado como parte de un acceso no se marca dos veces.
-    if (!marcables.some(m => m.el === d.el)) marcables.push(d)
+    if (!markable.some(m => m.el === d.el)) markable.push(d)
   }
 
-  ui.mountMarkers(marcables, onPick)
-  return marcables
+  ui.mountMarkers(markable, onPick)
+  return markable
 }
 
 /** El usuario pulsó el botón de un campo: se le enseña qué puede poner ahí. */
@@ -51,7 +51,7 @@ async function onPick (field) {
   const r = await ask('find', { url: location.href })
 
   if (r.error) {
-    ui.showModal({ title: 'Dotrino', empty: mensaje(r.error.code) })
+    ui.showModal({ title: 'Dotrino', empty: messageFor(r.error.code) })
     return
   }
 
@@ -69,13 +69,13 @@ async function onPick (field) {
     onChoose: async (opt) => {
       // Aquí, y solo aquí, se pide UNA credencial: al elegirla el usuario.
       const got = await ask('get', { id: opt.id })
-      if (got.error) return ui.showModal({ title: 'Dotrino', empty: mensaje(got.error.code) })
-      await rellenar(field, got.result)
+      if (got.error) return ui.showModal({ title: 'Dotrino', empty: messageFor(got.error.code) })
+      await fill(field, got.result)
     },
   })
 }
 
-async function rellenar (field, entry) {
+async function fill (field, entry) {
   const { detect, ui } = await mods
 
   if (!field.kind) {
@@ -98,7 +98,7 @@ function parseFields (raw) {
   try { return JSON.parse(raw || '[]') } catch { return [] }
 }
 
-function mensaje (code) {
+function messageFor (code) {
   if (code === 'no-link' || code === 'unreachable') return 'Esta extensión no está enlazada a ninguna bóveda.'
   if (code === 'denied') return 'Tu bóveda no autoriza a esta extensión todavía.'
   if (code === 'approval-timeout') return 'Tu bóveda no respondió. ¿Está encendida?'
@@ -111,20 +111,20 @@ function mensaje (code) {
 // dos operaciones existen aquí y nada de esto lo puede disparar el sitio.
 
 /** Rellena el primer formulario de acceso con una credencial que el usuario eligió. */
-async function rellenarAcceso ({ username, secret }) {
+async function fillLogin ({ username, secret }) {
   const { detect, ui } = await mods
   const forms = lastForms.length ? lastForms : await scan()
   const f = forms[0]
   if (!f) return false
-  let hecho = false
-  if (f.username && username) hecho = detect.fillField(f.username, username) || hecho
-  if (f.password && secret) hecho = detect.fillField(f.password, secret) || hecho
+  let done = false
+  if (f.username && username) done = detect.fillField(f.username, username) || done
+  if (f.password && secret) done = detect.fillField(f.password, secret) || done
   ui.reposition()
-  return hecho
+  return done
 }
 
 /** Lo que hay escrito en el formulario, para poder guardarlo en la bóveda. */
-async function leerFormulario () {
+async function readForm () {
   const forms = lastForms.length ? lastForms : await scan()
   for (const f of forms) {
     const secret = f.password?.value || ''
@@ -135,15 +135,15 @@ async function leerFormulario () {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Solo del propio popup: un mensaje con `sender.tab` viene de una página.
+  // Solo del propio popup: un messageFor con `sender.tab` viene de una página.
   if (sender.tab) { sendResponse({ error: { code: 'denied' } }); return false }
 
   if (msg?.op === 'page-fill') {
-    rellenarAcceso(msg.payload || {}).then(filled => sendResponse({ result: { filled } }))
+    fillLogin(msg.payload || {}).then(filled => sendResponse({ result: { filled } }))
     return true
   }
   if (msg?.op === 'page-credentials') {
-    leerFormulario().then(r => sendResponse({ result: r }))
+    readForm().then(r => sendResponse({ result: r }))
     return true
   }
   return false

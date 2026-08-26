@@ -1,4 +1,4 @@
-// Popup: enlazar con la bóveda, ver qué hay para este sitio y rellenar.
+// Popup: enlazar con la bóveda, ver qué hay para este sitio y fill.
 //
 // No hay contraseña maestra ni lista completa: esta extensión no tiene la bóveda.
 // Todo lo que se ve aquí lo contestó la bóveda del usuario, de a una petición.
@@ -31,7 +31,7 @@ function toast (text, kind) {
 }
 
 /** Los errores se comparan por código: el texto está traducido (memoria del proyecto). */
-function humano (e) {
+function humanError (e) {
   if (e.code === 'denied') return t(lang, 'denied')
   if (e.code === 'approval-timeout') return t(lang, 'noAnswer')
   if (e.code === 'unreachable' || e.code === 'no-link') return t(lang, 'noLink')
@@ -71,8 +71,8 @@ function renderLink (myCode) {
    * de poder hacer nada. La pestaña ES una bóveda, así que se ofrece primero y lo de
    * pegar un código queda para quien ya tenga la suya.
    */
-  const abrir = el('button', { className: 'primary', textContent: t(lang, 'abrirBoveda') })
-  abrir.onclick = () => {
+  const openVaultBtn = el('button', { className: 'primary', textContent: t(lang, 'abrirBoveda') })
+  openVaultBtn.onclick = () => {
     chrome.tabs.create({ url: 'https://pass.dotrino.com/boveda.html' })
     window.close()
   }
@@ -87,7 +87,7 @@ function renderLink (myCode) {
       await ask('link', { code: code.value.trim() })
       render()
     } catch (e) {
-      err.textContent = humano(e)
+      err.textContent = humanError(e)
       err.hidden = false
     }
   }
@@ -102,7 +102,7 @@ function renderLink (myCode) {
   view.replaceChildren(
     el('h2', { textContent: t(lang, 'linkTitle') }),
     el('p', { className: 'hint', textContent: t(lang, 'linkHint') }),
-    abrir,
+    openVaultBtn,
     el('p', { className: 'hint', textContent: t(lang, 'abrirHint') }),
     el('p', { className: 'hint', style: 'margin-top:14px', textContent: t(lang, 'oPega') }),
     code, err, go,
@@ -134,29 +134,29 @@ async function renderSite (link) {
   const estado = el('p', { className: 'hint', textContent: t(lang, 'waiting') })
 
   // Cada credencial sale de una petición aparte: la lista de arriba nunca las llevó.
-  const pedirUna = async (e) => ask('get', { id: e.id })
+  const askForOne = async (e) => ask('get', { id: e.id })
 
   /**
    * Guardar lo que hay escrito en la página. La acción nace AQUÍ, en la UI de la
-   * extensión y con el usuario delante — nunca en la página, que si pudiera guardar
+   * extensión y con el usuario delante — nunca en la página, que si pudiera saveHere
    * por su cuenta llenaría la bóveda de entradas inventadas.
    */
-  const guardar = el('button', { className: 'ghost file', textContent: t(lang, 'saveHere'), hidden: true })
-  guardar.onclick = async () => {
+  const saveHere = el('button', { className: 'ghost file', textContent: t(lang, 'saveHere'), hidden: true })
+  saveHere.onclick = async () => {
     const cred = await tellPage('page-credentials')
     if (!cred?.secret) return toast(t(lang, 'nothingToSave'), 'error')
 
     const host = (() => { try { return new URL(url).hostname } catch { return '' } })()
-    const nombre = el('input', { type: 'text', value: host, placeholder: t(lang, 'saveName') })
+    const nameInput = el('input', { type: 'text', value: host, placeholder: t(lang, 'saveName') })
     const ok = el('button', { className: 'primary', textContent: t(lang, 'save') })
-    const cancelar = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
+    const cancelBtn = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
 
     ok.onclick = async () => {
       try {
         await ask('put', {
           entry: {
             type: 'login',
-            title: nombre.value.trim() || host,
+            title: nameInput.value.trim() || host,
             sites: host ? [host] : [],
             username: cred.username,
             secret: cred.secret,
@@ -164,48 +164,48 @@ async function renderSite (link) {
         })
         toast(t(lang, 'saved'))
         render()
-      } catch (e) { toast(humano(e), 'error') }
+      } catch (e) { toast(humanError(e), 'error') }
     }
-    cancelar.onclick = render
+    cancelBtn.onclick = render
 
     view.replaceChildren(
       el('h2', { textContent: t(lang, 'saveHere') }),
       el('p', { className: 'hint', textContent: cred.username || host }),
-      nombre, ok, cancelar,
+      nameInput, ok, cancelBtn,
     )
-    nombre.focus()
+    nameInput.focus()
   }
 
   const onFill = async (e) => {
     try {
-      const full = await pedirUna(e)
+      const full = await askForOne(e)
       const r = await tellPage('page-fill', { username: full.username, secret: full.secret })
       if (r?.filled) window.close()
       else toast(t(lang, 'noForm'), 'error')
-    } catch (err) { toast(humano(err), 'error') }
+    } catch (err) { toast(humanError(err), 'error') }
   }
 
   const onCopy = async (e) => {
     try {
-      const full = await pedirUna(e)
+      const full = await askForOne(e)
       await navigator.clipboard.writeText(full.secret)
       toast(t(lang, 'copied'))
-    } catch (err) { toast(humano(err), 'error') }
+    } catch (err) { toast(humanError(err), 'error') }
   }
 
-  view.replaceChildren(el('h2', { textContent: link.label || t(lang, 'onThisSite') }), list, estado, guardar)
+  view.replaceChildren(el('h2', { textContent: link.label || t(lang, 'onThisSite') }), list, estado, saveHere)
 
   try {
     const items = await ask('find', { url })
     list.replaceChildren(...items.map(e => entryRow(e, { onFill, onCopy })))
     estado.textContent = items.length ? '' : t(lang, 'noneHere')
 
-    // El botón de guardar solo aparece si hay algo escrito que guardar.
+    // El botón de saveHere solo aparece si hay algo escrito que saveHere.
     const cred = await tellPage('page-credentials')
-    guardar.hidden = !cred?.secret
+    saveHere.hidden = !cred?.secret
   } catch (e) {
     estado.className = 'error'
-    estado.textContent = humano(e)
+    estado.textContent = humanError(e)
   }
 }
 
@@ -215,7 +215,7 @@ async function render () {
     lockBtn.hidden = !s.linked
     return s.linked ? renderSite(s) : renderLink(s.code)
   } catch (e) {
-    view.replaceChildren(el('p', { className: 'error', textContent: humano(e) }))
+    view.replaceChildren(el('p', { className: 'error', textContent: humanError(e) }))
   }
 }
 

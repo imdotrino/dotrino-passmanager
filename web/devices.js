@@ -5,9 +5,9 @@
 // Lo que sí hace, y hoy solo se podía por consola de órdenes: ver qué aparatos hay y
 // retirar el que sobre. Cada operación se aprueba en la bóveda, una por una.
 
-import { WebSocketProxyClient, getPublicKeyJwk, signData } from 'https://cdn.jsdelivr.net/npm/@dotrino/proxy-client@0.13/+esm'
-import { Identity } from 'https://cdn.jsdelivr.net/npm/@dotrino/identity@latest/+esm'
-import { ProxyTransport } from 'https://cdn.jsdelivr.net/npm/@dotrino/passmanager@0.1/+esm'
+import { WebSocketProxyClient, getPublicKeyJwk, signData } from 'https://cdn.jsdelivr.net/npm/@dotrino/proxy-client@0.13.1/+esm'
+import { Identity } from 'https://cdn.jsdelivr.net/npm/@dotrino/identity@0.60.3/+esm'
+import { ProxyTransport } from 'https://cdn.jsdelivr.net/npm/@dotrino/passmanager@0.1.1/+esm'
 
 const LINK = 'dotrino.passmanager.link'
 const app = document.getElementById('app')

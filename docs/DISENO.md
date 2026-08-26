@@ -7,7 +7,7 @@
 > `pass.dotrino.com`.
 >
 > **Publicado en npm:** `@dotrino/passmanager@0.1.0` y `@dotrino/proxy-client@0.13.0`.
-> **Passkeys hechas** (§7) y **consola de aparatos** en `pass.dotrino.com/vault.html`
+> **Passkeys hechas** (§7) y **consola de aparatos** en `pass.dotrino.com/devices.html`
 > (§6.2).
 >
 > **El vault del ecosistema atiende** (`dotrino-vault passwords <ID> on`): almacén
@@ -252,6 +252,40 @@ Frontera del §4 de `CONVENCIONES-APPS.md`, aplicada:
 | adjuntos (documentos, recuperación) | **`dotrino-content`** | son bytes, opcionales, no bloquean el arranque |
 | último dominio usado, tab activo | `sessionStorage` | preferencia efímera de UI |
 | bitácora de entregas | **vault** (central) o el aparato que responda | se reconcilia al reconectar |
+
+## 3.3. Sin daemon también funciona: la bóveda en una pestaña
+
+> Pedido por el dueño el 2026-08-26.
+
+Exigir `dotrino-passmanager serve` para poder empezar contradice la regla del ecosistema:
+**ninguna app puede exigir que el usuario tenga un daemon encendido.** El aparato cumple
+el rol cuando no hay pieza dedicada, y lo dedicado solo añade disponibilidad.
+
+Así que `pass.dotrino.com/vault-in-tab.html` **es** una bóveda mientras esté abierta:
+guarda, responde de a una y pide aprobación en la propia página. Se instala la extensión,
+se abre eso, y funciona — sin instalar nada más. El popup ofrece «Abrir mi bóveda» antes
+que pedir un código, porque pedir un código a quien no tiene ninguno es no tener por
+dónde empezar.
+
+| | En una pestaña | Con el daemon |
+|---|---|---|
+| Empezar | abrir una página | instalar y levantar un proceso |
+| Disponible | mientras la pestaña esté abierta | siempre, también con el navegador cerrado |
+| Aprobación | en la propia página | en la consola, o en el teléfono |
+| Protocolo | **el mismo** | **el mismo** |
+
+Que el protocolo sea el mismo es lo que hace que esto no sea un modo aparte: los mismos
+aparatos, el mismo código de enlace y el mismo sellado. Pasar de la pestaña al daemon es
+enlazar de nuevo, nada más.
+
+**La llave vive como `CryptoKey` no extraíble en IndexedDB**, no cifrada: IndexedDB clona
+el CryptoKey en vez de serializarlo, así que la llave nunca existe en forma exportable —
+más fuerte que cifrarla, porque no queda texto que descifrar. Se probó antes sellarla con
+`identity.encrypt` y no vale: esa API es para mensajes entre dos partes.
+
+Y el límite, dicho donde se ve: **si borras los datos del sitio, esa bóveda se va con
+ellos.** Para eso está exportar (§10.1), y para eso el daemon es el sitio de lo que
+quieres conservar pase lo que pase.
 
 ## 4.0. Crear y editar
 

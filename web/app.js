@@ -21,7 +21,7 @@
       i3: 'Click “Load unpacked” and pick the folder you just unzipped.',
       repo: 'See the project',
       devices: 'Your devices',
-      boveda: 'Open my vault',
+      openVault: 'Open my vault',
       docs: 'How to use it',
       title: 'Dotrino — password manager',
     },

@@ -13,12 +13,11 @@
 // Lo que NO cambia por estar en una pestaña: las contraseñas siguen cifradas, la
 // extensión sigue pidiendo de a una, y nada viaja sin sellar.
 
-import { WebSocketProxyClient, getPublicKeyJwk, signData } from 'https://cdn.jsdelivr.net/npm/@dotrino/proxy-client@0.13/+esm'
-import { Identity } from 'https://cdn.jsdelivr.net/npm/@dotrino/identity@latest/+esm'
+import { WebSocketProxyClient, getPublicKeyJwk, signData } from 'https://cdn.jsdelivr.net/npm/@dotrino/proxy-client@0.13.1/+esm'
+import { Identity } from 'https://cdn.jsdelivr.net/npm/@dotrino/identity@0.60.3/+esm'
 import {
-  LocalVault, VaultResponder, samePubkey, importVaultKey, exportVaultKey,
-  makeVaultKey, toBase64, fromBase64, importAuto,
-} from 'https://cdn.jsdelivr.net/npm/@dotrino/passmanager@0.1/+esm'
+  LocalVault, VaultResponder, samePubkey, importAuto,
+} from 'https://cdn.jsdelivr.net/npm/@dotrino/passmanager@0.1.1/+esm'
 
 // --- almacén: IndexedDB de este origen ---------------------------------------
 //
@@ -28,7 +27,7 @@ import {
 const DB = 'dotrino-passmanager'
 const TIENDA = 'kv'
 
-function abrirDB () {
+function openDb () {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB, 1)
     req.onupgradeneeded = () => {
@@ -40,7 +39,7 @@ function abrirDB () {
 }
 
 async function idb (modo, fn) {
-  const db = await abrirDB()
+  const db = await openDb()
   try {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(TIENDA, modo)
@@ -62,38 +61,46 @@ let identity = null
 const getIdentity = async () => (identity ||= await Identity.connect())
 
 /**
- * La CEK se guarda CIFRADA con tu identidad, no en claro.
+ * La llave de la bóveda vive en IndexedDB como un `CryptoKey` NO EXTRAÍBLE.
  *
- * Podría pedirse una contraseña maestra, pero sería una segunda contraseña que recordar
- * para proteger lo mismo que ya protege tu perfil. Se sella al propio perfil: quien abra
- * esta página sin tu identidad no puede abrir la bóveda.
+ * IndexedDB clona el CryptoKey en vez de serializarlo, así que la llave nunca existe en
+ * forma exportable: ni el JS de esta página puede sacarla. Es más fuerte que guardarla
+ * cifrada, porque no queda ningún texto que descifrar.
+ *
+ * Se intentó sellarla con `identity.encrypt` y NO vale: esa API es para mensajes entre
+ * DOS partes (lleva la pubkey del emisor y un token efímero), así que cifrarse a uno
+ * mismo devuelve «this device is not among the message recipients».
+ *
+ * Lo que esto implica, y hay que decirlo: si borras los datos de este sitio, la bóveda
+ * se va con ellos. Para eso existe exportar, y para eso el daemon es el sitio de lo que
+ * quieres conservar pase lo que pase.
  */
-async function llaveDeLaBoveda () {
-  const id = await getIdentity()
-  const guardada = await store.get('cek')
-  if (guardada) {
-    const raw = await id.decrypt(await id.getEncryptionPubkey(), null, guardada)
-    return importVaultKey(fromBase64(raw))
-  }
-  const key = await makeVaultKey()
-  const raw = toBase64(await exportVaultKey(key))
-  await store.set('cek', await id.encrypt([await id.getEncryptionPubkey()], raw))
+async function vaultKey () {
+  const saved = await store.get('cek')
+  // Se comprueba QUÉ hay guardado, no solo que haya algo: una versión anterior guardaba
+  // aquí otra cosa, y devolverlo tal cual reventaba dentro de WebCrypto con un
+  // «parameter 2 is not of type CryptoKey» que no dice nada de dónde viene.
+  if (saved instanceof CryptoKey) return saved
+  if (saved) console.warn('[vault] la llave guardada no es utilizable; se crea una nueva')
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+  await store.set('cek', key)
   return key
 }
 
 // --- aparatos autorizados -----------------------------------------------------
 
-const aparatos = async () => (await store.get('devices')) || []
+const devices = async () => (await store.get('devices')) || []
 
-async function autorizar ({ sign, enc }, label) {
-  const lista = await aparatos()
-  const resto = lista.filter(d => !samePubkey(d.pubkey, sign))
+async function authorise ({ sign, enc }, label) {
+  const list = await devices()
+  const resto = list.filter(d => !samePubkey(d.pubkey, sign))
   resto.push({ pubkey: sign, encPub: enc, label: label || 'aparato', ts: Date.now() })
   await store.set('devices', resto)
 }
 
-async function retirar (pubkey) {
-  await store.set('devices', (await aparatos()).filter(d => !samePubkey(d.pubkey, pubkey)))
+async function removeDevice (pubkey) {
+  await store.set('devices', (await devices()).filter(d => !samePubkey(d.pubkey, pubkey)))
 }
 
 // --- el sellado, delegado al vault de identidad -------------------------------
@@ -113,10 +120,10 @@ const sealing = {
 
 // --- arranque -----------------------------------------------------------------
 
-export async function arrancarBoveda ({ onPeticion, onAprobar } = {}) {
+export async function startVault ({ onRequest, onApprove } = {}) {
   const id = await getIdentity()
   const vault = new LocalVault(store)
-  vault.unlock(await llaveDeLaBoveda())
+  vault.unlock(await vaultKey())
 
   const client = new WebSocketProxyClient({
     url: 'wss://proxy.dotrino.com',
@@ -130,50 +137,50 @@ export async function arrancarBoveda ({ onPeticion, onAprobar } = {}) {
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
   await client.identify({ data, signature: await signData(data) })
 
-  let conocidos = await aparatos()
-  const refrescar = async () => { conocidos = await aparatos() }
+  let known = await devices()
+  const refresh = async () => { known = await devices() }
 
   const responder = new VaultResponder({
     client,
     vault,
-    isAllowed: (pub) => conocidos.some(d => samePubkey(d.pubkey, pub)),
-    encPubOf: (pub) => conocidos.find(d => samePubkey(d.pubkey, pub))?.encPub || null,
+    isAllowed: (pub) => known.some(d => samePubkey(d.pubkey, pub)),
+    encPubOf: (pub) => known.find(d => samePubkey(d.pubkey, pub))?.encPub || null,
     // Aprobar es del usuario, y aquí está delante: se le pregunta en la propia página.
     needsApproval: () => true,
     approve: async ({ pubkey }) => {
-      const quien = conocidos.find(d => samePubkey(d.pubkey, pubkey))
-      return onAprobar ? onAprobar(quien?.label || 'un aparato') : false
+      const who = known.find(d => samePubkey(d.pubkey, pubkey))
+      return onApprove ? onApprove(who?.label || 'un aparato') : false
     },
     admin: {
-      async devices () { return (await aparatos()).map(d => ({ pubkey: d.pubkey, label: d.label, ts: d.ts })) },
-      async unlink (pub) { await retirar(pub); await refrescar(); return { ok: true } },
+      async devices () { return (await devices()).map(d => ({ pubkey: d.pubkey, label: d.label, ts: d.ts })) },
+      async unlink (pub) { await removeDevice(pub); await refresh(); return { ok: true } },
     },
-    onRequest: (r) => { onPeticion?.(r); refrescar() },
+    onRequest: (r) => { onRequest?.(r); refresh() },
   })
   responder.start()
 
   /** El código que se pega en la extensión. Las dos públicas: se enruta y se sella. */
-  const codigo = btoa(JSON.stringify({
+  const code = btoa(JSON.stringify({
     v: 1, sign: publickey, enc: await id.getEncryptionPubkey(),
   })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
   return {
-    codigo,
+    code,
     vault,
-    aparatos,
-    autorizar: async (cod, label) => {
+    devices,
+    authorise: async (cod, label) => {
       const b64 = String(cod || '').trim().replace(/-/g, '+').replace(/_/g, '/')
       const c = JSON.parse(atob(b64))
       if (c?.v !== 1 || !c.sign || !c.enc) throw Object.assign(new Error('código inválido'), { code: 'bad-code' })
-      await autorizar(c, label)
-      await refrescar()
+      await authorise(c, label)
+      await refresh()
     },
-    retirar: async (pub) => { await retirar(pub); await refrescar() },
-    importar: async (texto) => {
+    removeDevice: async (pub) => { await removeDevice(pub); await refresh() },
+    importEntries: async (texto) => {
       const { format, entries } = importAuto(texto)
       for (const e of entries) await vault.put(e)
       return { format, count: entries.length }
     },
-    detener: () => responder.stop(),
+    stop: () => responder.stop(),
   }
 }

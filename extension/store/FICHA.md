@@ -85,7 +85,12 @@ Instrucciones en https://pass.dotrino.com
 **Categoría:** Productividad · Herramientas
 **Idiomas:** español, inglés
 **Sitio web:** https://pass.dotrino.com
-**Política de privacidad:** https://pass.dotrino.com/privacidad.html
+**Política de privacidad:** https://pass.dotrino.com/privacy.html
+
+⚠️ **La ficha de la tienda tiene puesta la URL vieja** (`/privacidad.html`), de cuando
+las rutas estaban en español. Hay que corregirla en el panel: **una política que
+responde 404 es motivo de rechazo**. La ruta vieja se deja respondiendo igualmente
+(CONVENCIONES §8.1: la nueva es la canónica, la vieja se conserva).
 
 ## Justificación de permisos
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // La bóveda que RESPONDE, en la máquina del usuario.
 //
-// Monta la bóveda local y se pone a atender peticiones por el proxio: los aparatos
+// Monta la bóveda local y se pone a atender peticiones por el proxio: los devices
 // (la extensión, la app) piden una credencial y esta es la que decide y contesta.
 //
 // Es el paso 2 del diseño en su forma mínima: bóveda propia con su política y su
@@ -50,7 +50,7 @@ const store = {
 }
 
 // La llave del proxio también va al mismo sitio: si se regenerara en cada arranque,
-// los aparatos ya enlazados dejarían de reconocer a esta bóveda.
+// los devices ya enlazados dejarían de reconocer a esta bóveda.
 setKeypairStore({
   async get () {
     const raw = await store.get('proxy/keypair')
@@ -71,7 +71,7 @@ setKeypairStore({
   },
 // `extractable: true` porque este almacén SERIALIZA a disco: exportar una llave no
 // extraíble lanza, y sin esto la identidad no sobrevive al reinicio. La bóveda
-// cambiaría de código en cada arranque y los aparatos ya enlazados dejarían de
+// cambiaría de código en cada arranque y los devices ya enlazados dejarían de
 // reconocerla — un fallo que solo se ve al reiniciar, o sea tarde.
 }, { extractable: true })
 
@@ -81,19 +81,19 @@ setKeypairStore({
  * pide ni qué se devuelve.
  */
 async function encKeypair () {
-  const guardado = await store.get('enc/keypair')
-  if (guardado) {
+  const saved = await store.get('enc/keypair')
+  if (saved) {
     return {
-      privateKey: await importEncPrivate(guardado.privateJwk),
-      encPub: guardado.encPub,
+      privateKey: await importEncPrivate(saved.privateJwk),
+      encPub: saved.encPub,
     }
   }
-  const nuevo = await makeEncKeypair()
+  const fresh = await makeEncKeypair()
   await store.set('enc/keypair', {
-    privateJwk: await exportEncPrivate(nuevo.privateKey),
-    encPub: nuevo.encPub,
+    privateJwk: await exportEncPrivate(fresh.privateKey),
+    encPub: fresh.encPub,
   })
-  return { privateKey: nuevo.privateKey, encPub: nuevo.encPub }
+  return { privateKey: fresh.privateKey, encPub: fresh.encPub }
 }
 
 /** El código de enlace lleva las DOS públicas: por una se enruta, a la otra se sella. */
@@ -101,8 +101,8 @@ function encodeCode ({ sign, enc }) {
   return Buffer.from(JSON.stringify({ v: 1, sign, enc })).toString('base64url')
 }
 
-function decodeCode (codigo) {
-  const raw = Buffer.from(String(codigo || '').trim(), 'base64url').toString('utf8')
+function decodeCode (code) {
+  const raw = Buffer.from(String(code || '').trim(), 'base64url').toString('utf8')
   const c = JSON.parse(raw)
   if (c?.v !== 1 || !c.sign || !c.enc) throw new Error('código inválido')
   return c
@@ -114,8 +114,8 @@ function decodeCode (codigo) {
  * Lectura de la entrada con COLA.
  *
  * `rl.question` solo captura la línea siguiente si ya está registrado cuando llega. Con
- * la entrada por tubería (un script, una prueba) el lector emite todas las líneas de
- * golpe, así que entre una pregunta y la siguiente se pierden — y el proceso termina en
+ * la entrada por tubería (un script, una prueba) el reader emite all las líneas de
+ * golpe, así que entre una ask y la siguiente se pierden — y el proceso termina en
  * silencio, con exit 0, sin haber hecho nada. Por eso se acumulan las líneas y se van
  * repartiendo, en vez de pedirlas de una en una.
  *
@@ -123,47 +123,47 @@ function decodeCode (codigo) {
  */
 const tty = !!process.stdin.isTTY
 let rl = null
-const lineas = []      // leídas y aún no pedidas
-const esperando = []   // pedidas y aún no leídas
-let cerrado = false
+const pending = []      // leídas y aún no pedidas
+const waiters = []   // pedidas y aún no leídas
+let closed = false
 
-function lector () {
+function reader () {
   if (rl) return rl
   rl = createInterface({ input: process.stdin, output: process.stdout, terminal: tty })
   rl.on('line', (l) => {
-    const quien = esperando.shift()
-    if (quien) quien(l)
-    else lineas.push(l)
+    const who = waiters.shift()
+    if (who) who(l)
+    else pending.push(l)
   })
   rl.on('close', () => {
-    cerrado = true
-    // Al llegar el final de la entrada, lo que siga esperando recibe cadena vacía en
+    closed = true
+    // Al llegar el final de la entrada, lo que siga waiters recibe cadena vacía en
     // vez de quedarse colgado para siempre.
-    while (esperando.length) esperando.shift()('')
+    while (waiters.length) waiters.shift()('')
   })
   return rl
 }
 
-function pregunta (texto, oculto = false) {
-  lector()
-  if (texto) process.stdout.write(texto)
-  if (lineas.length) return Promise.resolve(lineas.shift())
-  if (cerrado) return Promise.resolve('')
+function ask (text, oculto = false) {
+  reader()
+  if (text) process.stdout.write(text)
+  if (pending.length) return Promise.resolve(pending.shift())
+  if (closed) return Promise.resolve('')
 
   if (oculto && tty) {
     // En una terminal de verdad, no repetir lo que se teclea.
     const escribir = rl._writeToOutput
     rl._writeToOutput = function (s) { if (s.includes('\n')) process.stdout.write('\n') }
-    return new Promise(resolve => esperando.push(v => {
+    return new Promise(resolve => waiters.push(v => {
       rl._writeToOutput = escribir
       resolve(v)
     }))
   }
-  return new Promise(resolve => esperando.push(resolve))
+  return new Promise(resolve => waiters.push(resolve))
 }
 
-/** Se llama al terminar: sin esto el proceso se queda esperando más entrada. */
-function cerrarLector () {
+/** Se llama al terminar: sin esto el proceso se queda waiters más entrada. */
+function closeReader () {
   rl?.close()
   rl = null
 }
@@ -176,8 +176,8 @@ async function abrirBoveda () {
   if (!meta) {
     console.log('No hay ninguna bóveda todavía. Elige la contraseña que la abrirá.')
     console.log('No se puede recuperar: si la pierdes, pierdes la bóveda.\n')
-    const p1 = await pregunta('Contraseña: ', true)
-    const p2 = await pregunta('Otra vez: ', true)
+    const p1 = await ask('Contraseña: ', true)
+    const p2 = await ask('Otra vez: ', true)
     if (!p1 || p1 !== p2) { console.error('No coinciden.'); process.exit(1) }
     const salt = makeSalt()
     const key = await deriveKeyFromPassword(p1, salt)
@@ -189,7 +189,7 @@ async function abrirBoveda () {
   }
 
   for (let i = 0; i < 3; i++) {
-    const p = await pregunta('Contraseña de la bóveda: ', true)
+    const p = await ask('Contraseña de la bóveda: ', true)
     const key = await deriveKeyFromPassword(p, fromBase64(meta.salt))
     if (await checkVerifier(key, meta.verifier)) { vault.unlock(key); return vault }
     console.error('Esa contraseña no abre la bóveda.')
@@ -197,29 +197,30 @@ async function abrirBoveda () {
   process.exit(1)
 }
 
-// --- aparatos enlazados ------------------------------------------------------
+// --- devices enlazados ------------------------------------------------------
 
-async function aparatos () { return (await store.get('devices')) || [] }
+/** La lista de aparatos autorizados. */
+async function listDevices () { return (await store.get('devices')) || [] }
 
-async function autorizar ({ sign, enc }, label) {
-  const list = await aparatos()
+async function authorise ({ sign, enc }, label) {
+  const list = await listDevices()
   const i = list.findIndex(d => samePubkey(d.pubkey, sign))
-  const nuevo = { pubkey: sign, encPub: enc, label: label || 'aparato', ts: Date.now() }
-  if (i >= 0) list[i] = { ...list[i], ...nuevo }
-  else list.push(nuevo)
+  const fresh = { pubkey: sign, encPub: enc, label: label || 'aparato', ts: Date.now() }
+  if (i >= 0) list[i] = { ...list[i], ...fresh }
+  else list.push(fresh)
   await store.set('devices', list)
 }
 
 // --- editar la bóveda --------------------------------------------------------
 
 /** Busca por id, o por título/sitio si no es un id. Exige que no haya ambigüedad. */
-async function buscarUna (vault, ref) {
-  const todas = await vault.list()
-  const exacta = todas.find(e => e.id === ref)
-  if (exacta) return exacta
+async function findOne (vault, ref) {
+  const all = await vault.list()
+  const exact = all.find(e => e.id === ref)
+  if (exact) return exact
 
   const q = String(ref || '').toLowerCase()
-  const hits = todas.filter(e =>
+  const hits = all.filter(e =>
     e.title.toLowerCase().includes(q) || (e.sites || []).some(s => s.includes(q)))
 
   if (!hits.length) throw new Error(`no encuentro «${ref}»`)
@@ -232,22 +233,22 @@ async function buscarUna (vault, ref) {
   return hits[0]
 }
 
-async function pedirCampos (actuales = []) {
-  const campos = [...actuales]
+async function askFields (actuales = []) {
+  const fields = [...actuales]
   console.log('\nCampos sueltos (correo, teléfono, cédula, lo que sea). Enter vacío para terminar.')
   console.log('Clases para autorrellenar: %s\n', KINDS.join(', '))
   for (;;) {
-    const label = (await pregunta('  Nombre del campo: ')).trim()
+    const label = (await ask('  Nombre del campo: ')).trim()
     if (!label) break
-    const value = await pregunta('  Valor: ', true)
-    const kind = (await pregunta('  Clase (Enter si ninguna): ')).trim()
-    campos.push({ label, value, kind: kind || undefined })
+    const value = await ask('  Valor: ', true)
+    const kind = (await ask('  Clase (Enter si ninguna): ')).trim()
+    fields.push({ label, value, kind: kind || undefined })
   }
-  return normalizeFields(campos)
+  return normalizeFields(fields)
 }
 
-async function pedirSecreto (actual) {
-  const p = await pregunta(actual ? '  Contraseña (Enter deja la actual, «g» genera): ' : '  Contraseña («g» genera): ', true)
+async function askSecret (actual) {
+  const p = await ask(actual ? '  Contraseña (Enter deja la actual, «g» genera): ' : '  Contraseña («g» genera): ', true)
   if (!p) return actual ?? ''
   if (p === 'g') {
     const nueva = generatePassword({ length: 20 })
@@ -260,12 +261,12 @@ async function pedirSecreto (actual) {
 async function add () {
   const vault = await abrirBoveda()
   console.log('\nEntrada nueva. Deja los sitios vacíos si sirve en cualquier parte.\n')
-  const title = (await pregunta('  Nombre: ')).trim()
-  const sites = (await pregunta('  Sitios (separados por coma): ')).split(',').map(x => x.trim()).filter(Boolean)
-  const username = (await pregunta('  Usuario: ')).trim()
-  const secret = await pedirSecreto(null)
-  const totp = (await pregunta('  Código de dos pasos (otpauth:// o el secreto): ')).trim()
-  const fields = await pedirCampos()
+  const title = (await ask('  Nombre: ')).trim()
+  const sites = (await ask('  Sitios (separados por coma): ')).split(',').map(x => x.trim()).filter(Boolean)
+  const username = (await ask('  Usuario: ')).trim()
+  const secret = await askSecret(null)
+  const totp = (await ask('  Código de dos pasos (otpauth:// o el secreto): ')).trim()
+  const fields = await askFields()
 
   const r = await vault.put({
     type: secret || username ? 'login' : 'data',
@@ -277,21 +278,21 @@ async function add () {
 async function edit (ref) {
   if (!ref) { console.error('Falta qué entrada editar.'); process.exit(1) }
   const vault = await abrirBoveda()
-  const encontrada = await buscarUna(vault, ref)
-  const e = await vault.get(encontrada.id)
-  const campos = e.fields ? JSON.parse(e.fields) : []
+  const found = await findOne(vault, ref)
+  const e = await vault.get(found.id)
+  const current = e.fields ? JSON.parse(e.fields) : []
 
   console.log('\nEditando «%s». Enter deja el valor actual.\n', e.title)
-  const title = (await pregunta(`  Nombre [${e.title}]: `)).trim() || e.title
-  const sitesRaw = (await pregunta(`  Sitios [${(e.sites || []).join(', ') || 'cualquiera'}]: `)).trim()
+  const title = (await ask(`  Nombre [${e.title}]: `)).trim() || e.title
+  const sitesRaw = (await ask(`  Sitios [${(e.sites || []).join(', ') || 'cualquiera'}]: `)).trim()
   const sites = sitesRaw ? sitesRaw.split(',').map(x => x.trim()).filter(Boolean) : e.sites
-  const username = (await pregunta(`  Usuario [${e.username || '—'}]: `)).trim() || e.username
-  const secret = await pedirSecreto(e.secret)
-  const totp = (await pregunta(`  Código de dos pasos [${e.totp ? 'puesto' : '—'}]: `)).trim() || e.totp
+  const username = (await ask(`  Usuario [${e.username || '—'}]: `)).trim() || e.username
+  const secret = await askSecret(e.secret)
+  const totp = (await ask(`  Código de dos pasos [${e.totp ? 'puesto' : '—'}]: `)).trim() || e.totp
 
-  console.log('\n  Campos actuales: %s', campos.map(f => f.label).join(', ') || '(ninguno)')
-  const tocar = await pregunta('  ¿Añadir campos? [s/N] ')
-  const fields = /^s(i|í)?$/i.test(tocar.trim()) ? await pedirCampos(campos) : campos
+  console.log('\n  Campos actuales: %s', current.map(f => f.label).join(', ') || '(ninguno)')
+  const touch = await ask('  ¿Añadir campos? [s/N] ')
+  const fields = /^s(i|í)?$/i.test(touch.trim()) ? await askFields(current) : current
 
   await vault.put({ id: e.id, type: e.type, title, sites, username, secret, totp, fields })
   console.log('\nGuardada: %s', title)
@@ -299,27 +300,27 @@ async function edit (ref) {
 
 async function ls (filtro) {
   const vault = await abrirBoveda()
-  const todas = await vault.list()
+  const all = await vault.list()
   const q = (filtro || '').toLowerCase()
   const hits = q
-    ? todas.filter(e => e.title.toLowerCase().includes(q) || (e.sites || []).some(s => s.includes(q)))
-    : todas
+    ? all.filter(e => e.title.toLowerCase().includes(q) || (e.sites || []).some(s => s.includes(q)))
+    : all
 
-  if (!hits.length) return console.log(todas.length ? 'Nada coincide.' : 'La bóveda está vacía.')
+  if (!hits.length) return console.log(all.length ? 'Nada coincide.' : 'La bóveda está vacía.')
   for (const e of hits.sort((a, b) => a.title.localeCompare(b.title))) {
     console.log('%s  %s  %s%s%s',
       e.id.slice(0, 8),
       e.title.padEnd(24).slice(0, 24),
       (e.sites?.join(' ') || 'cualquier sitio').padEnd(28).slice(0, 28),
       e.hasTotp ? ' 2FA' : '',
-      e.hasFields ? ' +campos' : '')
+      e.hasFields ? ' +fields' : '')
   }
 }
 
 async function show (ref) {
   if (!ref) { console.error('Falta qué entrada mostrar.'); process.exit(1) }
   const vault = await abrirBoveda()
-  const e = await vault.get((await buscarUna(vault, ref)).id)
+  const e = await vault.get((await findOne(vault, ref)).id)
 
   console.log('\n%s', e.title)
   if (e.sites?.length) console.log('  sitios:    %s', e.sites.join(', '))
@@ -339,15 +340,15 @@ async function show (ref) {
 async function rm (ref) {
   if (!ref) { console.error('Falta qué entrada quitar.'); process.exit(1) }
   const vault = await abrirBoveda()
-  const e = await buscarUna(vault, ref)
-  const r = await pregunta(`¿Quitar «${e.title}»? No se puede deshacer. [s/N] `)
+  const e = await findOne(vault, ref)
+  const r = await ask(`¿Quitar «${e.title}»? No se puede deshacer. [s/N] `)
   if (!/^s(i|í)?$/i.test(r.trim())) return console.log('Se queda.')
   await vault.remove(e.id)
   console.log('Quitada.')
 }
 
-async function gen (largo) {
-  console.log(generatePassword({ length: Number(largo) || 20 }))
+async function gen (length) {
+  console.log(generatePassword({ length: Number(length) || 20 }))
 }
 
 // --- órdenes -----------------------------------------------------------------
@@ -370,8 +371,8 @@ async function serve () {
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
   await client.identify({ data, signature: await signData(data) })
 
-  let conocidos = await aparatos()
-  const refrescar = async () => { conocidos = await aparatos() }
+  let known = await listDevices()
+  const refresh = async () => { known = await listDevices() }
 
   const responder = new VaultResponder({
     client,
@@ -379,37 +380,37 @@ async function serve () {
     // Por LLAVE, no por cadena: la misma pubkey se serializa distinto según quién la
     // escriba, y comparar el JSON hace que un aparato autorizado salga «denegado» sin
     // que se vea por qué — los dos valores parecen iguales al mirarlos.
-    isAllowed: pub => conocidos.some(d => samePubkey(d.pubkey, pub)),
-    encPubOf: pub => conocidos.find(d => samePubkey(d.pubkey, pub))?.encPub || null,
+    isAllowed: pub => known.some(d => samePubkey(d.pubkey, pub)),
+    encPubOf: pub => known.find(d => samePubkey(d.pubkey, pub))?.encPub || null,
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
     // encendida.
     needsApproval: op => op === 'get',
     approve: async ({ pubkey, op, payload, admin }) => {
-      const quien = (await aparatos()).find(d => samePubkey(d.pubkey, pubkey))
-      const nombre = quien?.label || 'un aparato'
-      // Administrar se pregunta SIEMPRE y por separado: retirar un aparato desde otro
+      const who = (await listDevices()).find(d => samePubkey(d.pubkey, pubkey))
+      const name = who?.label || 'un aparato'
+      // Administrar se ask SIEMPRE y por separado: retirar un aparato desde otro
       // es tan delicado como entregar una contraseña, y en el otro sentido.
-      const texto = admin
+      const text = admin
         ? (op === 'unlink'
-            ? `\n«${nombre}» quiere RETIRAR un aparato. ¿Le dejas? [s/N] `
-            : `\n«${nombre}» quiere ver la lista de aparatos. ¿Le dejas? [s/N] `)
-        : `\n¿Dejar que «${nombre}» pida credenciales?\n` +
+            ? `\n«${name}» quiere RETIRAR un aparato. ¿Le dejas? [s/N] `
+            : `\n«${name}» quiere ver la lista de devices. ¿Le dejas? [s/N] `)
+        : `\n¿Dejar que «${name}» pida credenciales?\n` +
           `Vale mientras esta bóveda siga encendida. [s/N] `
-      const r = await pregunta(texto)
+      const r = await ask(text)
       return /^s(i|í)?$/i.test(r.trim())
     },
     // La consola web administra APARATOS, nunca credenciales: listar la bóveda sigue
-    // siendo de quien tiene la llave.
+    // siendo de who tiene la llave.
     admin: {
       async devices () {
-        return (await aparatos()).map(d => ({ pubkey: d.pubkey, label: d.label, ts: d.ts }))
+        return (await listDevices()).map(d => ({ pubkey: d.pubkey, label: d.label, ts: d.ts }))
       },
       async unlink (pubkey) {
-        const list = await aparatos()
-        const resto = list.filter(d => !samePubkey(d.pubkey, pubkey))
-        if (resto.length === list.length) return { ok: false }
-        await store.set('devices', resto)
-        await refrescar()
+        const list = await listDevices()
+        const rest = list.filter(d => !samePubkey(d.pubkey, pubkey))
+        if (rest.length === list.length) return { ok: false }
+        await store.set('devices', rest)
+        await refresh()
         return { ok: true }
       },
     },
@@ -422,22 +423,22 @@ async function serve () {
   console.log('\nBóveda escuchando. Al apagarla, los aparatos vuelven a pedir permiso.')
   console.log('\nEnlaza un aparato con este código:\n')
   console.log(encodeCode({ sign: publickey, enc: enc.encPub }))
-  console.log('\nAparatos autorizados:', conocidos.length)
+  console.log('\nAparatos autorizados:', known.length)
 
   // Recarga la lista al vuelo: enlazar un aparato no debe obligar a reiniciar.
-  setInterval(refrescar, 3000)
+  setInterval(refresh, 3000)
 }
 
-async function link (codigo, label) {
-  if (!codigo) { console.error('Falta el código del aparato.'); process.exit(1) }
+async function link (code, label) {
+  if (!code) { console.error('Falta el código del aparato.'); process.exit(1) }
   let c
-  try { c = decodeCode(codigo) } catch { console.error('Ese código no es válido.'); process.exit(1) }
-  await autorizar(c, label)
+  try { c = decodeCode(code) } catch { console.error('Ese código no es válido.'); process.exit(1) }
+  await authorise(c, label)
   console.log('Aparato autorizado:', label || '(sin nombre)')
 }
 
 async function devices () {
-  const list = await aparatos()
+  const list = await listDevices()
   if (!list.length) return console.log('Ningún aparato autorizado.')
   for (const d of list) {
     console.log('%s  %s  %s', new Date(d.ts).toISOString().slice(0, 10), (d.label || '—').padEnd(18), d.pubkey.slice(0, 40) + '…')
@@ -445,14 +446,14 @@ async function devices () {
 }
 
 async function unlink (label) {
-  const list = await aparatos()
+  const list = await listDevices()
   const rest = list.filter(d => d.label !== label && !d.pubkey.startsWith(label))
   if (rest.length === list.length) return console.error('No encuentro ese aparato.')
   await store.set('devices', rest)
   console.log('Aparato retirado. Deja de poder pedir en la siguiente petición.')
 }
 
-async function importar (ruta) {
+async function importFile (ruta) {
   const vault = await abrirBoveda()
   const { format, entries } = importAuto(await readFile(ruta, 'utf8'))
   for (const e of entries) await vault.put(e)
@@ -460,7 +461,7 @@ async function importar (ruta) {
 }
 
 const [orden, ...args] = process.argv.slice(2)
-const ORDENES = { serve, link, devices, unlink, import: importar, add, edit, ls, show, rm, gen }
+const ORDENES = { serve, link, devices, unlink, import: importFile, add, edit, ls, show, rm, gen }
 
 if (!ORDENES[orden]) {
   console.log(`dotrino-passmanager
@@ -471,7 +472,7 @@ if (!ORDENES[orden]) {
     edit <id|nombre>       edita una entrada
     show <id|nombre>       enseña una entrada (con su código de dos pasos)
     rm <id|nombre>         quita una entrada
-    gen [largo]            genera una contraseña
+    gen [largo]             genera una contraseña
     import <archivo>       importa de 1Password, Bitwarden o Chrome
 
   Aparatos
@@ -484,9 +485,9 @@ if (!ORDENES[orden]) {
 }
 
 ORDENES[orden](...args)
-  .then(() => { if (orden !== 'serve') cerrarLector() })
+  .then(() => { if (orden !== 'serve') closeReader() })
   .catch(e => {
-    cerrarLector()
+    closeReader()
     if (e?.message !== 'ambiguo') console.error(e?.message || e)
     process.exit(1)
   })
