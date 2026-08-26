@@ -79,6 +79,7 @@ function renderLink (myCode) {
     window.close()
   }
 
+  const name = el('input', { type: 'text', placeholder: t(lang, 'vaultName') })
   const code = el('input', { type: 'text', placeholder: t(lang, 'linkCode') })
   const err = el('p', { className: 'error', hidden: true })
   const go = el('button', { className: 'primary', textContent: t(lang, 'linkGo') })
@@ -86,7 +87,7 @@ function renderLink (myCode) {
   const submit = async () => {
     if (!code.value.trim()) return
     try {
-      await ask('link', { code: code.value.trim() })
+      await ask('link', { code: code.value.trim(), label: name.value.trim() || null })
       render()
     } catch (e) {
       err.textContent = humanError(e)
@@ -110,11 +111,67 @@ function renderLink (myCode) {
     openVaultBtn,
     el('p', { className: 'hint', textContent: t(lang, 'openVaultHint') }),
     el('p', { className: 'hint', style: 'margin-top:14px', textContent: t(lang, 'orPaste') }),
-    code, err, go,
+    name, code, err, go,
     el('p', { className: 'hint', textContent: t(lang, 'myCode') }),
     mine,
     backBtn,
   )
+}
+
+/**
+ * El selector de perfiles. Igual que en el resto del ecosistema: los perfiles no se ven
+ * entre ellos, se elige uno y lo que ves es lo suyo. Cambiar no es reactivo en ninguna
+ * otra app; aquí sí, porque el popup se vuelve a dibujar entero.
+ */
+function profileBar (s) {
+  const bar = el('div', { className: 'profiles' })
+
+  for (const p of s.profiles) {
+    const activo = p.id === s.active
+    const b = el('button', {
+      className: 'profile' + (activo ? ' on' : ''),
+      textContent: p.label || (p.kind === 'own' ? t(lang, 'thisBrowser') : t(lang, 'aVault')),
+      title: p.kind === 'own' ? t(lang, 'ownVault') : t(lang, 'linkedTo'),
+    })
+    b.setAttribute('aria-pressed', String(activo))
+    b.onclick = async () => {
+      if (activo) return
+      try { await ask('profile-use', { id: p.id }); render() } catch (e) { toast(humanError(e), 'error') }
+    }
+    bar.append(b)
+  }
+
+  const add = el('button', { className: 'profile add', textContent: '+', title: t(lang, 'addProfile') })
+  add.onclick = () => renderAdd(s)
+  bar.append(add)
+  return bar
+}
+
+/** Un perfil más: con su bóveda aquí, o conectando una que ya tienes. */
+function renderAdd (s) {
+  const name = el('input', { type: 'text', placeholder: t(lang, 'profileName') })
+
+  const here = el('button', { className: 'primary', textContent: t(lang, 'addHere') })
+  here.onclick = async () => {
+    try { await ask('profile-add', { label: name.value.trim() || null }); render() } catch (e) { toast(humanError(e), 'error') }
+  }
+
+  const connect = el('button', { className: 'ghost', textContent: t(lang, 'addLinked') })
+  connect.onclick = () => renderLink(s.code)
+
+  const backBtn = el('button', { className: 'ghost', textContent: t(lang, 'back') })
+  backBtn.onclick = render
+
+  view.replaceChildren(
+    el('h2', { textContent: t(lang, 'addProfile') }),
+    name,
+    here,
+    el('p', { className: 'hint', textContent: t(lang, 'addHereHint') }),
+    connect,
+    el('p', { className: 'hint', textContent: t(lang, 'addLinkedHint') }),
+    backBtn,
+  )
+  name.focus()
 }
 
 function entryRow (e, { onFill, onCopy }) {
@@ -132,8 +189,8 @@ function entryRow (e, { onFill, onCopy }) {
 }
 
 async function renderSite (estado0) {
-  const propia = estado0.mode === 'own'
-  // Con la bóveda propia no hay nada que desenlazar; el botón de arriba sobra.
+  const propia = estado0.profile.kind === 'own'
+  // El perfil propio no se «desconecta»: es la bóveda de esta extensión.
   lockBtn.hidden = propia
   lockBtn.textContent = t(lang, 'unlink')
 
@@ -204,16 +261,9 @@ async function renderSite (estado0) {
   // El pie dice DÓNDE están tus contraseñas, y es lo único que distingue las dos vías
   // a ojos del usuario. Quien no enlazó nada no está a medio configurar: está usando la
   // suya, y se le dice así.
-  const pie = el('p', { className: 'hint foot' })
-  if (propia) {
-    const otra = el('button', { className: 'link', textContent: t(lang, 'useOther') })
-    otra.onclick = () => renderLink(estado0.code)
-    pie.append(el('span', { textContent: t(lang, 'ownVault') + ' ' }), otra)
-  } else {
-    pie.textContent = t(lang, 'linkedTo') + ' ' + (estado0.label || '')
-  }
+  const pie = el('p', { className: 'hint foot', textContent: propia ? t(lang, 'ownVault') : t(lang, 'linkedVault') })
 
-  view.replaceChildren(el('h2', { textContent: estado0.label || t(lang, 'onThisSite') }), list, estado, saveHere, pie)
+  view.replaceChildren(profileBar(estado0), el('h2', { textContent: t(lang, 'onThisSite') }), list, estado, saveHere, pie)
 
   try {
     const items = await ask('find', { url })

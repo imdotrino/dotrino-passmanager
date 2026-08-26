@@ -82,3 +82,12 @@ button.link {
   background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
   cursor: pointer; text-decoration: underline;
 }
+
+/* Perfiles: uno activo, los demás a un clic. Como el resto del ecosistema. */
+.profiles { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.profile {
+  padding: 4px 9px; font-size: 11px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--dim); cursor: pointer;
+}
+.profile.on { border-color: var(--accent); color: var(--fg); }
+.profile.add { padding: 4px 8px; font-weight: 700; }

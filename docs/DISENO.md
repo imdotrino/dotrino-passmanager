@@ -253,7 +253,51 @@ Frontera del §4 de `CONVENCIONES-APPS.md`, aplicada:
 | último dominio usado, tab activo | `sessionStorage` | preferencia efímera de UI |
 | bitácora de entregas | **vault** (central) o el aparato que responda | se reconcilia al reconectar |
 
-## 3.3. Nace funcionando: la extensión ES su propia bóveda
+## 3.3. Perfiles: un perfil es una bóveda
+
+> Pedido por el dueño el 2026-08-26: «la extensión puede tener varios profiles, varias
+> bóvedas donde almacena las contraseñas».
+
+Funciona como el multi-perfil del resto del ecosistema: **este navegador puede tener
+varios perfiles y no se ven entre ellos**. Lo que aparece en un sitio es lo del perfil
+ACTIVO, y cambiar de perfil cambia de bóveda entera.
+
+El primero nace solo al instalar y su bóveda es la propia extensión (§3.3.1). A partir de
+ahí se añaden perfiles de dos formas, y las dos SUMAN:
+
+| | Con su bóveda aquí | Conectando una bóveda |
+|---|---|---|
+| Dónde guarda | en este navegador, cifrado | en el daemon, o en una pestaña |
+| Listo | al instante | hay que emparejar |
+| Para qué | separar lo personal del trabajo sin depender de nada | tenerlas en un solo sitio para todos tus navegadores |
+
+**Conectar una bóveda AÑADE un perfil, no reemplaza el que había.** Es lo que antes hacía
+`link` y era lo peor que puede hacer un gestor de contraseñas: dejar de enseñarte lo que
+ya guardaste porque conectaste otra cosa.
+
+Cada perfil lleva lo suyo de punta a punta —su llave de bóveda, su identidad de aparato y
+su par de cifrado—, con las claves separadas en el mismo almacén. Que la **identidad de
+aparato** también sea por perfil no es simetría porque sí: si dos bóvedas vieran el mismo
+aparato podrían cruzar lo que hace uno con lo que hace el otro. Se le inyecta a
+proxy-client con `setKeypairStore`, que además tira su caché — es lo que hace que cambiar
+de perfil cambie de verdad quién eres ante la bóveda.
+
+Las claves del **primer** perfil no llevan sufijo: lo que ya estaba guardado sigue siendo
+suyo sin migrar nada, y solo los nuevos añaden el suyo.
+
+**Lo que este diseño NO recicla, y por qué.** El multi-perfil del ecosistema vive en
+`@dotrino/identity`, y lo natural sería usarlo tal cual. La clase `Identity` no entra: es
+el cliente que monta un **iframe** contra `id.dotrino.com`, y un service worker MV3 no
+tiene DOM — y el worker es justo quien pide credenciales y firma. Lo que sí es
+reutilizable es la **librería** de debajo: `createIdentityCore({ kv, keyStore })` no toca
+DOM y ya trae `listProfiles` / `currentProfile` / `switchProfile` / `createProfile`, más
+la identidad de verdad (llave P por perfil, acta, delegaciones) que haría falta para
+emparejar con el método del ecosistema en vez del código propio. Pide un `kv` síncrono
+estilo `localStorage`, que en el worker se resuelve hidratando `chrome.storage.local` en
+memoria al arrancar. **Es el siguiente paso**, y se lleva por delante la deuda del código
+de 700 caracteres que sigue abajo.
+
+## 3.3.1. Nace funcionando: la extensión ES su propia bóveda
 
 > Pedido por el dueño el 2026-08-26: «antes que emparejar, haz que la extensión sea su
 > propio vault por defecto».
