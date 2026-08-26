@@ -131,3 +131,12 @@ corriendo al otro lado.
 - La revisión de una extensión de credenciales es **lenta y en cada actualización**.
 - Si piden aclaración sobre `world: "MAIN"`, la respuesta es la de la tabla: sin eso no
   hay passkeys en escritorio, y no es un permiso sino una declaración del manifiesto.
+
+## Cuidado con la caché al cambiar la web
+
+`pass.dotrino.com` no tiene build, así que los archivos no llevan hash en el nombre y
+Pages los sirve con `max-age=14400` — **cuatro horas**. Un cambio en `vault.js` está en
+el origen enseguida pero no se ve hasta que caduca el borde.
+
+Por eso los enlaces llevan `?v=N` a mano: **hay que subirlo al tocar el archivo**. Para
+comprobar el origen sin esperar: `curl "https://pass.dotrino.com/vault.js?v=$(date +%s)"`.
