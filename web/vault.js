@@ -185,13 +185,20 @@ render()
   input.onkeydown = (e) => { if (e.key === 'Enter') boton.click() }
 
   const code = await myCode().catch(() => null)
+
+  // Sin código no se puede autorizar la consola en la bóveda, así que se dice POR QUÉ.
+  // Un guion deja al usuario mirando la pantalla sin saber qué hacer.
+  const codeNode = code
+    ? el('code', { className: 'meta', textContent: code, style: 'word-break:break-all;font-size:11px' })
+    : el('p', { className: 'err', textContent: t('noCode') })
+
   app.replaceChildren(
     el('h2', { textContent: t('linkTitle') }),
     el('p', { className: 'warn', textContent: t('linkHint') }),
     el('div', { className: 'row' }, [input, boton]),
     error,
     el('p', { className: 'loading', textContent: t('myCode') }),
-    el('code', { className: 'meta', textContent: code || '—', style: 'word-break:break-all;font-size:11px' }),
+    codeNode,
   )
 }
 
