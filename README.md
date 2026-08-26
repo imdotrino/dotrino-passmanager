@@ -9,7 +9,9 @@ pregunta por una credencial concreta y recibe esa sola; quién responde es el va
 del PC, el teléfono (con huella) o, como último recurso, una caché local de solo
 lectura.
 
-**Estado: paso 1 en marcha.** Ver [`docs/DISENO.md`](./docs/DISENO.md).
+**Estado: usable de punta a punta.** La bóveda guarda, genera e importa; la extensión
+pide de a una por el proxio y nada viaja en claro. Ver
+[`docs/DISENO.md`](./docs/DISENO.md).
 
 | | | |
 |---|---|---|

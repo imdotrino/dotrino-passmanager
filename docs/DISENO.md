@@ -1,11 +1,14 @@
 # Diseño — `dotrino-passmanager` (gestor de contraseñas del ecosistema)
 
-> **Estado:** **pasos 1 y 2 en marcha** (2026-08-25). La extensión **ya no guarda la
-> bóveda**: pide de a una por el proxio, y responde `bin/passmanager.js serve`.
-> Verificado E2E contra `proxy.dotrino.com`. 28 tests verdes. Landing en vivo en
-> `pass.dotrino.com`. Pendiente: que atienda el vault del ecosistema (con sus cajones
-> y su bitácora), el teléfono (§2.1), npm y la Chrome Web Store. La consola web sigue
-> esperando (§6.2).
+> **Estado (2026-08-25): usable de punta a punta.** La bóveda (`bin/`) crea, edita,
+> genera e importa, y atiende peticiones por el proxio; la extensión pide de a una y
+> **no guarda nada**; el contenido va **sellado** y lo que llega en claro se rechaza.
+> 56 tests verdes y E2E verificado contra `proxy.dotrino.com`. Landing en vivo en
+> `pass.dotrino.com`.
+>
+> **Pendiente:** que atienda el vault del ecosistema (con sus cajones y su bitácora),
+> el teléfono (§2.1), las passkeys (§7), la consola web (§6.2), y publicar en npm y en
+> la Chrome Web Store.
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).
