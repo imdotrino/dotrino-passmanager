@@ -219,12 +219,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const op = OPS[msg?.op]
   if (!op) { sendResponse({ error: { code: 'unknown-op' } }); return false }
 
-  // Una página solo puede preguntar qué hay para su sitio y pedir una credencial.
-  // Nunca enlazar, desenlazar ni escribir: si la página que tienes delante pudiera
+  // Una PÁGINA solo puede preguntar qué hay para su sitio y pedir una credencial;
+  // nunca enlazar, desenlazar ni escribir. Si la página que tienes delante pudiera
   // cambiar a qué bóveda se le pide, podría apuntar la extensión a la suya.
-  // El puente de WebAuthn SÍ viene de una pestaña: es su sitio natural. Lo que no
-  // puede una página es enlazar, desenlazar ni escribir a mano en la bóveda.
-  if (sender.tab && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get'].includes(msg.op)) {
+  //
+  // La señal NO es `sender.tab`: las páginas de la propia extensión también corren en
+  // una pestaña cuando se abren así (`chrome-extension://<id>/src/popup.html`), y con
+  // esa comprobación el popup abierto en pestaña no podía ni enlazar. Lo que distingue
+  // a una página ajena es su ORIGEN.
+  const deLaExtension = (sender.origin || sender.url || '').startsWith(`chrome-extension://${chrome.runtime.id}`)
+  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

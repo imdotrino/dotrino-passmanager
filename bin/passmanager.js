@@ -25,6 +25,7 @@ import {
 import { importAuto } from '../lib/src/import.js'
 import { generatePassword } from '../lib/src/generate.js'
 import { normalizeFields, KINDS } from '../lib/src/fields.js'
+import { samePubkey } from '../lib/src/pubkey.js'
 import { totpNow } from '../lib/src/totp.js'
 
 const DIR = join(homedir(), '.dotrino', 'passmanager')
@@ -68,7 +69,11 @@ setKeypairStore({
       publicJwk: publicJwk || await crypto.subtle.exportKey('jwk', publicKey),
     })
   },
-})
+// `extractable: true` porque este almacén SERIALIZA a disco: exportar una llave no
+// extraíble lanza, y sin esto la identidad no sobrevive al reinicio. La bóveda
+// cambiaría de código en cada arranque y los aparatos ya enlazados dejarían de
+// reconocerla — un fallo que solo se ve al reiniciar, o sea tarde.
+}, { extractable: true })
 
 /**
  * Par de CIFRADO de esta bóveda, distinto del de firma. El de firma dice quién soy al
@@ -198,7 +203,7 @@ async function aparatos () { return (await store.get('devices')) || [] }
 
 async function autorizar ({ sign, enc }, label) {
   const list = await aparatos()
-  const i = list.findIndex(d => d.pubkey === sign)
+  const i = list.findIndex(d => samePubkey(d.pubkey, sign))
   const nuevo = { pubkey: sign, encPub: enc, label: label || 'aparato', ts: Date.now() }
   if (i >= 0) list[i] = { ...list[i], ...nuevo }
   else list.push(nuevo)
@@ -371,13 +376,16 @@ async function serve () {
   const responder = new VaultResponder({
     client,
     vault,
-    isAllowed: pub => conocidos.some(d => d.pubkey === pub),
-    encPubOf: pub => conocidos.find(d => d.pubkey === pub)?.encPub || null,
+    // Por LLAVE, no por cadena: la misma pubkey se serializa distinto según quién la
+    // escriba, y comparar el JSON hace que un aparato autorizado salga «denegado» sin
+    // que se vea por qué — los dos valores parecen iguales al mirarlos.
+    isAllowed: pub => conocidos.some(d => samePubkey(d.pubkey, pub)),
+    encPubOf: pub => conocidos.find(d => samePubkey(d.pubkey, pub))?.encPub || null,
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
     // encendida.
     needsApproval: op => op === 'get',
     approve: async ({ pubkey, op, payload, admin }) => {
-      const quien = (await aparatos()).find(d => d.pubkey === pubkey)
+      const quien = (await aparatos()).find(d => samePubkey(d.pubkey, pubkey))
       const nombre = quien?.label || 'un aparato'
       // Administrar se pregunta SIEMPRE y por separado: retirar un aparato desde otro
       // es tan delicado como entregar una contraseña, y en el otro sentido.
@@ -398,7 +406,7 @@ async function serve () {
       },
       async unlink (pubkey) {
         const list = await aparatos()
-        const resto = list.filter(d => d.pubkey !== pubkey)
+        const resto = list.filter(d => !samePubkey(d.pubkey, pubkey))
         if (resto.length === list.length) return { ok: false }
         await store.set('devices', resto)
         await refrescar()
