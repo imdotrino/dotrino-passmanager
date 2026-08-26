@@ -115,12 +115,18 @@ Hecho desde aquí:
 - [x] nombre y resumen: salen del paquete vía `_locales`, así que la tienda los muestra
       en el idioma de quien mira
 
-Falta, y son **dos minutos a mano**:
+Falta, y son **dos minutos a mano**. Los tres campos de imagen hay que soltarlos
+encima: la UI de Google no acepta un archivo asignado por automatización — probado con
+el selector nativo, con clic en la zona, con el input directo y con un archivo generado
+en la propia página; en todos, `input.files` vuelve a cero.
 
-- [ ] **arrastrar las capturas** a «Global screenshots» — están en
-      `store/capturas/1-popup.jpg` y `2-marcador.jpg`, ya en 1280×800 y sin canal alfa.
-      La UI de Google no acepta el archivo inyectado por automatización: hay que soltarlo
-      encima. Es lo único que impide enviar a revisión.
+| Campo | Archivo, ya en el formato que exige |
+|---|---|
+| **Store icon** (128×128) | `store/capturas/store-icon-128.png` |
+| **Localized screenshots** | `store/capturas/1-popup.jpg`, `2-marcador.jpg` |
+| **Global screenshots** | las mismas dos |
+
+Todas sin canal alfa: la tienda lo rechaza y Chromium captura con él.
 - [ ] repasar la pestaña **Privacy** (declaración de uso de datos: «información de
       autenticación», recogida sí, **no** vendida ni cedida)
 - [ ] pulsar **Submit for review**
