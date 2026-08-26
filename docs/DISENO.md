@@ -60,6 +60,30 @@ Esto es el patrón del ecosistema —el aparato cumple el rol cuando no hay piez
 dedicada— aplicado a las contraseñas. **Ninguna configuración exige un daemon ni un
 VPS encendido**, que es regla dura de `CLAUDE.md`.
 
+### 2.0. La aprobación es del APARATO, no de cada credencial
+
+> Decidido por el dueño el 2026-08-25.
+
+Se pide **una vez** y vale para lo que ese aparato pida después. Dura mientras la
+bóveda siga encendida: apagarla la retira, y `revokeApproval` la retira sin apagar
+nada. Es el mismo modelo que `pair --approval` del vault — una por arranque, sin
+ventana de tiempo que nadie va a vigilar.
+
+**No se ata a la conexión**, y es deliberado: un service worker se duerme cada poco y
+reconecta constantemente, así que «por conexión» sería pedir el dedo todo el rato
+hasta que el usuario aprobara sin mirar. Lo que el usuario apaga cuando quiere cortar
+es la bóveda, así que es la bóveda la que manda.
+
+Dos detalles que evitan que se degrade:
+
+- **Una negativa no queda recordada como aprobación**: decir que no deja al aparato
+  como estaba, y la siguiente vuelve a preguntar.
+- **Dos peticiones a la vez producen UN aviso**, no dos. Dos pestañas abriendo el
+  mismo sitio no deben hacer sonar el teléfono dos veces.
+
+Lo que sigue preguntándose siempre es lo marcado **`alwaysAsk`** por la bóveda (§3.2):
+la del banco, la del correo.
+
 ### 2.1. Por qué el teléfono es el caso normal, no el PC
 
 El PC se apaga; el teléfono no. Y el teléfono tiene almacenamiento respaldado por

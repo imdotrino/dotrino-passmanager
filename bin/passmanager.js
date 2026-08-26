@@ -141,11 +141,16 @@ async function serve () {
     client,
     vault,
     isAllowed: pub => permitidos.has(pub),
-    // Cada credencial que sale se confirma aquí. Sin dedo no sale.
+    // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
+    // encendida. Lo marcado `alwaysAsk` se pregunta igual, cada vez.
     needsApproval: op => op === 'get',
-    approve: async ({ payload }) => {
-      const e = await vault.get(payload.id).catch(() => null)
-      const r = await pregunta(`\n¿Entregar «${e?.title || payload.id}»? [s/N] `)
+    approve: async ({ pubkey, entry }) => {
+      const quien = (await aparatos()).find(d => d.pubkey === pubkey)
+      const texto = entry?.alwaysAsk
+        ? `\n¿Entregar «${entry.title}»? (esta se pregunta siempre) [s/N] `
+        : `\n¿Dejar que «${quien?.label || 'un aparato'}» pida credenciales?\n` +
+          `Vale mientras esta bóveda siga encendida. [s/N] `
+      const r = await pregunta(texto)
       return /^s(i|í)?$/i.test(r.trim())
     },
     onRequest: r => {
@@ -154,7 +159,8 @@ async function serve () {
   })
   responder.start()
 
-  console.log('\nBóveda escuchando. Enlaza un aparato con este código:\n')
+  console.log('\nBóveda escuchando. Al apagarla, los aparatos vuelven a pedir permiso.')
+  console.log('\nEnlaza un aparato con este código:\n')
   console.log(Buffer.from(publickey).toString('base64url'))
   console.log('\nAparatos autorizados:', permitidos.size)
 
