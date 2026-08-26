@@ -23,6 +23,9 @@ import {
   makeSalt, deriveKeyFromPassword, makeVerifier, checkVerifier, toBase64, fromBase64,
 } from '../lib/src/crypto.js'
 import { importAuto } from '../lib/src/import.js'
+import { generatePassword } from '../lib/src/generate.js'
+import { normalizeFields, KINDS } from '../lib/src/fields.js'
+import { totpNow } from '../lib/src/totp.js'
 
 const DIR = join(homedir(), '.dotrino', 'passmanager')
 const FILE = join(DIR, 'vault.json')
@@ -102,16 +105,64 @@ function decodeCode (codigo) {
 
 // --- contraseña maestra ------------------------------------------------------
 
-function pregunta (texto, oculto = false) {
-  return new Promise(resolve => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true })
-    if (oculto) {
-      const out = process.stdout
-      rl._writeToOutput = function (s) { if (s.includes('\n')) out.write('\n') }
-    }
-    rl.question(texto, a => { rl.close(); resolve(a) })
+/**
+ * Lectura de la entrada con COLA.
+ *
+ * `rl.question` solo captura la línea siguiente si ya está registrado cuando llega. Con
+ * la entrada por tubería (un script, una prueba) el lector emite todas las líneas de
+ * golpe, así que entre una pregunta y la siguiente se pierden — y el proceso termina en
+ * silencio, con exit 0, sin haber hecho nada. Por eso se acumulan las líneas y se van
+ * repartiendo, en vez de pedirlas de una en una.
+ *
+ * `terminal` sigue a stdin: ocultar lo escrito solo tiene sentido en una terminal.
+ */
+const tty = !!process.stdin.isTTY
+let rl = null
+const lineas = []      // leídas y aún no pedidas
+const esperando = []   // pedidas y aún no leídas
+let cerrado = false
+
+function lector () {
+  if (rl) return rl
+  rl = createInterface({ input: process.stdin, output: process.stdout, terminal: tty })
+  rl.on('line', (l) => {
+    const quien = esperando.shift()
+    if (quien) quien(l)
+    else lineas.push(l)
   })
+  rl.on('close', () => {
+    cerrado = true
+    // Al llegar el final de la entrada, lo que siga esperando recibe cadena vacía en
+    // vez de quedarse colgado para siempre.
+    while (esperando.length) esperando.shift()('')
+  })
+  return rl
 }
+
+function pregunta (texto, oculto = false) {
+  lector()
+  if (texto) process.stdout.write(texto)
+  if (lineas.length) return Promise.resolve(lineas.shift())
+  if (cerrado) return Promise.resolve('')
+
+  if (oculto && tty) {
+    // En una terminal de verdad, no repetir lo que se teclea.
+    const escribir = rl._writeToOutput
+    rl._writeToOutput = function (s) { if (s.includes('\n')) process.stdout.write('\n') }
+    return new Promise(resolve => esperando.push(v => {
+      rl._writeToOutput = escribir
+      resolve(v)
+    }))
+  }
+  return new Promise(resolve => esperando.push(resolve))
+}
+
+/** Se llama al terminar: sin esto el proceso se queda esperando más entrada. */
+function cerrarLector () {
+  rl?.close()
+  rl = null
+}
+
 
 async function abrirBoveda () {
   const vault = new LocalVault(store)
@@ -152,6 +203,146 @@ async function autorizar ({ sign, enc }, label) {
   if (i >= 0) list[i] = { ...list[i], ...nuevo }
   else list.push(nuevo)
   await store.set('devices', list)
+}
+
+// --- editar la bóveda --------------------------------------------------------
+
+/** Busca por id, o por título/sitio si no es un id. Exige que no haya ambigüedad. */
+async function buscarUna (vault, ref) {
+  const todas = await vault.list()
+  const exacta = todas.find(e => e.id === ref)
+  if (exacta) return exacta
+
+  const q = String(ref || '').toLowerCase()
+  const hits = todas.filter(e =>
+    e.title.toLowerCase().includes(q) || (e.sites || []).some(s => s.includes(q)))
+
+  if (!hits.length) throw new Error(`no encuentro «${ref}»`)
+  if (hits.length > 1) {
+    // Elegir una al azar cuando el usuario fue ambiguo sería la peor forma de acertar.
+    console.error('Hay varias que coinciden. Precisa el título o usa el id:')
+    for (const h of hits) console.error('  %s  %s', h.id, h.title)
+    throw new Error('ambiguo')
+  }
+  return hits[0]
+}
+
+async function pedirCampos (actuales = []) {
+  const campos = [...actuales]
+  console.log('\nCampos sueltos (correo, teléfono, cédula, lo que sea). Enter vacío para terminar.')
+  console.log('Clases para autorrellenar: %s\n', KINDS.join(', '))
+  for (;;) {
+    const label = (await pregunta('  Nombre del campo: ')).trim()
+    if (!label) break
+    const value = await pregunta('  Valor: ', true)
+    const kind = (await pregunta('  Clase (Enter si ninguna): ')).trim()
+    campos.push({ label, value, kind: kind || undefined })
+  }
+  return normalizeFields(campos)
+}
+
+async function pedirSecreto (actual) {
+  const p = await pregunta(actual ? '  Contraseña (Enter deja la actual, «g» genera): ' : '  Contraseña («g» genera): ', true)
+  if (!p) return actual ?? ''
+  if (p === 'g') {
+    const nueva = generatePassword({ length: 20 })
+    console.log('  Generada:', nueva)
+    return nueva
+  }
+  return p
+}
+
+async function add () {
+  const vault = await abrirBoveda()
+  console.log('\nEntrada nueva. Deja los sitios vacíos si sirve en cualquier parte.\n')
+  const title = (await pregunta('  Nombre: ')).trim()
+  const sites = (await pregunta('  Sitios (separados por coma): ')).split(',').map(x => x.trim()).filter(Boolean)
+  const username = (await pregunta('  Usuario: ')).trim()
+  const secret = await pedirSecreto(null)
+  const totp = (await pregunta('  Código de dos pasos (otpauth:// o el secreto): ')).trim()
+  const fields = await pedirCampos()
+
+  const r = await vault.put({
+    type: secret || username ? 'login' : 'data',
+    title, sites, username, secret, totp, fields,
+  })
+  console.log('\nGuardada: %s  (%s)', r.title, r.id)
+}
+
+async function edit (ref) {
+  if (!ref) { console.error('Falta qué entrada editar.'); process.exit(1) }
+  const vault = await abrirBoveda()
+  const encontrada = await buscarUna(vault, ref)
+  const e = await vault.get(encontrada.id)
+  const campos = e.fields ? JSON.parse(e.fields) : []
+
+  console.log('\nEditando «%s». Enter deja el valor actual.\n', e.title)
+  const title = (await pregunta(`  Nombre [${e.title}]: `)).trim() || e.title
+  const sitesRaw = (await pregunta(`  Sitios [${(e.sites || []).join(', ') || 'cualquiera'}]: `)).trim()
+  const sites = sitesRaw ? sitesRaw.split(',').map(x => x.trim()).filter(Boolean) : e.sites
+  const username = (await pregunta(`  Usuario [${e.username || '—'}]: `)).trim() || e.username
+  const secret = await pedirSecreto(e.secret)
+  const totp = (await pregunta(`  Código de dos pasos [${e.totp ? 'puesto' : '—'}]: `)).trim() || e.totp
+
+  console.log('\n  Campos actuales: %s', campos.map(f => f.label).join(', ') || '(ninguno)')
+  const tocar = await pregunta('  ¿Añadir campos? [s/N] ')
+  const fields = /^s(i|í)?$/i.test(tocar.trim()) ? await pedirCampos(campos) : campos
+
+  await vault.put({ id: e.id, type: e.type, title, sites, username, secret, totp, fields })
+  console.log('\nGuardada: %s', title)
+}
+
+async function ls (filtro) {
+  const vault = await abrirBoveda()
+  const todas = await vault.list()
+  const q = (filtro || '').toLowerCase()
+  const hits = q
+    ? todas.filter(e => e.title.toLowerCase().includes(q) || (e.sites || []).some(s => s.includes(q)))
+    : todas
+
+  if (!hits.length) return console.log(todas.length ? 'Nada coincide.' : 'La bóveda está vacía.')
+  for (const e of hits.sort((a, b) => a.title.localeCompare(b.title))) {
+    console.log('%s  %s  %s%s%s',
+      e.id.slice(0, 8),
+      e.title.padEnd(24).slice(0, 24),
+      (e.sites?.join(' ') || 'cualquier sitio').padEnd(28).slice(0, 28),
+      e.hasTotp ? ' 2FA' : '',
+      e.hasFields ? ' +campos' : '')
+  }
+}
+
+async function show (ref) {
+  if (!ref) { console.error('Falta qué entrada mostrar.'); process.exit(1) }
+  const vault = await abrirBoveda()
+  const e = await vault.get((await buscarUna(vault, ref)).id)
+
+  console.log('\n%s', e.title)
+  if (e.sites?.length) console.log('  sitios:    %s', e.sites.join(', '))
+  else console.log('  sitios:    (cualquiera)')
+  if (e.username) console.log('  usuario:   %s', e.username)
+  if (e.secret) console.log('  clave:     %s', e.secret)
+  if (e.totp) {
+    const { code, expiresIn } = await totpNow(e.totp)
+    console.log('  2FA:       %s  (%ss)', code, expiresIn)
+  }
+  for (const f of e.fields ? JSON.parse(e.fields) : []) {
+    console.log('  %s: %s%s', f.label.padEnd(9).slice(0, 9), f.value, f.kind ? `  [${f.kind}]` : '')
+  }
+  console.log()
+}
+
+async function rm (ref) {
+  if (!ref) { console.error('Falta qué entrada quitar.'); process.exit(1) }
+  const vault = await abrirBoveda()
+  const e = await buscarUna(vault, ref)
+  const r = await pregunta(`¿Quitar «${e.title}»? No se puede deshacer. [s/N] `)
+  if (!/^s(i|í)?$/i.test(r.trim())) return console.log('Se queda.')
+  await vault.remove(e.id)
+  console.log('Quitada.')
+}
+
+async function gen (largo) {
+  console.log(generatePassword({ length: Number(largo) || 20 }))
 }
 
 // --- órdenes -----------------------------------------------------------------
@@ -239,18 +430,33 @@ async function importar (ruta) {
 }
 
 const [orden, ...args] = process.argv.slice(2)
-const ORDENES = { serve, link, devices, unlink, import: importar }
+const ORDENES = { serve, link, devices, unlink, import: importar, add, edit, ls, show, rm, gen }
 
 if (!ORDENES[orden]) {
   console.log(`dotrino-passmanager
 
-  serve                  abre la bóveda y atiende peticiones por el proxio
-  link <código> [nombre] autoriza un aparato a pedir credenciales
-  devices                lista los aparatos autorizados
-  unlink <nombre>        retira un aparato
-  import <archivo>       importa de 1Password, Bitwarden o Chrome
+  La bóveda
+    ls [filtro]            lista lo guardado
+    add                    añade una entrada
+    edit <id|nombre>       edita una entrada
+    show <id|nombre>       enseña una entrada (con su código de dos pasos)
+    rm <id|nombre>         quita una entrada
+    gen [largo]            genera una contraseña
+    import <archivo>       importa de 1Password, Bitwarden o Chrome
+
+  Aparatos
+    serve                  atiende peticiones por el proxio
+    link <código> [nombre] autoriza un aparato a pedir credenciales
+    devices                lista los aparatos autorizados
+    unlink <nombre>        retira un aparato
 `)
   process.exit(orden ? 1 : 0)
 }
 
-ORDENES[orden](...args).catch(e => { console.error(e?.message || e); process.exit(1) })
+ORDENES[orden](...args)
+  .then(() => { if (orden !== 'serve') cerrarLector() })
+  .catch(e => {
+    cerrarLector()
+    if (e?.message !== 'ambiguo') console.error(e?.message || e)
+    process.exit(1)
+  })

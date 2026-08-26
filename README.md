@@ -13,8 +13,8 @@ lectura.
 
 | | | |
 |---|---|---|
-| `lib/` | `@dotrino/passmanager` — modelo, cifrado, protocolo, las dos puntas | hecho, 28 tests |
-| `bin/` | la bóveda que responde (`dotrino-passmanager serve`) | hecha |
+| `lib/` | `@dotrino/passmanager` — modelo, cifrado, protocolo, las dos puntas | hecho, 56 tests |
+| `bin/` | la bóveda: crear, editar, generar, importar, y responder a los aparatos | hecha |
 | `extension/` | extensión Chrome MV3 — pide, no guarda | hecha, sin publicar en la tienda |
 | `web/` | landing en [pass.dotrino.com](https://pass.dotrino.com/) | en vivo |
 
@@ -30,10 +30,32 @@ bóveda de la extensión con la de la web. La app nativa es una pantalla de
 3. El **teléfono** responde de a una, con huella
 4. **Passkeys**
 
+## La bóveda, desde la línea de órdenes
+
+```bash
+node bin/passmanager.js ls                    # lo guardado
+node bin/passmanager.js add                   # una entrada nueva
+node bin/passmanager.js edit salesforce       # editar (por id, título o sitio)
+node bin/passmanager.js show salesforce       # verla, con su código de dos pasos
+node bin/passmanager.js rm salesforce         # quitarla
+node bin/passmanager.js gen 24                # una contraseña
+node bin/passmanager.js import claves.csv     # de 1Password, Bitwarden o Chrome
+```
+
+Los **sitios vacíos** significan que la entrada sirve en cualquier parte — así se
+guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera una**.
+
+Y para que los aparatos puedan pedir:
+
+```bash
+node bin/passmanager.js serve                 # atiende por el proxio
+node bin/passmanager.js link <código> "Chrome"
+```
+
 ## Desarrollo
 
 ```bash
-cd lib && npm test              # 28 tests, sin dependencias ni red
+cd lib && npm test              # 56 tests, sin dependencias ni red
 node bin/passmanager.js serve   # la bóveda: abre y atiende peticiones
 node test/e2e.mjs aparato       # prueba contra el proxio de verdad (ver el propio archivo)
 cd extension && npm run build   # arma el vendor, luego cargar descomprimida
