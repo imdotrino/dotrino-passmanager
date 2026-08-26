@@ -4,7 +4,29 @@ Lo que hay que rellenar en el panel, ya escrito. **La subida la hace el dueño**
 falta la cuenta de desarrollador (pago único de 5 USD) y no se puede automatizar sin
 sus credenciales.
 
-## Antes de subir
+## Lo que falta, exactamente
+
+**Solo dos cosas, y las dos son del dueño porque exigen su cuenta:**
+
+1. **Crear la cuenta de desarrollador** en el panel de la tienda (pago único de 5 USD) y
+   dar de alta la extensión una vez, para que le asigne un **ID**.
+2. **Sacar tres credenciales** de un proyecto de Google Cloud con la *Chrome Web Store
+   API* activada: `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`.
+   Los pasos están en la cabecera de `extension/publish.mjs`.
+
+Con esas cuatro variables en el entorno, subir es un comando:
+
+```bash
+cd extension
+npm run package                  # arma el zip
+npm run publish:store            # lo sube como BORRADOR
+node publish.mjs --publish       # y esto lo publica de verdad
+```
+
+El script distingue el fallo real del aparente: la tienda contesta **200 con
+`uploadState: FAILURE`**, así que mirar solo el código HTTP diría que fue bien cuando no.
+
+## El paquete
 
 ```bash
 cd extension && npm run package     # deja build/dotrino-passmanager-<versión>.zip
