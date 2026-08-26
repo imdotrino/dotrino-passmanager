@@ -10,14 +10,15 @@
 > **Passkeys hechas** (§7) y **consola de aparatos** en `pass.dotrino.com/vault.html`
 > (§6.2).
 >
-> **El vault del ecosistema:** el módulo está escrito y probado en
-> `dotrino-vault/src/passwords.js` (7 tests), **sin cablear al arranque** — falta el
-> almacén, la llave, el permiso y el puente de la aprobación en dos tiempos, todo
-> detallado en `dotrino-vault/docs/passwords.md`. Ese cableado trae **también el
-> teléfono** (§2.1): el vault ya sabe avisarle y esperar su firma.
+> **El vault del ecosistema atiende** (`dotrino-vault passwords <ID> on`): almacén
+> cifrado en reposo, llave propia, lista de aparatos que se cruza con el acta, y la
+> aprobación en dos tiempos enganchada a la del vault — que es **el teléfono** (§2.1).
+> 10 tests propios, 259 en la suite del vault. Detalle en
+> `dotrino-vault/docs/passwords.md`.
 >
-> **Pendiente:** ese cableado, y subir la extensión a la Chrome Web Store (el zip, la
-> ficha y la política de privacidad están listos en `extension/store/FICHA.md`).
+> **Pendiente:** subir la extensión a la Chrome Web Store — el zip, la ficha y la
+> política están listos en `extension/store/FICHA.md`, pero la subida necesita la cuenta
+> de desarrollador del dueño.
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).

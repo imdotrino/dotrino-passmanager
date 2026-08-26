@@ -27,10 +27,11 @@ bóveda de la extensión con la de la web. La app nativa es una pantalla de
 ## Plan
 
 1. **Bóveda, autocompletado, TOTP e importación** — hecho
-2. El **vault del PC** responde de a una ← hecho en su forma mínima (`bin/`); falta
-   que lo atienda el vault del ecosistema, con sus cajones y su bitácora
-3. El **teléfono** responde de a una, con huella
-4. **Passkeys**
+2. El **vault del PC** responde de a una — hecho, y **el vault del ecosistema también**
+   (`dotrino-vault passwords <ID> on`), con su acta y su bitácora
+3. El **teléfono** aprueba, con huella — hecho: va por la aprobación del vault
+   (`dotrino-vault approval <ID> on`)
+4. **Passkeys** — hechas
 
 ## La bóveda, desde la línea de órdenes
 
@@ -57,7 +58,7 @@ node bin/passmanager.js link <código> "Chrome"
 ## Desarrollo
 
 ```bash
-cd lib && npm test              # 56 tests, sin dependencias ni red
+cd lib && npm test              # 67 tests, sin dependencias ni red
 node bin/passmanager.js serve   # la bóveda: abre y atiende peticiones
 node test/e2e.mjs aparato       # prueba contra el proxio de verdad (ver el propio archivo)
 cd extension && npm run build   # arma el vendor, luego cargar descomprimida
