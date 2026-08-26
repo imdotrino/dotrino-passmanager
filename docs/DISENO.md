@@ -8,8 +8,16 @@
 >
 > **Publicado en npm:** `@dotrino/passmanager@0.1.0` y `@dotrino/proxy-client@0.13.0`.
 > **Passkeys hechas** (§7) y **consola de aparatos** en `pass.dotrino.com/vault.html`
-> (§6.2). **Pendiente:** que atienda el vault del ecosistema (con sus cajones y su
-> bitácora), el teléfono (§2.1) y la Chrome Web Store.
+> (§6.2).
+>
+> **El vault del ecosistema:** el módulo está escrito y probado en
+> `dotrino-vault/src/passwords.js` (7 tests), **sin cablear al arranque** — falta el
+> almacén, la llave, el permiso y el puente de la aprobación en dos tiempos, todo
+> detallado en `dotrino-vault/docs/passwords.md`. Ese cableado trae **también el
+> teléfono** (§2.1): el vault ya sabe avisarle y esperar su firma.
+>
+> **Pendiente:** ese cableado, y subir la extensión a la Chrome Web Store (el zip, la
+> ficha y la política de privacidad están listos en `extension/store/FICHA.md`).
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).
