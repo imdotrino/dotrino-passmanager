@@ -107,7 +107,6 @@ del propio usuario.
 Hechas, en `store/capturas/`, sobre las páginas EN VIVO (no maquetas):
 
 - [x] `1-landing.png` — la portada, con la promesa
-- [x] `2-aparatos.png` — la consola de aparatos
 - [x] `3-privacidad.png` — la política
 
 Se regeneran con:
@@ -117,14 +116,20 @@ chromium --headless --window-size=1280,800 \
   --screenshot=extension/store/capturas/1-landing.png https://pass.dotrino.com/
 ```
 
-Faltan las dos que **exigen la extensión cargada**, y esas hay que hacerlas a mano
-porque no se pueden sacar de una página servida:
+Faltan tres, y las tres exigen un **navegador de verdad** — no salen de una página
+servida en headless:
 
 - [ ] el popup enlazado, con lo que hay para un sitio
 - [ ] el botón sobre un campo y su modal abierto
+- [ ] la consola de aparatos **con aparatos dentro**
+
+La tercera se intentó en headless y sale con un error en rojo, con razón: sin sesión no
+hay bóveda de identidad a la que preguntar, así que la consola dice que no pudo componer
+el código. Correcto para el usuario, inservible como escaparate.
 
 En `chrome://extensions` → «Cargar descomprimida» → carpeta `extension/`, con una bóveda
-corriendo al otro lado.
+corriendo al otro lado (`dotrino-vault passwords <ID> on`, o `npx dotrino-passmanager
+serve`).
 
 ## Lo que hay que esperar
 
