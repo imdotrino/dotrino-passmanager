@@ -134,6 +134,19 @@ al cerrar.
 
 ### 3.2. Lo que SÍ recuerda el navegador: lo ya entregado
 
+**La caché y la aprobación no se condicionan.** La aprobación decide si el *usuario*
+tiene que decir que sí; la caché decide si hace falta *ir* a la bóveda. Son cosas
+distintas y conviene no volver a mezclarlas:
+
+| En la misma sesión | ¿Aprueba el usuario? | ¿Se va a la bóveda? |
+|---|---|---|
+| primera contraseña | **sí**, una vez | sí |
+| la **misma** otra vez | no | **no** — está recordada |
+| una **distinta** | no, el aparato ya está aprobado | sí |
+| se olvida el recuerdo | no | sí |
+| una marcada `alwaysAsk` | **sí, siempre** | sí, siempre |
+
+
 Descartar la copia de la bóveda no obliga a pedirlo todo cada vez. La extensión guarda
 en **memoria de sesión** (`chrome.storage.session`, que nunca toca el disco y se vacía
 al cerrar el navegador) las credenciales que **la bóveda ya entregó**.
