@@ -16,7 +16,7 @@
       c4d: 'Your passwords export in the format you choose. It is your information, and taking it with you is your call too.',
       installTitle: 'Try it now',
       i0: 'It is not in the Chrome store yet, so it installs by hand. Three steps, once.',
-      i1: '<a href="./app/dotrino-passmanager-0.1.0.zip" download>Download the extension</a> and unzip the folder.',
+      i1: '<a href="./app/dotrino-passmanager-0.1.1.zip" download>Download the extension</a> and unzip the folder.',
       i2: 'In Chrome, open the extensions page and turn on developer mode.',
       i3: 'Click “Load unpacked” and pick the folder you just unzipped.',
       repo: 'See the project',

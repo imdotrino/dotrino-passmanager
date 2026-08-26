@@ -134,6 +134,15 @@ También hecho:
 - [x] **ENVIADA A REVISIÓN** (2026-08-26). `Status: Pending review`, y se publica sola
       en cuanto pase.
 
+**La 0.1.1 espera a que termine esa revisión.** Con una revisión en curso el botón
+«Upload new package» está DESHABILITADO, y la revisión **no se puede cancelar** (no hay
+opción en el menú, y el propio diálogo de envío lo avisa: despublicar tampoco la
+cancela). El arreglo que lleva la 0.1.1 —el popup abierto como pestaña no podía
+enlazar— no afecta al uso normal desde el icono, así que no urge.
+
+Mientras tanto la 0.1.1 **sí se descarga de `pass.dotrino.com`**, que es como se instala
+hoy de todas formas.
+
 Google avisó de que **la revisión será más lenta por los permisos de host amplios**, y
 sugirió acotarlos. No se acotan y el motivo está en la tabla de permisos de más abajo:
 un gestor de contraseñas tiene que reconocer formularios donde el usuario tenga cuenta,
