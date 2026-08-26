@@ -24,18 +24,83 @@ export function isVisible (el) {
   return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0'
 }
 
+/**
+ * La etiqueta visible de un campo, en las tres formas en que puede existir.
+ *
+ * Importa más que el `name`: los formularios generados ponen `name="field_2847"` y
+ * dejan toda la información en la etiqueta, que es lo único que lee una persona.
+ */
+export function labelTextOf (el) {
+  const partes = []
+  const doc = el.ownerDocument
+  const root = el.getRootNode?.() || doc
+
+  // 1. `<label for="...">`. `labels` ya resuelve esto en el navegador, pero no cruza
+  //    shadow roots, así que se busca también a mano dentro de la raíz del campo.
+  if (el.labels?.length) {
+    for (const l of el.labels) partes.push(l.textContent)
+  } else if (el.id) {
+    const escaped = (globalThis.CSS?.escape ? CSS.escape(el.id) : el.id.replace(/["\\]/g, '\\$&'))
+    for (const l of root.querySelectorAll?.(`label[for="${escaped}"]`) || []) partes.push(l.textContent)
+  }
+
+  // 2. `<label>Correo <input></label>` — el campo va dentro de su etiqueta. Solo si
+  //    no vino ya por `labels`, que también la incluye: si no, el texto sale doble.
+  const envolvente = el.closest?.('label')
+  if (envolvente && !(el.labels && [...el.labels].includes(envolvente))) {
+    partes.push(envolvente.textContent)
+  }
+
+  // 3. `aria-labelledby`, que apunta a cualquier otro elemento.
+  const by = el.getAttribute('aria-labelledby')
+  if (by) {
+    for (const id of by.split(/\s+/)) {
+      const ref = root.getElementById?.(id) || doc.getElementById(id)
+      if (ref) partes.push(ref.textContent)
+    }
+  }
+
+  return partes.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Compara una pista con el texto de un campo POR PALABRAS, no por subcadena.
+ *
+ * `includes` a secas es una trampa: la pista `q` del buscador coincidía con `q7`, con
+ * `bloque` y con `izquierda`, así que descartaba campos buenos como si fueran cajas de
+ * búsqueda. Las pistas cortas tienen que coincidir con una palabra entera; las largas
+ * pueden coincidir dentro de una palabra compuesta (`firstName` → `firstname`).
+ */
+function matchesHint (texto, tokens, compacto, hint) {
+  const h = hint.toLowerCase()
+  if (tokens.includes(h)) return true
+  const hc = h.replace(/[^a-z0-9áéíóúñü]/gi, '')
+  return hc.length >= 4 && compacto.includes(hc)
+}
+
+function tokenize (texto) {
+  return {
+    tokens: texto.split(/[^a-z0-9áéíóúñü]+/i).filter(Boolean),
+    compacto: texto.replace(/[^a-z0-9áéíóúñü]/gi, ''),
+  }
+}
+
 function haystack (el) {
   return [
+    // La etiqueta primero: es lo que el usuario lee, y suele ser lo único fiable
+    // cuando el formulario está generado.
+    labelTextOf(el),
     el.name, el.id, el.getAttribute('autocomplete'), el.getAttribute('aria-label'),
-    el.placeholder, el.getAttribute('data-testid'),
+    el.placeholder, el.getAttribute('data-testid'), el.getAttribute('data-test'),
   ].filter(Boolean).join(' ').toLowerCase()
 }
 
 function looksLikeUser (el) {
   if (el.type === 'email' || el.type === 'tel') return true
   const h = haystack(el)
-  if (SEARCH_HINTS.some(s => h.includes(s))) return false
-  return USER_HINTS.some(s => h.includes(s))
+  const { tokens, compacto } = tokenize(h)
+  if (SEARCH_HINTS.some(s => matchesHint(h, tokens, compacto, s))) return false
+  return USER_HINTS.some(s => matchesHint(h, tokens, compacto, s))
 }
 
 /**
@@ -120,9 +185,10 @@ export function kindOf (el) {
 
   // 3. Y si no, las pistas. Un buscador nunca es un dato personal.
   const h = haystack(el)
-  if (SEARCH_HINTS.some(x => h.includes(x))) return null
+  const { tokens, compacto } = tokenize(h)
+  if (SEARCH_HINTS.some(x => matchesHint(h, tokens, compacto, x))) return null
   for (const [kind, hints] of Object.entries(HINTS_BY_KIND)) {
-    if (hints.some(x => h.includes(x))) return kind
+    if (hints.some(x => matchesHint(h, tokens, compacto, x))) return kind
   }
   return null
 }

@@ -9,9 +9,11 @@ import { WebSocketProxyClient, getPublicKeyJwk, signData } from './vendor/proxy-
 import { RemoteVault } from './vendor/passmanager/vault/remote.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
+import { makeEncKeypair, importEncPrivate, exportEncPrivate } from './vendor/passmanager/transport/sealed.js'
 import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
 
 const LINK = 'passmanager/link/v1'
+const ENC = 'passmanager/enc/v1'
 const PROXY_URL = 'wss://proxy.dotrino.com'
 
 const store = {
@@ -23,6 +25,36 @@ const store = {
 let client = null
 let transport = null
 let vault = null
+
+/**
+ * Par de CIFRADO de este aparato, aparte del de firma que lleva proxy-client. El de
+ * firma dice quién soy al proxio; a este se le sella el contenido, para que el proxio
+ * no vea a qué sitio se pide credencial ni cuál se devuelve.
+ */
+async function encKeypair () {
+  const guardado = await store.get(ENC)
+  if (guardado) {
+    return { privateKey: await importEncPrivate(guardado.privateJwk), encPub: guardado.encPub }
+  }
+  const nuevo = await makeEncKeypair()
+  await store.set(ENC, {
+    privateJwk: await exportEncPrivate(nuevo.privateKey),
+    encPub: nuevo.encPub,
+  })
+  return { privateKey: nuevo.privateKey, encPub: nuevo.encPub }
+}
+
+/** El código de enlace lleva las DOS públicas: por una se enruta, a la otra se sella. */
+function encodeCode ({ sign, enc }) {
+  return btoa(JSON.stringify({ v: 1, sign, enc })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function decodeCode (codigo) {
+  const b64 = String(codigo || '').trim().replace(/-/g, '+').replace(/_/g, '/')
+  const c = JSON.parse(atob(b64))
+  if (c?.v !== 1 || !c.sign || !c.enc) throw new Error('código inválido')
+  return c
+}
 
 /**
  * Recuerdo de lo que la bóveda YA entregó, en memoria de sesión: entrar tres veces al
@@ -61,30 +93,37 @@ async function connect () {
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
   await client.identify({ data, signature: await signData(data) })
 
-  transport = new ProxyTransport({ client, peerPubkey: link.peerPubkey })
+  const enc = await encKeypair()
+  transport = new ProxyTransport({
+    client,
+    peerPubkey: link.peerPubkey,
+    peerEncPub: link.peerEncPub,
+    myEncPrivateKey: enc.privateKey,
+  })
   vault = new RemoteVault(transport)
   return vault
 }
 
 async function status () {
   const link = await store.get(LINK)
-  return {
-    linked: !!link,
-    label: link?.label || null,
-    code: await getPublicKeyJwk().then(p => btoa(p)).catch(() => null),
-  }
+  let code = null
+  try {
+    const enc = await encKeypair()
+    code = encodeCode({ sign: await getPublicKeyJwk(), enc: enc.encPub })
+  } catch { /* sin código: la vista de enlace lo dirá */ }
+  return { linked: !!link, label: link?.label || null, code }
 }
 
 /** Enlazar es apuntar a QUIÉN se le pide. La bóveda tiene que autorizar por su lado. */
 async function link ({ code, label }) {
-  let peerPubkey
-  try {
-    peerPubkey = atob(String(code || '').trim().replace(/-/g, '+').replace(/_/g, '/'))
-    JSON.parse(peerPubkey)
-  } catch {
-    throw new VaultError('bad-code', 'ese código no es válido')
-  }
-  await store.set(LINK, { peerPubkey, label: label || 'mi bóveda', ts: Date.now() })
+  let c
+  try { c = decodeCode(code) } catch { throw new VaultError('bad-code', 'ese código no es válido') }
+  await store.set(LINK, {
+    peerPubkey: c.sign,
+    peerEncPub: c.enc,
+    label: label || 'mi bóveda',
+    ts: Date.now(),
+  })
   vault = null
   return status()
 }

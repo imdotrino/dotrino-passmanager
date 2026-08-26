@@ -18,6 +18,7 @@ import { signData } from '@dotrino/proxy-client'
 
 import { LocalVault } from '../lib/src/vault/local.js'
 import { VaultResponder } from '../lib/src/vault/responder.js'
+import { makeEncKeypair, importEncPrivate, exportEncPrivate } from '../lib/src/transport/sealed.js'
 import {
   makeSalt, deriveKeyFromPassword, makeVerifier, checkVerifier, toBase64, fromBase64,
 } from '../lib/src/crypto.js'
@@ -66,6 +67,39 @@ setKeypairStore({
   },
 })
 
+/**
+ * Par de CIFRADO de esta bóveda, distinto del de firma. El de firma dice quién soy al
+ * proxio; este es al que se le sella el contenido, para que el proxio no vea qué se
+ * pide ni qué se devuelve.
+ */
+async function encKeypair () {
+  const guardado = await store.get('enc/keypair')
+  if (guardado) {
+    return {
+      privateKey: await importEncPrivate(guardado.privateJwk),
+      encPub: guardado.encPub,
+    }
+  }
+  const nuevo = await makeEncKeypair()
+  await store.set('enc/keypair', {
+    privateJwk: await exportEncPrivate(nuevo.privateKey),
+    encPub: nuevo.encPub,
+  })
+  return { privateKey: nuevo.privateKey, encPub: nuevo.encPub }
+}
+
+/** El código de enlace lleva las DOS públicas: por una se enruta, a la otra se sella. */
+function encodeCode ({ sign, enc }) {
+  return Buffer.from(JSON.stringify({ v: 1, sign, enc })).toString('base64url')
+}
+
+function decodeCode (codigo) {
+  const raw = Buffer.from(String(codigo || '').trim(), 'base64url').toString('utf8')
+  const c = JSON.parse(raw)
+  if (c?.v !== 1 || !c.sign || !c.enc) throw new Error('código inválido')
+  return c
+}
+
 // --- contraseña maestra ------------------------------------------------------
 
 function pregunta (texto, oculto = false) {
@@ -111,12 +145,13 @@ async function abrirBoveda () {
 
 async function aparatos () { return (await store.get('devices')) || [] }
 
-async function autorizar (pubkey, label) {
+async function autorizar ({ sign, enc }, label) {
   const list = await aparatos()
-  if (!list.some(d => d.pubkey === pubkey)) {
-    list.push({ pubkey, label: label || 'aparato', ts: Date.now() })
-    await store.set('devices', list)
-  }
+  const i = list.findIndex(d => d.pubkey === sign)
+  const nuevo = { pubkey: sign, encPub: enc, label: label || 'aparato', ts: Date.now() }
+  if (i >= 0) list[i] = { ...list[i], ...nuevo }
+  else list.push(nuevo)
+  await store.set('devices', list)
 }
 
 // --- órdenes -----------------------------------------------------------------
@@ -135,12 +170,16 @@ async function serve () {
   const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
   await client.identify({ data, signature: await signData(data) })
 
-  let permitidos = new Set((await aparatos()).map(d => d.pubkey))
+  const enc = await encKeypair()
+  let conocidos = await aparatos()
+  const refrescar = async () => { conocidos = await aparatos() }
 
   const responder = new VaultResponder({
     client,
     vault,
-    isAllowed: pub => permitidos.has(pub),
+    isAllowed: pub => conocidos.some(d => d.pubkey === pub),
+    myEncPrivateKey: enc.privateKey,
+    encPubOf: pub => conocidos.find(d => d.pubkey === pub)?.encPub || null,
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
     // encendida.
     needsApproval: op => op === 'get',
@@ -159,18 +198,18 @@ async function serve () {
 
   console.log('\nBóveda escuchando. Al apagarla, los aparatos vuelven a pedir permiso.')
   console.log('\nEnlaza un aparato con este código:\n')
-  console.log(Buffer.from(publickey).toString('base64url'))
-  console.log('\nAparatos autorizados:', permitidos.size)
+  console.log(encodeCode({ sign: publickey, enc: enc.encPub }))
+  console.log('\nAparatos autorizados:', conocidos.length)
 
   // Recarga la lista al vuelo: enlazar un aparato no debe obligar a reiniciar.
-  setInterval(async () => { permitidos = new Set((await aparatos()).map(d => d.pubkey)) }, 3000)
+  setInterval(refrescar, 3000)
 }
 
 async function link (codigo, label) {
   if (!codigo) { console.error('Falta el código del aparato.'); process.exit(1) }
-  const pubkey = Buffer.from(codigo, 'base64url').toString('utf8')
-  try { JSON.parse(pubkey) } catch { console.error('Ese código no es válido.'); process.exit(1) }
-  await autorizar(pubkey, label)
+  let c
+  try { c = decodeCode(codigo) } catch { console.error('Ese código no es válido.'); process.exit(1) }
+  await autorizar(c, label)
   console.log('Aparato autorizado:', label || '(sin nombre)')
 }
 

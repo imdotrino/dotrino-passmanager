@@ -97,6 +97,45 @@ es exactamente esta operación con otro contenido.
 El vault del PC no desaparece: cuando está, es quien manda y quien lleva la bitácora
 central. Pasa de requisito a comodidad.
 
+## 2.2. La promesa: nada de esto llega a los servidores de Dotrino
+
+> Enunciada por el dueño el 2026-08-25. **Es la promesa fuerte de este producto**, y de
+> ella se deducen varias decisiones de arriba.
+
+El gestor **lee la página entera** para saber dónde puede ayudar: todos los campos,
+sus etiquetas, la dirección del sitio. En cualquier otro gestor eso sería lo más
+invasivo que hace. Aquí es aceptable por una razón concreta y comprobable: **nada de
+eso sale del dispositivo del usuario**.
+
+Lo que se afirma, exactamente:
+
+| | |
+|---|---|
+| lo que lees en la página | no sale del navegador |
+| a qué sitio se le pide credencial | **sellado**: el proxio no lo ve |
+| qué credencial se devuelve | **sellada**: el proxio no la ve |
+| dónde viven las contraseñas | en la bóveda del usuario, nunca en un servidor nuestro |
+
+**Cómo se cumple, y por qué hubo que arreglarlo.** El proxio enruta por pubkey pero
+**no cifra el contenido**: `sendByPubkey` serializa el payload y lo manda tal cual. La
+primera versión de este transporte mandaba `{op:'find', url:'https://banco.com.ec/'}`
+en claro, así que el proxio de Dotrino habría visto a qué sitios se le pide credencial
+y cuál se devuelve. Se selló extremo a extremo con `wrapForMember`/`openWrap` de
+`@dotrino/identity/content` — la misma cripto de los secretos sellados del vault, no
+una nueva—: ECDH P-256 efímero contra la pública de cifrado del otro lado + AES-GCM.
+
+Por eso el código de enlace lleva **dos** públicas: por la de firma enruta el proxio, y
+a la de cifrado se le sella el contenido.
+
+**Y lo que NO se afirma**, porque sería falso: el proxio ve **metadatos** — que este
+aparato habla con esta bóveda, cuándo y cuánto. No ve qué se pide ni qué se devuelve,
+pero el patrón existe. Decirlo es parte de la promesa; una promesa que se calla sus
+límites no es fuerte, es publicidad.
+
+Comprobado, no supuesto: hay un test que espía el cable y falla si aparece el sitio, la
+operación o la credencial, y el E2E contra `proxy.dotrino.com` hace la misma
+comprobación sobre el tráfico real.
+
 ## 3. Cifrado y reparto de llaves
 
 Se reusa lo de `@dotrino/identity/content`, ya escrito y probado (ver

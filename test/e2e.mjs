@@ -16,6 +16,7 @@ import { LocalVault } from '../lib/src/vault/local.js'
 import { RemoteVault } from '../lib/src/vault/remote.js'
 import { VaultResponder } from '../lib/src/vault/responder.js'
 import { ProxyTransport } from '../lib/src/transport/proxy.js'
+import { makeEncKeypair, importEncPrivate, exportEncPrivate } from '../lib/src/transport/sealed.js'
 import { makeVaultKey } from '../lib/src/crypto.js'
 
 const URL = 'wss://proxy.dotrino.com'
@@ -44,6 +45,21 @@ setKeypairStore({
   },
 }, { extractable: true })
 
+/** El par de cifrado de cada rol, persistido igual que el de firma. */
+async function encKeypair () {
+  const F = `/tmp/e2e-${rol}-enc.json`
+  if (existsSync(F)) {
+    const { privateJwk, encPub } = JSON.parse(readFileSync(F, 'utf8'))
+    return { privateKey: await importEncPrivate(privateJwk), encPub }
+  }
+  const nuevo = await makeEncKeypair()
+  writeFileSync(F, JSON.stringify({
+    privateJwk: await exportEncPrivate(nuevo.privateKey),
+    encPub: nuevo.encPub,
+  }))
+  return { privateKey: nuevo.privateKey, encPub: nuevo.encPub }
+}
+
 async function conectar () {
   const c = new WebSocketProxyClient({ url: URL, enableWebRTC: false })
   await c.connect()
@@ -61,31 +77,43 @@ if (rol === 'boveda') {
   await vault.put({ title: 'Banco', sites: ['banco.com.ec'], username: 'seyacat', secret: 's3cr3t' })
 
   const permitido = process.env.APARATO_PUBKEY
+  const permitidoEnc = process.env.APARATO_ENCPUB
+  const enc = await encKeypair()
   const responder = new VaultResponder({
     client: c,
     vault,
-    isAllowed: pub => {
-      const ok = pub === permitido
-      if (!ok) {
-        console.log('BOVEDA recibido :', JSON.stringify(pub))
-        console.log('BOVEDA esperado :', JSON.stringify(permitido))
-      }
-      return ok
-    },
+    myEncPrivateKey: enc.privateKey,
+    encPubOf: pub => (pub === permitido ? permitidoEnc : null),
+    isAllowed: pub => pub === permitido,
     needsApproval: () => false,
     onRequest: r => console.log('BOVEDA log:', r.op, r.outcome),
   })
   responder.start()
   console.log('BOVEDA_LISTA', Buffer.from(publickey).toString('base64url'))
+  console.log('BOVEDA_ENCPUB', Buffer.from(enc.encPub).toString('base64url'))
   console.log('BOVEDA identify:', JSON.stringify(identify))
   setTimeout(() => process.exit(0), 40000)
 }
 
 if (rol === 'aparato') {
   const { c, publickey } = await conectar()
+  const enc = await encKeypair()
   console.log('APARATO_PUBKEY', Buffer.from(publickey).toString('base64url'))
+  console.log('APARATO_ENCPUB', Buffer.from(enc.encPub).toString('base64url'))
+  if (!process.env.BOVEDA_PUBKEY) process.exit(0)
+
   const peer = Buffer.from(process.env.BOVEDA_PUBKEY, 'base64url').toString('utf8')
-  const remota = new RemoteVault(new ProxyTransport({ client: c, peerPubkey: peer, timeoutMs: 20000 }))
+  const peerEnc = Buffer.from(process.env.BOVEDA_ENCPUB, 'base64url').toString('utf8')
+
+  // Espiamos el cable: esto es exactamente lo que el proxio llega a ver.
+  const porElCable = []
+  const enviarOriginal = c.sendByPubkey.bind(c)
+  c.sendByPubkey = (to, payload) => { porElCable.push(payload); return enviarOriginal(to, payload) }
+
+  const remota = new RemoteVault(new ProxyTransport({
+    client: c, peerPubkey: peer, peerEncPub: peerEnc,
+    myEncPrivateKey: enc.privateKey, timeoutMs: 20000,
+  }))
 
   const hits = await remota.find('https://login.salesforce.com/')
   console.log('APARATO find →', JSON.stringify(hits))
@@ -101,6 +129,12 @@ if (rol === 'aparato') {
     process.exit(1)
   } catch (e) { console.log('APARATO list → rechazado:', e.code) }
 
-  console.log(cred.secret === 'hunter2' ? 'RESULTADO OK' : 'RESULTADO FALLO')
-  process.exit(0)
+  const cable = JSON.stringify(porElCable)
+  const filtrado = ['salesforce.com', 'hunter2', 'sandrade@dotrino.com', '"find"', '"get"']
+    .filter(x => cable.includes(x))
+  console.log('APARATO cable →', filtrado.length ? 'FILTRA: ' + filtrado.join(', ') : 'nada legible')
+
+  const ok = cred.secret === 'hunter2' && !filtrado.length
+  console.log(ok ? 'RESULTADO OK' : 'RESULTADO FALLO')
+  process.exit(ok ? 0 : 1)
 }
