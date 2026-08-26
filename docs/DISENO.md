@@ -16,9 +16,11 @@
 > 10 tests propios, 259 en la suite del vault. Detalle en
 > `dotrino-vault/docs/passwords.md`.
 >
-> **Pendiente:** subir la extensión a la Chrome Web Store — el zip, la ficha y la
-> política están listos en `extension/store/FICHA.md`, pero la subida necesita la cuenta
-> de desarrollador del dueño.
+> **En la Chrome Web Store:** enviada a revisión el 2026-08-26
+> (`iheeephdbjdpgfhkhmfnpgbhmdflplpp`), y se publica sola al pasarla. Google avisa de
+> que tardará más por los permisos de host amplios, que no se acotan por lo que dice el
+> §4.2: un gestor tiene que reconocer formularios donde el usuario tenga cuenta, y esa
+> lista no se sabe de antemano.
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).

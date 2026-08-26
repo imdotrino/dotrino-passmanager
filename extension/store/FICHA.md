@@ -105,7 +105,7 @@ del propio usuario.
 
 ## Estado en la tienda (2026-08-26)
 
-**Extensión creada y en borrador.** `ID: iheeephdbjdpgfhkhmfnpgbhmdflplpp`
+**Enviada a revisión.** `ID: iheeephdbjdpgfhkhmfnpgbhmdflplpp` · `Status: Pending review`
 
 Hecho desde aquí:
 
@@ -131,10 +131,13 @@ También hecho:
       la revisión.
 - [x] **correo de contacto del publisher**: `sandrade@dotrino.com`, verificación enviada.
 
-Queda **una sola cosa**, y es del dueño porque llega a su correo:
+- [x] **ENVIADA A REVISIÓN** (2026-08-26). `Status: Pending review`, y se publica sola
+      en cuanto pase.
 
-- [ ] pulsar el enlace de verificación (caduca en una hora) y después **Submit for
-      review**.
+Google avisó de que **la revisión será más lenta por los permisos de host amplios**, y
+sugirió acotarlos. No se acotan y el motivo está en la tabla de permisos de más abajo:
+un gestor de contraseñas tiene que reconocer formularios donde el usuario tenga cuenta,
+y esa lista no se sabe de antemano. La justificación que se envió lo dice así.
 - [ ] repasar la pestaña **Privacy** (declaración de uso de datos: «información de
       autenticación», recogida sí, **no** vendida ni cedida)
 - [ ] pulsar **Submit for review**
