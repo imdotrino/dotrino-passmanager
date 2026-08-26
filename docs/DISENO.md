@@ -108,6 +108,34 @@ Lo que se gana no es solo seguridad, es que **el problema desaparece en vez de
 gestionarse**: no hay llave en el navegador que proteger, que caducar, ni que borrar
 al cerrar.
 
+### 3.2. Lo que SÍ recuerda el navegador: lo ya entregado
+
+Descartar la copia de la bóveda no obliga a pedirlo todo cada vez. La extensión guarda
+en **memoria de sesión** (`chrome.storage.session`, que nunca toca el disco y se vacía
+al cerrar el navegador) las credenciales que **la bóveda ya entregó**.
+
+El motivo es de uso, no de arquitectura: entrar tres veces al mismo sitio en una tarde
+no debería ser tres aprobaciones en el teléfono.
+
+La diferencia con lo descartado en el §3.1 no es de grado:
+
+| | Caché descartada | Recuerdo de sesión |
+|---|---|---|
+| Qué guarda | la bóveda entera, cifrada | solo lo que ya se pidió |
+| Necesita la llave | sí — por eso se descarta | no: llega ya abierto |
+| Lo que nunca pediste | estaba ahí | nunca estuvo |
+| Vida | mientras el usuario la deje | minutos, y muere al cerrar |
+
+Tres reglas que lo mantienen honesto:
+
+- **Caduca en minutos**, y una caducada se tira al pasar por ella, no se queda ocupando
+  sitio.
+- **`alwaysAsk` lo decide la bóveda, no el aparato.** Lo que ella marca así vuelve a
+  preguntarse siempre, por muchas veces que se pida — la del banco, la del correo. El
+  aparato obedece; no es suyo decidir qué merece un dedo encima.
+- **Desenlazar lo borra en el acto.** Si sobreviviera, «desenlazado» sería mentira
+  hasta que caducara.
+
 ## 4. Dónde vive cada cosa
 
 Frontera del §4 de `CONVENCIONES-APPS.md`, aplicada:

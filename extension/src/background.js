@@ -8,6 +8,7 @@
 import { WebSocketProxyClient, getPublicKeyJwk, signData } from './vendor/proxy-client/index.js'
 import { RemoteVault } from './vendor/passmanager/vault/remote.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
+import { SessionCache } from './vendor/passmanager/session-cache.js'
 import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
 
 const LINK = 'passmanager/link/v1'
@@ -22,6 +23,19 @@ const store = {
 let client = null
 let transport = null
 let vault = null
+
+/**
+ * Recuerdo de lo que la bóveda YA entregó, en memoria de sesión: entrar tres veces al
+ * mismo sitio en una tarde no debería ser tres aprobaciones en el teléfono.
+ *
+ * `chrome.storage.session` nunca toca el disco y se vacía al cerrar el navegador. No
+ * es la caché descartada del diseño (§3.1): aquí no hay llave ni copia de la bóveda,
+ * solo lo poco que ya pasó por delante.
+ */
+const cache = new SessionCache({
+  async get (k) { return (await chrome.storage.session.get(k))[k] },
+  async set (k, v) { await chrome.storage.session.set({ [k]: v }) },
+})
 
 /**
  * La identidad de la extensión la lleva proxy-client, que desde 0.12.0 la persiste en
@@ -80,6 +94,9 @@ async function unlink () {
   transport = null
   vault = null
   client = null
+  // Desenlazar tiene que dejar el navegador sin nada: si quedara el recuerdo de lo
+  // entregado, «desenlazado» sería mentira hasta que caducara.
+  await cache.forget()
   await store.del(LINK)
   return status()
 }
@@ -89,7 +106,14 @@ const OPS = {
   link: p => link(p),
   unlink,
   find: async p => (await connect()).find(p.url),
-  get: async p => (await connect()).get(p.id),
+  get: async p => {
+    const recordada = await cache.get(p.id)
+    if (recordada) return recordada
+    const entry = await (await connect()).get(p.id)
+    // `alwaysAsk` lo decide la bóveda; aquí solo se obedece.
+    await cache.put(p.id, entry)
+    return entry
+  },
   put: async p => (await connect()).put(p.entry),
 }
 
