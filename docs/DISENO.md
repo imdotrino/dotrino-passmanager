@@ -370,7 +370,7 @@ y serían dos bóvedas distintas que no se ven. Enseñarle al usuario dos listas
 coinciden es peor que no darle consola. Así que en el paso 1 `pass.dotrino.com` es
 **solo la landing**, y la consola llega con el vault, cuando ambas miran lo mismo.
 
-## 7. Las passkeys en Chrome (v4)
+## 7. Las passkeys en Chrome — HECHO (2026-08-26)
 
 Chrome **no expone API de proveedor de credenciales a extensiones** — Android 14+ e
 iOS 17+ sí, y por eso en móvil el camino es limpio. En el escritorio, la única vía
@@ -380,6 +380,32 @@ la produces tú, la assertion es válida y el sitio no distingue.
 
 Verificado empíricamente: **1Password funciona con passkeys en Salesforce**, lo que
 confirma que Salesforce acepta `attestation: "none"` y que el parche funciona ahí.
+
+**Cómo quedó montado:**
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| `webauthn.js` (lib) | — | crea la credencial y firma la assertion |
+| `webauthn-page.js` | mundo de la **página** (`world: MAIN`) | reemplaza `navigator.credentials` |
+| `webauthn-bridge.js` | mundo aislado | pasa mensajes; no decide nada |
+| `webauthn-create/get` | service worker | pide a la bóveda, que es quien custodia |
+
+Tres decisiones que evitan los fallos caros:
+
+- **La firma va en DER.** WebCrypto la da como `r‖s` de 32 bytes y WebAuthn espera una
+  SEQUENCE de dos INTEGER, con byte de relleno cuando el primer bit está alto. Sin esa
+  conversión el servidor la rechaza **sin decir por qué**. Hay un test que la verifica
+  como lo haría el servidor: rehace `authenticatorData ‖ sha256(clientDataJSON)` y
+  comprueba la firma contra la pública registrada.
+- **El contador sube en cada firma, y se guarda en la bóveda.** Si se queda quieto, el
+  servidor sospecha que la credencial está clonada.
+- **La credencial se guarda ANTES de devolverla.** Si el sitio la registra y nosotros no
+  la tenemos, el usuario se queda fuera de su cuenta sin saber por qué.
+
+Y la regla que lo hace seguro de usar: **si el gestor no puede, manda el navegador.**
+Cualquier fallo —sin bóveda, sin passkey, sin respuesta— cae al `navigator.credentials`
+original. Que el gestor falle no puede dejar a nadie sin entrar en su sitio. Verificado
+en navegador, para `create` y para `get`.
 
 Lo que hay que asumir:
 

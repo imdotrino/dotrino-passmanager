@@ -11,6 +11,9 @@ import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
 import { makeEncKeypair, importEncPrivate, exportEncPrivate } from './vendor/passmanager/transport/sealed.js'
 import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
+import {
+  createCredential, signAssertion, credentialMatches, b64urlDecode,
+} from './vendor/passmanager/webauthn.js'
 
 const LINK = 'passmanager/link/v1'
 const ENC = 'passmanager/enc/v1'
@@ -143,8 +146,62 @@ async function unlink () {
   return status()
 }
 
+// --- passkeys ----------------------------------------------------------------
+//
+// La llave se genera aquí y se manda a la bóveda para que la CUSTODIE; firmar exige
+// pedírsela, igual que cualquier otra credencial. El aparato no se queda con nada.
+
+async function webauthnCreate (p) {
+  const v = await connect()
+  const { entry, response } = await createCredential({
+    rpId: p.rpId,
+    origin: p.origin,
+    challenge: p.challenge,
+    userHandle: p.userHandle ? b64urlDecode(p.userHandle) : null,
+    userName: p.userName,
+  })
+
+  // Se guarda ANTES de devolverla: si el sitio la registra y nosotros no la tenemos,
+  // el usuario se queda fuera de su cuenta sin saber por qué.
+  await v.put({
+    type: 'webauthn',
+    title: p.rpName || p.rpId,
+    sites: [p.rpId],
+    username: p.userName || '',
+    webauthn: entry,
+  })
+  return response
+}
+
+async function webauthnGet (p) {
+  const v = await connect()
+  const candidatas = await v.find(`https://${p.rpId}/`)
+
+  // Solo las passkeys de ESTE sitio, y solo las que el sitio admite.
+  const suyas = candidatas.filter(e => e.hasWebauthn)
+  if (!suyas.length) throw new VaultError(CODES.NOT_FOUND, 'no hay passkey para este sitio')
+
+  for (const meta of suyas) {
+    const entrada = await v.get(meta.id)
+    if (!credentialMatches(entrada, p.rpId, p.allowCredentials)) continue
+
+    const { signCount, response } = await signAssertion({
+      entry: entrada.webauthn,
+      origin: p.origin,
+      challenge: p.challenge,
+    })
+    // El contador tiene que subir en la bóveda: si se queda quieto, el servidor
+    // sospecha que la credencial está clonada.
+    await v.put({ ...entrada, webauthn: { ...entrada.webauthn, signCount } })
+    return response
+  }
+  throw new VaultError(CODES.NOT_FOUND, 'ninguna passkey sirve para lo que pide el sitio')
+}
+
 const OPS = {
   status,
+  'webauthn-create': webauthnCreate,
+  'webauthn-get': webauthnGet,
   link: p => link(p),
   unlink,
   find: async p => (await connect()).find(p.url),
@@ -165,7 +222,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Una página solo puede preguntar qué hay para su sitio y pedir una credencial.
   // Nunca enlazar, desenlazar ni escribir: si la página que tienes delante pudiera
   // cambiar a qué bóveda se le pide, podría apuntar la extensión a la suya.
-  if (sender.tab && !['find', 'get', 'status'].includes(msg.op)) {
+  // El puente de WebAuthn SÍ viene de una pestaña: es su sitio natural. Lo que no
+  // puede una página es enlazar, desenlazar ni escribir a mano en la bóveda.
+  if (sender.tab && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }
