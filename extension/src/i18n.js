@@ -3,7 +3,10 @@ const STRINGS = {
   es: {
     title: 'Dotrino',
     linkTitle: 'Enlazar con tu bóveda',
-    linkHint: 'Pega aquí el código que muestra tu bóveda al ponerse a escuchar. Esta extensión no guarda tus contraseñas: se las pide a ella de una en una.',
+    linkHint: 'Esta extensión no guarda tus contraseñas: se las pide a tu bóveda de una en una.',
+    abrirBoveda: 'Abrir mi bóveda',
+    abrirHint: '¿No tienes ninguna? Se abre en una pestaña y ya funciona — no hace falta instalar nada.',
+    oPega: 'O pega el código de una bóveda que ya tengas:',
     linkCode: 'Código de la bóveda',
     linkGo: 'Enlazar',
     myCode: 'Y autoriza esta extensión en tu bóveda con:',
@@ -40,7 +43,10 @@ const STRINGS = {
   en: {
     title: 'Dotrino',
     linkTitle: 'Link to your vault',
-    linkHint: 'Paste the code your vault shows when it starts listening. This extension does not keep your passwords: it asks the vault for them, one at a time.',
+    linkHint: 'This extension does not keep your passwords: it asks your vault for them, one at a time.',
+    abrirBoveda: 'Open my vault',
+    abrirHint: 'Do not have one? It opens in a tab and just works — nothing to install.',
+    oPega: 'Or paste the code of a vault you already have:',
     linkCode: 'Vault code',
     linkGo: 'Link',
     myCode: 'And authorise this extension in your vault with:',

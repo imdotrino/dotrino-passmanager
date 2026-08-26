@@ -63,7 +63,21 @@ async function tellPage (op, payload) {
 // --- vistas ------------------------------------------------------------------
 
 function renderLink (myCode) {
-  const code = el('input', { type: 'text', placeholder: t(lang, 'linkCode'), autofocus: true })
+  /**
+   * Lo primero es ABRIR UNA BÓVEDA, no pegar un código.
+   *
+   * Sin esto, alguien que instala la extensión se encuentra pidiéndole un código que no
+   * tiene y sin forma de saber de dónde sale: el gestor exigía levantar un daemon antes
+   * de poder hacer nada. La pestaña ES una bóveda, así que se ofrece primero y lo de
+   * pegar un código queda para quien ya tenga la suya.
+   */
+  const abrir = el('button', { className: 'primary', textContent: t(lang, 'abrirBoveda') })
+  abrir.onclick = () => {
+    chrome.tabs.create({ url: 'https://pass.dotrino.com/boveda.html' })
+    window.close()
+  }
+
+  const code = el('input', { type: 'text', placeholder: t(lang, 'linkCode') })
   const err = el('p', { className: 'error', hidden: true })
   const go = el('button', { className: 'primary', textContent: t(lang, 'linkGo') })
 
@@ -88,6 +102,9 @@ function renderLink (myCode) {
   view.replaceChildren(
     el('h2', { textContent: t(lang, 'linkTitle') }),
     el('p', { className: 'hint', textContent: t(lang, 'linkHint') }),
+    abrir,
+    el('p', { className: 'hint', textContent: t(lang, 'abrirHint') }),
+    el('p', { className: 'hint', style: 'margin-top:14px', textContent: t(lang, 'oPega') }),
     code, err, go,
     el('p', { className: 'hint', textContent: t(lang, 'myCode') }),
     mine,
