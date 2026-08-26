@@ -1,0 +1,32 @@
+main { max-width: 640px; }
+.loading, .empty { color: var(--dim); font-size: 15px; }
+.devices { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.device {
+  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+}
+.device .name { font-weight: 600; }
+.device .meta { font-size: 12px; color: var(--dim); font-family: ui-monospace, monospace; }
+.device .when { font-size: 12px; color: var(--dim); }
+.danger {
+  padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: none; color: #c0392b; font: inherit; font-size: 14px; cursor: pointer;
+}
+.danger:hover { border-color: #c0392b; }
+@media (prefers-color-scheme: dark) { .danger { color: #ff8a80; } }
+.warn {
+  margin: 0 0 18px; padding: 12px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid var(--line); color: var(--dim); font-size: 14px;
+}
+.row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+.row input {
+  flex: 1; padding: 9px 11px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--fg); font: inherit;
+}
+.row button {
+  padding: 9px 16px; border: 0; border-radius: 9px;
+  background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+}
+.err { color: #c0392b; font-size: 14px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--dim); margin: 0 0 12px; }

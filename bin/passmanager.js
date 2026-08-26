@@ -376,12 +376,34 @@ async function serve () {
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
     // encendida.
     needsApproval: op => op === 'get',
-    approve: async ({ pubkey }) => {
+    approve: async ({ pubkey, op, payload, admin }) => {
       const quien = (await aparatos()).find(d => d.pubkey === pubkey)
-      const r = await pregunta(
-        `\n¿Dejar que «${quien?.label || 'un aparato'}» pida credenciales?\n` +
-        `Vale mientras esta bóveda siga encendida. [s/N] `)
+      const nombre = quien?.label || 'un aparato'
+      // Administrar se pregunta SIEMPRE y por separado: retirar un aparato desde otro
+      // es tan delicado como entregar una contraseña, y en el otro sentido.
+      const texto = admin
+        ? (op === 'unlink'
+            ? `\n«${nombre}» quiere RETIRAR un aparato. ¿Le dejas? [s/N] `
+            : `\n«${nombre}» quiere ver la lista de aparatos. ¿Le dejas? [s/N] `)
+        : `\n¿Dejar que «${nombre}» pida credenciales?\n` +
+          `Vale mientras esta bóveda siga encendida. [s/N] `
+      const r = await pregunta(texto)
       return /^s(i|í)?$/i.test(r.trim())
+    },
+    // La consola web administra APARATOS, nunca credenciales: listar la bóveda sigue
+    // siendo de quien tiene la llave.
+    admin: {
+      async devices () {
+        return (await aparatos()).map(d => ({ pubkey: d.pubkey, label: d.label, ts: d.ts }))
+      },
+      async unlink (pubkey) {
+        const list = await aparatos()
+        const resto = list.filter(d => d.pubkey !== pubkey)
+        if (resto.length === list.length) return { ok: false }
+        await store.set('devices', resto)
+        await refrescar()
+        return { ok: true }
+      },
     },
     onRequest: r => {
       console.log('[%s] %s %s %s', new Date(r.ts).toISOString(), r.op, r.outcome, r.from.slice(0, 24) + '…')

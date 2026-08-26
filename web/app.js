@@ -19,6 +19,7 @@
       i2: 'In Chrome, open the extensions page and turn on developer mode.',
       i3: 'Click “Load unpacked” and pick the extension folder.',
       repo: 'See the project',
+      devices: 'Your devices',
       docs: 'How to use it',
       title: 'Dotrino — password manager',
     },

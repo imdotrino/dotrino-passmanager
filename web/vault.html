@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tus aparatos — Dotrino</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#00658c">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script>window.goatcounter={path:function(p){return location.hostname+p}}</script>
+<script data-goatcounter="https://goat.dotrino.com/count" async src="https://goat.dotrino.com/count.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@dotrino/topbar@0.8/+esm"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body>
+
+<dotrino-topbar
+  brand-name="Aparatos"
+  brand-href="./"
+  profile
+  support-repo="imdotrino/dotrino-passmanager"
+  support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
+
+<!--
+  Pantalla ADMINISTRATIVA (CONVENCIONES §5.1): empieza por lo que se administra. Sin
+  bienvenida, sin explicar qué es esto — eso está en la portada, que enlaza aquí.
+-->
+<main id="app">
+  <p class="loading" data-i18n="loading">Buscando tu bóveda…</p>
+</main>
+
+<script type="module" src="vault.js"></script>
+</body>
+</html>

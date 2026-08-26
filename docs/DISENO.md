@@ -6,9 +6,10 @@
 > 56 tests verdes y E2E verificado contra `proxy.dotrino.com`. Landing en vivo en
 > `pass.dotrino.com`.
 >
-> **Pendiente:** que atienda el vault del ecosistema (con sus cajones y su bitácora),
-> el teléfono (§2.1), las passkeys (§7), la consola web (§6.2), y publicar en npm y en
-> la Chrome Web Store.
+> **Publicado en npm:** `@dotrino/passmanager@0.1.0` y `@dotrino/proxy-client@0.13.0`.
+> **Passkeys hechas** (§7) y **consola de aparatos** en `pass.dotrino.com/vault.html`
+> (§6.2). **Pendiente:** que atienda el vault del ecosistema (con sus cajones y su
+> bitácora), el teléfono (§2.1) y la Chrome Web Store.
 >
 > **Idioma/estilo:** español neutro (tuteo). Fuente de verdad del ecosistema:
 > [`CLAUDE.md`](../../CLAUDE.md) y [`CONVENCIONES-APPS.md`](../../CONVENCIONES-APPS.md).
@@ -363,12 +364,27 @@ al wiki. No ejecuta nada. `pass.dotrino.com/vault` es la **consola**: la lista, 
 buscador y los botones. Sin párrafos de bienvenida. La documentación de uso va al
 wiki (§9.2), no a ninguna de las dos.
 
-**La consola NO se construye en el paso 1, y no es por falta de tiempo.** Hasta que
-exista el vault del paso 2 no hay nada que sincronice las dos bóvedas: la de la
-extensión vive en el almacenamiento del navegador y la de la web viviría en el store,
-y serían dos bóvedas distintas que no se ven. Enseñarle al usuario dos listas que no
-coinciden es peor que no darle consola. Así que en el paso 1 `pass.dotrino.com` es
-**solo la landing**, y la consola llega con el vault, cuando ambas miran lo mismo.
+**La objeción original ya no aplica, pero apareció otra.** Se aplazó porque no había
+nada que sincronizara la bóveda de la extensión con la de la web; eso se resolvió al
+hacer que la bóveda responda por el proxio: la consola sería **un aparato más**, y
+miraría exactamente la misma bóveda.
+
+Lo que sí choca es más de fondo: **un aparato no puede listar** (§2), y una consola que
+no lista no es una consola. Las salidas eran tres, y solo una no se contradice:
+
+| | Por qué no |
+|---|---|
+| dar `list` a la consola | rompe el «de a una» para todos: bastaría con llamarse consola |
+| un permiso especial de listar | el mismo agujero, con un nombre más largo |
+| **la consola administra APARATOS, no credenciales** | ✔ lo que hoy solo se puede por consola de órdenes |
+
+Así que `pass.dotrino.com/vault` administra **aparatos**: cuáles hay, cuándo se
+enlazaron, y retirar el que sobre. De credenciales enseña lo mismo que cualquier
+aparato: lo que hay para un sitio, de a una y bajo aprobación. **Listar la bóveda entera
+sigue siendo cosa de quien tiene la llave** — la consola de órdenes y la app nativa.
+
+No es una limitación que se arrastra: es la misma regla aplicada a una pieza que
+tentaba a saltársela.
 
 ## 7. Las passkeys en Chrome — HECHO (2026-08-26)
 
