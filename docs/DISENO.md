@@ -261,11 +261,17 @@ Exigir `dotrino-passmanager serve` para poder empezar contradice la regla del ec
 **ninguna app puede exigir que el usuario tenga un daemon encendido.** El aparato cumple
 el rol cuando no hay pieza dedicada, y lo dedicado solo añade disponibilidad.
 
-Así que `pass.dotrino.com/vault-in-tab.html` **es** una bóveda mientras esté abierta:
-guarda, responde de a una y pide aprobación en la propia página. Se instala la extensión,
-se abre eso, y funciona — sin instalar nada más. El popup ofrece «Abrir mi bóveda» antes
-que pedir un código, porque pedir un código a quien no tiene ninguno es no tener por
-dónde empezar.
+Así que `vault.dotrino.com/vault` **es** una bóveda mientras esté abierta: guarda,
+responde de a una y pide aprobación en la propia página. Se instala la extensión, se abre
+eso, y funciona — sin instalar nada más. El popup ofrece «Abrir mi bóveda» antes que pedir
+un código, porque pedir un código a quien no tiene ninguno es no tener por dónde empezar.
+
+**Y vive en el vault, no aquí.** La primera versión la puso en `pass.dotrino.com`, que
+era el error de siempre visto de cerca: la bóveda es del vault y las apps le piden. Una
+bóveda por app son bóvedas que no se ven entre ellas y un usuario que no sabe cuál es la
+suya. Al estar en `vault.dotrino.com` es la MISMA pieza que el daemon presenta en la
+misma web, comparte origen con sus dispositivos y sus pedidos, y pasar de la pestaña al
+daemon es enlazar de nuevo y nada más. Vive en `dotrino-vault/web/src/Vault.vue`.
 
 | | En una pestaña | Con el daemon |
 |---|---|---|
@@ -404,9 +410,15 @@ list()           // exige la CEK
 ### 6.2. Web: informativa ≠ administrativa (§5.1)
 
 `pass.dotrino.com/` es la **landing**: qué es, cómo se instala la extensión, enlace
-al wiki. No ejecuta nada. `pass.dotrino.com/vault` es la **consola**: la lista, el
-buscador y los botones. Sin párrafos de bienvenida. La documentación de uso va al
-wiki (§9.2), no a ninguna de las dos.
+al wiki. No ejecuta nada, y es lo ÚNICO que hay en este dominio. Lo administrativo está
+en `vault.dotrino.com` — la bóveda en `/vault` y los aparatos en `/devices` — porque es
+donde ya vivía. La documentación de uso va al wiki (§9.2).
+
+**Hubo aquí una consola de aparatos y se borró.** Duplicaba `vault.dotrino.com/devices`,
+que se declara a sí misma la única pantalla del ecosistema donde se gestionan los
+dispositivos de un perfil. Dos pantallas que administran lo mismo se desincronizan y
+después cada una dice una cosa. Lo que sigue explica por qué esa consola no podía listar
+credenciales — el razonamiento se conserva porque la regla no cambió al mudarse.
 
 **La objeción original ya no aplica, pero apareció otra.** Se aplazó porque no había
 nada que sincronizara la bóveda de la extensión con la de la web; eso se resolvió al
@@ -422,7 +434,7 @@ no lista no es una consola. Las salidas eran tres, y solo una no se contradice:
 | un permiso especial de listar | el mismo agujero, con un nombre más largo |
 | **la consola administra APARATOS, no credenciales** | ✔ lo que hoy solo se puede por consola de órdenes |
 
-Así que `pass.dotrino.com/vault` administra **aparatos**: cuáles hay, cuándo se
+Así que `vault.dotrino.com/devices` administra **aparatos**: cuáles hay, cuándo se
 enlazaron, y retirar el que sobre. De credenciales enseña lo mismo que cualquier
 aparato: lo que hay para un sitio, de a una y bajo aprobación. **Listar la bóveda entera
 sigue siendo cosa de quien tiene la llave** — la consola de órdenes y la app nativa.

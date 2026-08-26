@@ -71,9 +71,9 @@ function renderLink (myCode) {
    * de poder hacer nada. La pestaña ES una bóveda, así que se ofrece primero y lo de
    * pegar un código queda para quien ya tenga la suya.
    */
-  const openVaultBtn = el('button', { className: 'primary', textContent: t(lang, 'abrirBoveda') })
+  const openVaultBtn = el('button', { className: 'primary', textContent: t(lang, 'openVault') })
   openVaultBtn.onclick = () => {
-    chrome.tabs.create({ url: 'https://pass.dotrino.com/boveda.html' })
+    chrome.tabs.create({ url: 'https://vault.dotrino.com/vault' })
     window.close()
   }
 

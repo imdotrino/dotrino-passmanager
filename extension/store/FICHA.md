@@ -214,8 +214,8 @@ serve`).
 ## Cuidado con la caché al cambiar la web
 
 `pass.dotrino.com` no tiene build, así que los archivos no llevan hash en el nombre y
-Pages los sirve con `max-age=14400` — **cuatro horas**. Un cambio en `vault.js` está en
+Pages los sirve con `max-age=14400` — **cuatro horas**. Un cambio en `app.js` está en
 el origen enseguida pero no se ve hasta que caduca el borde.
 
 Por eso los enlaces llevan `?v=N` a mano: **hay que subirlo al tocar el archivo**. Para
-comprobar el origen sin esperar: `curl "https://pass.dotrino.com/vault.js?v=$(date +%s)"`.
+comprobar el origen sin esperar: `curl "https://pass.dotrino.com/app.js?v=$(date +%s)"`.
