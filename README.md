@@ -28,7 +28,7 @@ bóveda de la extensión con la de la web. La app nativa es una pantalla de
 
 1. **Bóveda, autocompletado, TOTP e importación** — hecho
 2. El **vault del PC** responde de a una — hecho, y **el vault del ecosistema también**
-   (`dotrino-vault passwords <ID> on`), con su acta y su bitácora
+   (`dotrino-vault caps <ID> +contrasenas`), con su acta y su bitácora
 3. El **teléfono** aprueba, con huella — hecho: va por la aprobación del vault
    (`dotrino-vault approval <ID> on`)
 4. **Passkeys** — hechas
@@ -48,11 +48,15 @@ node bin/passmanager.js import claves.csv     # de 1Password, Bitwarden o Chrome
 Los **sitios vacíos** significan que la entrada sirve en cualquier parte — así se
 guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera una**.
 
-Y para que los aparatos puedan pedir:
+Y para que los aparatos puedan pedir. Se conectan **como cualquier aparato del
+ecosistema**: la bóveda enseña una invitación, el aparato enseña seis caracteres y se
+teclean aquí. No hay códigos de enlace que pegar en las dos direcciones.
 
 ```bash
-node bin/passmanager.js serve                 # atiende por el proxio
-node bin/passmanager.js link <código> "Chrome"
+node bin/passmanager.js serve                 # atiende por el proxio (y empareja el primero)
+node bin/passmanager.js serve --pair          # abre una invitación para otro aparato
+node bin/passmanager.js devices               # los que pueden pedir credenciales
+node bin/passmanager.js unlink AB12-CD34      # retirar uno del perfil
 ```
 
 ## Desarrollo

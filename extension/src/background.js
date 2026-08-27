@@ -24,15 +24,14 @@ import { RemoteVault } from './vendor/passmanager/vault/remote.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
-import { makeEncKeypair, importEncPrivate, exportEncPrivate } from './vendor/passmanager/transport/sealed.js'
 import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
 import {
   createCredential, signAssertion, credentialMatches, b64urlDecode,
 } from './vendor/passmanager/webauthn.js'
+import { parseInvite } from './vendor/vault/invite.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
 import { identity } from './identity-core.js'
 
-const ENC = 'passmanager/enc/v1'
 const PROXY_URL = 'wss://proxy.dotrino.com'
 
 /** Cada perfil guarda lo suyo aparte: sin esto, dos bóvedas propias se pisarían. */
@@ -110,33 +109,27 @@ async function ownVault (id) {
 }
 
 /**
- * Par de CIFRADO del perfil, aparte del de firma. El de firma dice quién eres; a este se
- * le sella el contenido, para que el proxio no vea a qué sitio se pide credencial ni
- * cuál se devuelve.
+ * EL SELLADO de lo que sale y entra: la llave de cifrado del PERFIL, la misma que la
+ * bóveda conoce por el acta. Antes había aquí un par aparte, inventado por el gestor y
+ * repartido a mano en un código; con el emparejamiento del ecosistema no hace falta —
+ * la llave de cifrado viaja en el enrolamiento como la de cualquier otro aparato.
+ *
+ * Es un adaptador y no una llave suelta porque la privada NO SALE de la identidad: se
+ * le pide que abra, no que la entregue.
  */
-async function encKeypair (id) {
-  const guardado = await store.get(keyFor(id, ENC))
-  if (guardado) {
-    return { privateKey: await importEncPrivate(guardado.privateJwk), encPub: guardado.encPub }
-  }
-  const nuevo = await makeEncKeypair()
-  await store.set(keyFor(id, ENC), {
-    privateJwk: await exportEncPrivate(nuevo.privateKey),
-    encPub: nuevo.encPub,
-  })
-  return { privateKey: nuevo.privateKey, encPub: nuevo.encPub }
-}
-
-/** El código de enlace lleva las DOS públicas: por una se enruta, a la otra se sella. */
-function encodeCode ({ sign, enc }) {
-  return btoa(JSON.stringify({ v: 1, sign, enc })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function decodeCode (codigo) {
-  const b64 = String(codigo || '').trim().replace(/-/g, '+').replace(/_/g, '/')
-  const c = JSON.parse(atob(b64))
-  if (c?.v !== 1 || !c.sign || !c.enc) throw new Error('código inválido')
-  return c
+const sealing = {
+  async seal (msg, peerEncPub) {
+    if (!peerEncPub) throw new VaultError(CODES.UNSEALED, 'no tengo la llave de cifrado de la bóveda')
+    return {
+      app: 'passmanager',
+      // Destinatarios como OBJETOS: `encrypt` expande cada uno a todos los aparatos de
+      // esa persona; una llave suelta se le cae sin envolver nada y el sobre sale vacío.
+      sealed: await identity.encrypt([{ encryptionPubkey: peerEncPub }], JSON.stringify(msg)),
+      from: await identity.encryptionPubkey(),
+    }
+  },
+  async open (env) { return JSON.parse(await identity.decrypt(env.from, env.sealed)) },
+  isSealed: (m) => !!m && m.app === 'passmanager' && !!m.sealed,
 }
 
 /**
@@ -222,7 +215,6 @@ async function renameProfile ({ id, label }) {
  */
 async function removeProfile ({ id }) {
   await store.del(keyFor(id, 'passmanager/entries/v1'))
-  await store.del(keyFor(id, ENC))
   await store.del(`passmanager/profile/${id}`)
   try { await keyStore('readwrite', s => s.delete(keyFor(id, 'cek'))) } catch (_) {}
   await identity.remove(id)
@@ -242,17 +234,24 @@ async function connect () {
     return vault
   }
 
-  const link = prof.link
-  const enc = await encKeypair(prof.id)
+  // A DÓNDE se pide: a la bóveda con la que este perfil está emparejado, y eso lo dice
+  // el pilar de identidad —no una nota que se guardara aquí—. La maestra `iss` es la
+  // dirección en el proxio; su llave de cifrado sale del acta, como la de cualquier
+  // miembro. Si no hay emparejamiento no hay a quién pedirle: se dice y se para.
+  const v = await identity.vaultStatus()
+  if (!v?.paired) throw new VaultError(CODES.NO_LINK, 'este perfil no está conectado a ninguna bóveda')
+  const peerEncPub = await identity.vaultEncPub()
+  if (!peerEncPub) throw new VaultError(CODES.UNSEALED, 'tu bóveda todavía no publicó su llave de cifrado')
+
   client = new WebSocketProxyClient({
-    url: link.proxy || PROXY_URL,
+    url: v.proxy || PROXY_URL,
     // RTCPeerConnection no existe en un service worker: con WebRTC activo la
     // negociación revienta. Y tampoco haría falta aquí.
     enableWebRTC: false,
     // La garantía: nada en claro sale ni entra. Sin esto el proxio vería a qué sitio
     // se le pide credencial y cuál se devuelve.
     requireSealed: true,
-    myEncPrivateKey: enc.privateKey,
+    sealing,
   })
   await client.connect()
 
@@ -265,8 +264,8 @@ async function connect () {
 
   transport = new ProxyTransport({
     client,
-    peerPubkey: link.peerPubkey,
-    peerEncPub: link.peerEncPub,
+    peerPubkey: v.master,
+    peerEncPub,
   })
   vault = new RemoteVault(transport)
   vaultOf = prof.id
@@ -275,14 +274,6 @@ async function connect () {
 
 async function status () {
   const prof = await activeProfile()
-
-  // El código de enlace lleva la pública del PERFIL: es la identidad que la bóveda va a
-  // autorizar, y la misma con la que este aparato se identifica en el proxio.
-  let code = null
-  try {
-    const enc = await encKeypair(prof.id)
-    code = encodeCode({ sign: await identity.publickey(), enc: enc.encPub })
-  } catch { /* sin código: la vista de enlace lo dirá */ }
 
   // Cuántas hay guardadas, solo para la bóveda propia: preguntárselo a una remota sería
   // pedirle la lista entera, que es exactamente lo que un aparato no puede hacer (§2).
@@ -298,25 +289,51 @@ async function status () {
     mode: prof.kind,
     linked: prof.kind === 'linked',
     label: prof.label || null,
-    code,
+    // El código de SEIS que hay que teclear en la bóveda, mientras dura un
+    // emparejamiento. No es un código de enlace que se pegue: es el que prueba que este
+    // aparato está delante, y no viaja — la bóveda lo aprende porque lo escribes tú.
+    pairing: pairing.code ? { code: pairing.code, deviceId: pairing.deviceId } : null,
     count,
   }
 }
 
 /**
- * Conectar una bóveda AÑADE un perfil: el que había sigue estando, con lo suyo dentro.
+ * El código de seis del emparejamiento en curso, para que el popup lo enseñe. Vive en
+ * memoria y muere con él: no es un secreto que se guarde, es lo que estás mirando.
+ */
+const pairing = { code: null, deviceId: null }
+
+/**
+ * CONECTAR UNA BÓVEDA — el emparejamiento del ecosistema, el mismo que cualquier otro
+ * aparato: se pega la invitación que muestra la bóveda, este aparato genera una llave,
+ * enseña SEIS caracteres y la bóveda firma su certificado cuando los tecleas allí. El
+ * aparato entra en el acta del perfil y su permiso es `passwords`.
  *
- * Reemplazarlo sería lo peor que puede hacer un gestor de contraseñas — dejar de ver lo
+ * Conectar AÑADE una cuenta: la que había sigue estando, con lo suyo dentro.
+ * Reemplazarla sería lo peor que puede hacer un gestor de contraseñas — dejar de ver lo
  * que ya guardaste porque conectaste otra cosa. Aquí conviven, y eliges cuál miras.
  */
-async function link ({ code, label }) {
-  let c
-  try { c = decodeCode(code) } catch { throw new VaultError('bad-code', 'ese código no es válido') }
-  const p = await identity.create(label)
-  await setPmOf(p.id, { kind: 'linked', link: { peerPubkey: c.sign, peerEncPub: c.enc, ts: Date.now() } })
-  dropOpen()
-  await cache.forget()
-  return status()
+async function link ({ invite, label }) {
+  const qr = parseInvite(String(invite || '').trim())
+  if (!qr?.sn || !(qr.iss || qr.conn)) {
+    throw new VaultError(CODES.BAD_INVITE, 'eso no es una invitación de bóveda')
+  }
+  try {
+    // `join: 'new'` — la cuenta de la bóveda entra COMO OTRA cuenta de este navegador,
+    // sin tocar la que ya usabas. El pilar además evita duplicarla si esa bóveda ya
+    // tiene una cuenta aquí.
+    const r = await identity.pairWithVault({ qr, label, onCode: (c) => {
+      pairing.code = c.code
+      pairing.deviceId = c.deviceId
+    } })
+    await setPmOf(r.profileId, { kind: 'linked' })
+    return r
+  } finally {
+    pairing.code = null
+    pairing.deviceId = null
+    dropOpen()
+    await cache.forget()
+  }
 }
 
 /** Desconectar = quitar ESTE perfil, con todo lo suyo. */

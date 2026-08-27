@@ -10,7 +10,7 @@
 > **Passkeys hechas** (§7). La bóveda y sus aparatos se administran en
 > `vault.dotrino.com/vault` — una sola dirección desde el 2026-08-26 (§6.2).
 >
-> **El vault del ecosistema atiende** (`dotrino-vault passwords <ID> on`): almacén
+> **El vault del ecosistema atiende** (`dotrino-vault caps <ID> +contrasenas`): almacén
 > cifrado en reposo, llave propia, lista de aparatos que se cruza con el acta, y la
 > aprobación en dos tiempos enganchada a la del vault — que es **el teléfono** (§2.1).
 > 10 tests propios, 259 en la suite del vault. Detalle en
@@ -138,8 +138,10 @@ y cuál se devuelve. Se selló extremo a extremo con `wrapForMember`/`openWrap` 
 `@dotrino/identity/content` — la misma cripto de los secretos sellados del vault, no
 una nueva—: ECDH P-256 efímero contra la pública de cifrado del otro lado + AES-GCM.
 
-Por eso el código de enlace lleva **dos** públicas: por la de firma enruta el proxio, y
-a la de cifrado se le sella el contenido.
+Por eso hacen falta **dos** públicas de cada lado: por la de firma enruta el proxio, y a
+la de cifrado se le sella el contenido. Las dos viajan solas en el emparejamiento del
+ecosistema —la de cifrado va dentro del `enroll` y queda en el acta—, así que no hay
+nada que copiar a mano.
 
 **Y lo que NO se afirma**, porque sería falso: el proxio ve **metadatos** — que este
 aparato habla con esta bóveda, cuándo y cuánto. No ve qué se pide ni qué se devuelve,
@@ -311,15 +313,22 @@ página; aquí, como no hay página, se tira y se levanta otro.
 **La identidad de red es la del perfil.** El aparato se identifica en el proxio firmando
 con la llave del perfil (`handlers.signData`), no con una llave suelta del transporte: es
 la regla del ecosistema —la identidad de red coincide con la de firma— y es lo que hace
-que la bóveda reconozca al aparato que ya conoce. Comprobado que el código de enlace
-cambia al cambiar de perfil: dos bóvedas no ven el mismo aparato y no pueden cruzar lo
-que hace uno con lo del otro.
+que la bóveda reconozca al aparato que ya conoce. Y cada perfil se empareja por su
+cuenta: dos bóvedas no ven el mismo aparato y no pueden cruzar lo que hace uno con lo
+del otro.
 
-**Deuda que sigue abierta:** enlazar todavía usa un código propio (las dos públicas en
-base64), que son 700 caracteres para copiar entre dos pestañas del mismo navegador. Ahora
-que cada perfil tiene identidad de verdad, el camino está despejado para el emparejamiento
-del ecosistema —invitación corta + código de 6 dígitos, con el aparato quedando en el acta
-y saliendo en `vault.dotrino.com/vault`— con `enrollDevice()` del mismo núcleo.
+**Saldada (2026-08-27): el emparejamiento es el del ecosistema y no hay otro.** Hubo un
+código propio —las dos públicas en base64, unos 700 caracteres— que se pegaba en la
+extensión, y otro de vuelta que se pegaba en la bóveda. Era un segundo modelo de
+emparejamiento conviviendo con el de todos, y por eso el aparato no aparecía en el acta,
+no tenía certificado, no se le podía quitar el permiso sin quitarlo entero y había dos
+listas que acordarse de tocar.
+
+Ahora se empareja con `vaultPair()` del mismo núcleo, como cualquier otro aparato:
+invitación de la bóveda → llave nueva aquí → **seis caracteres** que se teclean allí →
+certificado firmado por la maestra y entrada en el acta. Y lo que deja pedir credenciales
+es la capacidad **`passwords`** del acta (`pair --scope contrasenas` al conectar, o
+`caps <ID> +contrasenas` después): un permiso más, en el sitio donde están los permisos.
 
 ## 3.3.1. Nace funcionando: la extensión ES su propia bóveda
 
@@ -391,8 +400,8 @@ daemon es enlazar de nuevo y nada más. Vive en `dotrino-vault/web/src/Vault.vue
 | Protocolo | **el mismo** | **el mismo** |
 
 Que el protocolo sea el mismo es lo que hace que esto no sea un modo aparte: los mismos
-aparatos, el mismo código de enlace y el mismo sellado. Pasar de la pestaña al daemon es
-enlazar de nuevo, nada más.
+aparatos, el mismo emparejamiento y el mismo sellado. Pasar de la pestaña al daemon es
+conectarse de nuevo, nada más.
 
 **La llave vive como `CryptoKey` no extraíble en IndexedDB**, no cifrada: IndexedDB clona
 el CryptoKey en vez de serializarlo, así que la llave nunca existe en forma exportable —

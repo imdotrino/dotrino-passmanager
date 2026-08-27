@@ -27,6 +27,14 @@ const proxySrc = join(here, '../../dotrino-proxy-client/src')
 await cp(proxySrc, join(vendor, 'proxy-client'), { recursive: true })
 console.log('vendor: dotrino-proxy-client/src → extension/src/vendor/proxy-client')
 
+// La INVITACIÓN de emparejamiento la lee el parser del ecosistema (`@dotrino/vault`),
+// que entiende todas las formas que imprime una bóveda —enlace del QR, código compacto,
+// base64url, el JSON viejo—. Escribir aquí otro parser sería tener dos ideas distintas
+// de qué es una invitación, que es justo lo que se acaba de quitar.
+await mkdir(join(vendor, 'vault'), { recursive: true })
+await cp(join(here, '../../dotrino-vault/lib/src/invite.js'), join(vendor, 'vault/invite.js'))
+console.log('vendor: dotrino-vault/lib/src/invite.js → extension/src/vendor/vault/invite.js')
+
 // El sellado extremo a extremo es de @dotrino/identity (la misma cripto que usa el
 // vault para los secretos sellados). No se reescribe: viaja.
 await mkdir(join(vendor, 'identity'), { recursive: true })

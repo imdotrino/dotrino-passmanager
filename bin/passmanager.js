@@ -1,24 +1,29 @@
 #!/usr/bin/env node
 // La bóveda que RESPONDE, en la máquina del usuario.
 //
-// Monta la bóveda local y se pone a atender peticiones por el proxio: los devices
+// Monta la bóveda local y se pone a atender peticiones por el proxio: los aparatos
 // (la extensión, la app) piden una credencial y esta es la que decide y contesta.
 //
-// Es el paso 2 del diseño en su forma mínima: bóveda propia con su política y su
-// bitácora. Cuando el vault del ecosistema atienda estas peticiones, esto se
-// convierte en su cliente y la política se muda allí — el protocolo no cambia.
+// **Es una bóveda del ecosistema, no un invento aparte.** Los aparatos entran por el
+// enrolamiento de siempre —`@dotrino/vault` (`startDeviceVault`) contra el acta de
+// este perfil—, con su invitación, su código de seis que se teclea aquí y su
+// certificado. Quién puede pedir credenciales es la capacidad `passwords` del acta,
+// como cualquier otro permiso. No hay códigos que pegar ni listas paralelas.
+//
+// El daemon `dotrino-vault` hace exactamente lo mismo y además sigue encendido con el
+// navegador cerrado: esto es lo que hace que el gestor nazca funcionando sin él.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 
-import { WebSocketProxyClient, getPublicKeyJwk, setKeypairStore } from '@dotrino/proxy-client'
-import { signData } from '@dotrino/proxy-client'
+import { Identity } from '@dotrino/identity/node'
+import { startDeviceVault } from '@dotrino/vault'
+import { inviteUrl } from '@dotrino/vault/invite'
 
 import { LocalVault } from '../lib/src/vault/local.js'
 import { VaultResponder } from '../lib/src/vault/responder.js'
-import { makeEncKeypair, importEncPrivate, exportEncPrivate } from '../lib/src/transport/sealed.js'
 import {
   makeSalt, deriveKeyFromPassword, makeVerifier, checkVerifier, toBase64, fromBase64,
 } from '../lib/src/crypto.js'
@@ -30,7 +35,10 @@ import { totpNow } from '../lib/src/totp.js'
 
 const DIR = join(homedir(), '.dotrino', 'passmanager')
 const FILE = join(DIR, 'vault.json')
+const IDENTITY_DIR = join(DIR, 'identity')
 const META = 'passmanager/meta/v1'
+/** El permiso del acta que deja pedir credenciales. Uno, y el mismo en todo el ecosistema. */
+const PASSWORDS_CAP = 'passwords'
 
 // --- almacén en disco --------------------------------------------------------
 
@@ -49,63 +57,25 @@ const store = {
   },
 }
 
-// La llave del proxio también va al mismo sitio: si se regenerara en cada arranque,
-// los devices ya enlazados dejarían de reconocer a esta bóveda.
-setKeypairStore({
-  async get () {
-    const raw = await store.get('proxy/keypair')
-    if (!raw) return null
-    const { privateJwk, publicJwk } = raw
-    const alg = { name: 'ECDSA', namedCurve: 'P-256' }
-    return {
-      privateKey: await crypto.subtle.importKey('jwk', privateJwk, alg, true, ['sign']),
-      publicKey: await crypto.subtle.importKey('jwk', publicJwk, alg, true, ['verify']),
-      publicJwk,
-    }
-  },
-  async set ({ privateKey, publicKey, publicJwk }) {
-    await store.set('proxy/keypair', {
-      privateJwk: await crypto.subtle.exportKey('jwk', privateKey),
-      publicJwk: publicJwk || await crypto.subtle.exportKey('jwk', publicKey),
-    })
-  },
-// `extractable: true` porque este almacén SERIALIZA a disco: exportar una llave no
-// extraíble lanza, y sin esto la identidad no sobrevive al reinicio. La bóveda
-// cambiaría de código en cada arranque y los devices ya enlazados dejarían de
-// reconocerla — un fallo que solo se ve al reiniciar, o sea tarde.
-}, { extractable: true })
-
 /**
- * Par de CIFRADO de esta bóveda, distinto del de firma. El de firma dice quién soy al
- * proxio; este es al que se le sella el contenido, para que el proxio no vea qué se
- * pide ni qué se devuelve.
+ * La IDENTIDAD de esta bóveda: la del ecosistema, con su acta y su llave maestra.
+ *
+ * Vive en su propio directorio, aparte del archivo de credenciales: son dos cosas
+ * distintas y una se puede respaldar sin la otra. De aquí salen las tres cosas que
+ * necesita el enrolamiento estándar —firmar, delegar y sellar— sin que este archivo
+ * tenga que saber nada de criptografía.
  */
-async function encKeypair () {
-  const saved = await store.get('enc/keypair')
-  if (saved) {
-    return {
-      privateKey: await importEncPrivate(saved.privateJwk),
-      encPub: saved.encPub,
-    }
-  }
-  const fresh = await makeEncKeypair()
-  await store.set('enc/keypair', {
-    privateJwk: await exportEncPrivate(fresh.privateKey),
-    encPub: fresh.encPub,
-  })
-  return { privateKey: fresh.privateKey, encPub: fresh.encPub }
+let _identity = null
+async function abrirIdentidad () {
+  _identity ||= await Identity.connect({ dir: IDENTITY_DIR })
+  return _identity
 }
 
-/** El código de enlace lleva las DOS públicas: por una se enruta, a la otra se sella. */
-function encodeCode ({ sign, enc }) {
-  return Buffer.from(JSON.stringify({ v: 1, sign, enc })).toString('base64url')
-}
-
-function decodeCode (code) {
-  const raw = Buffer.from(String(code || '').trim(), 'base64url').toString('utf8')
-  const c = JSON.parse(raw)
-  if (c?.v !== 1 || !c.sign || !c.enc) throw new Error('código inválido')
-  return c
+/** Los aparatos que el acta autoriza a pedir credenciales. */
+async function listDevices () {
+  const id = await abrirIdentidad()
+  const r = await id.profileMembers()
+  return (r?.members || []).filter((m) => (m.caps || []).includes(PASSWORDS_CAP))
 }
 
 // --- contraseña maestra ------------------------------------------------------
@@ -195,20 +165,6 @@ async function abrirBoveda () {
     console.error('Esa contraseña no abre la bóveda.')
   }
   process.exit(1)
-}
-
-// --- devices enlazados ------------------------------------------------------
-
-/** La lista de aparatos autorizados. */
-async function listDevices () { return (await store.get('devices')) || [] }
-
-async function authorise ({ sign, enc }, label) {
-  const list = await listDevices()
-  const i = list.findIndex(d => samePubkey(d.pubkey, sign))
-  const fresh = { pubkey: sign, encPub: enc, label: label || 'aparato', ts: Date.now() }
-  if (i >= 0) list[i] = { ...list[i], ...fresh }
-  else list.push(fresh)
-  await store.set('devices', list)
 }
 
 // --- editar la bóveda --------------------------------------------------------
@@ -353,67 +309,61 @@ async function gen (length) {
 
 // --- órdenes -----------------------------------------------------------------
 
-async function serve () {
+async function serve (...args) {
   const vault = await abrirBoveda()
-  const enc = await encKeypair()
-  const client = new WebSocketProxyClient({
-    url: process.env.DOTRINO_PROXY || 'wss://proxy.dotrino.com',
-    // Sin WebRTC: aquí no aporta y añade una pila entera a la pieza que reparte
-    // credenciales.
-    enableWebRTC: false,
-    // La garantía: nada en claro sale ni entra.
-    requireSealed: true,
-    myEncPrivateKey: enc.privateKey,
+  const identity = await abrirIdentidad()
+
+  // LA BÓVEDA DEL ECOSISTEMA: este proceso es la CA de su perfil, exactamente como el
+  // daemon `dotrino-vault` o como una pestaña de `vault.dotrino.com/vault`. De aquí
+  // salen las invitaciones y aquí se firman los certificados.
+  const handle = await startDeviceVault(identity, {
+    proxyUrl: process.env.DOTRINO_PROXY || 'wss://proxy.dotrino.com'
   })
 
-  await client.connect()
-  const publickey = await getPublicKeyJwk()
-  const data = { op: 'identify', publickey, token: client.token, ts: Date.now() }
-  await client.identify({ data, signature: await signData(data) })
+  // El sellado del gestor sobre el MISMO cliente: el protocolo de la CA viaja en claro
+  // a propósito (un enrolamiento es público hasta que hay cert) y lo que se sella es lo
+  // del gestor. Por eso `isSealed` mira su marca y no otra.
+  handle.client.updateConfig({
+    sealing: {
+      async seal (msg, peerEncPub) {
+        if (!peerEncPub) throw Object.assign(new Error('no encryption key'), { code: 'unsealed' })
+        return {
+          app: 'passmanager',
+          // Destinatarios como OBJETOS: `encrypt` expande cada uno a todos los aparatos
+          // de esa persona; una llave suelta se le cae sin envolver nada.
+          sealed: await identity.encrypt([{ encryptionPubkey: peerEncPub }], JSON.stringify(msg)),
+          from: await identity.getEncryptionPubkey()
+        }
+      },
+      // `decrypt` devuelve `{ plaintext }`, no la cadena.
+      async open (env) { return JSON.parse((await identity.decrypt(env.from, null, env.sealed)).plaintext) },
+      isSealed: (m) => !!m && m.app === 'passmanager' && !!m.sealed
+    }
+  })
 
   let known = await listDevices()
   const refresh = async () => { known = await listDevices() }
 
   const responder = new VaultResponder({
-    client,
+    client: handle.client,
     vault,
     // Por LLAVE, no por cadena: la misma pubkey se serializa distinto según quién la
     // escriba, y comparar el JSON hace que un aparato autorizado salga «denegado» sin
     // que se vea por qué — los dos valores parecen iguales al mirarlos.
-    isAllowed: pub => known.some(d => samePubkey(d.pubkey, pub)),
-    encPubOf: pub => known.find(d => samePubkey(d.pubkey, pub))?.encPub || null,
+    isAllowed: pub => known.some(d => samePubkey(d.pub, pub)),
+    encPubOf: pub => known.find(d => samePubkey(d.pub, pub))?.encPub || null,
     // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
     // encendida.
     needsApproval: op => op === 'get',
-    approve: async ({ pubkey, op, payload, admin }) => {
-      const who = (await listDevices()).find(d => samePubkey(d.pubkey, pubkey))
-      const name = who?.label || 'un aparato'
-      // Administrar se ask SIEMPRE y por separado: retirar un aparato desde otro
-      // es tan delicado como entregar una contraseña, y en el otro sentido.
-      const text = admin
-        ? (op === 'unlink'
-            ? `\n«${name}» quiere RETIRAR un aparato. ¿Le dejas? [s/N] `
-            : `\n«${name}» quiere ver la lista de devices. ¿Le dejas? [s/N] `)
-        : `\n¿Dejar que «${name}» pida credenciales?\n` +
-          `Vale mientras esta bóveda siga encendida. [s/N] `
-      const r = await ask(text)
+    approve: async ({ pubkey }) => {
+      const who = known.find(d => samePubkey(d.pub, pubkey))
+      const name = who?.label || who?.id || 'un aparato'
+      const r = await ask(`\n¿Dejar que «${name}» pida credenciales?\n` +
+        'Vale mientras esta bóveda siga encendida. [s/N] ')
       return /^s(i|í)?$/i.test(r.trim())
     },
-    // La consola web administra APARATOS, nunca credenciales: listar la bóveda sigue
-    // siendo de who tiene la llave.
-    admin: {
-      async devices () {
-        return (await listDevices()).map(d => ({ pubkey: d.pubkey, label: d.label, ts: d.ts }))
-      },
-      async unlink (pubkey) {
-        const list = await listDevices()
-        const rest = list.filter(d => !samePubkey(d.pubkey, pubkey))
-        if (rest.length === list.length) return { ok: false }
-        await store.set('devices', rest)
-        await refresh()
-        return { ok: true }
-      },
-    },
+    // Sin mostrador de administración: los aparatos se conectan y se quitan aquí, en la
+    // bóveda, que es donde está el acta. Un aparato no administra a los demás.
     onRequest: r => {
       console.log('[%s] %s %s %s', new Date(r.ts).toISOString(), r.op, r.outcome, r.from.slice(0, 24) + '…')
     },
@@ -421,36 +371,64 @@ async function serve () {
   responder.start()
 
   console.log('\nBóveda escuchando. Al apagarla, los aparatos vuelven a pedir permiso.')
-  console.log('\nEnlaza un aparato con este código:\n')
-  console.log(encodeCode({ sign: publickey, enc: enc.encPub }))
-  console.log('\nAparatos autorizados:', known.length)
+  console.log('Aparatos que pueden pedir: %d', known.length)
 
-  // Recarga la lista al vuelo: enlazar un aparato no debe obligar a reiniciar.
+  // Recarga la lista al vuelo: conceder el permiso no debe obligar a reiniciar.
   setInterval(refresh, 3000)
+
+  // La invitación se abre sola cuando todavía no hay a quién responder — es el primer
+  // minuto del gestor y no tendría sentido pedir un comando más. Después, a petición.
+  if (!known.length || args.includes('--pair')) await emparejar(handle)
+  else console.log('Para conectar otro aparato:  dotrino-passmanager serve --pair')
 }
 
-async function link (code, label) {
-  if (!code) { console.error('Falta el código del aparato.'); process.exit(1) }
-  let c
-  try { c = decodeCode(code) } catch { console.error('Ese código no es válido.'); process.exit(1) }
-  await authorise(c, label)
-  console.log('Aparato autorizado:', label || '(sin nombre)')
+/**
+ * Conectar un aparato: el emparejamiento de siempre. Se imprime la invitación, el
+ * aparato la abre, muestra SEIS caracteres y se teclean aquí. El código no viaja: la
+ * bóveda solo lo aprende cuando lo escribes, y por eso aprobar exige tener el aparato
+ * delante.
+ */
+async function emparejar (handle) {
+  const { qr } = await handle.startPairing({
+    // Lo único que va a hacer ese aparato. Pedirlo en dos pasos era el paso que nadie
+    // daba, y dejaba al gestor conectado pero mudo.
+    scope: ['vault:passwords'],
+    label: 'gestor de contraseñas'
+  })
+  console.log('\nAbre esto en el aparato que quieras conectar:\n')
+  console.log('  ' + inviteUrl(qr) + '\n')
+
+  handle.onPendingChange(async () => {
+    const [p] = handle.listPending()
+    if (!p) return
+    const code = (await ask(`Escribe el código que muestra ${p.deviceId}: `)).trim()
+    if (!code) return
+    try {
+      await handle.approve(p.deviceId, code)
+      console.log('Aparato conectado: %s. Ya puede pedir credenciales.', p.deviceId)
+    } catch (e) {
+      console.error('No se pudo conectar: %s', e?.message || e)
+    }
+  })
 }
 
 async function devices () {
   const list = await listDevices()
-  if (!list.length) return console.log('Ningún aparato autorizado.')
+  if (!list.length) return console.log('Ningún aparato puede pedir credenciales.')
   for (const d of list) {
-    console.log('%s  %s  %s', new Date(d.ts).toISOString().slice(0, 10), (d.label || '—').padEnd(18), d.pubkey.slice(0, 40) + '…')
+    console.log('%s  %s', d.id, d.label || '—')
   }
 }
 
-async function unlink (label) {
+/** Quitar un aparato es quitarlo del PERFIL: sale del acta y pierde su certificado. */
+async function unlink (ref) {
+  if (!ref) { console.error('Falta qué aparato retirar.'); process.exit(1) }
   const list = await listDevices()
-  const rest = list.filter(d => d.label !== label && !d.pubkey.startsWith(label))
-  if (rest.length === list.length) return console.error('No encuentro ese aparato.')
-  await store.set('devices', rest)
-  console.log('Aparato retirado. Deja de poder pedir en la siguiente petición.')
+  const d = list.find(x => x.id === ref || x.label === ref)
+  if (!d) return console.error('No encuentro ese aparato.')
+  const identity = await abrirIdentidad()
+  await identity.revokeDevice(d.pub)
+  console.log('Aparato retirado del perfil. Deja de poder pedir en la siguiente petición.')
 }
 
 async function importFile (ruta) {
@@ -461,7 +439,7 @@ async function importFile (ruta) {
 }
 
 const [orden, ...args] = process.argv.slice(2)
-const ORDENES = { serve, link, devices, unlink, import: importFile, add, edit, ls, show, rm, gen }
+const ORDENES = { serve, devices, unlink, import: importFile, add, edit, ls, show, rm, gen }
 
 if (!ORDENES[orden]) {
   console.log(`dotrino-passmanager
@@ -476,10 +454,10 @@ if (!ORDENES[orden]) {
     import <archivo>       importa de 1Password, Bitwarden o Chrome
 
   Aparatos
-    serve                  atiende peticiones por el proxio
-    link <código> [nombre] autoriza un aparato a pedir credenciales
-    devices                lista los aparatos autorizados
-    unlink <nombre>        retira un aparato
+    serve [--pair]         atiende peticiones por el proxio. Con --pair, además abre
+                           una invitación para conectar otro aparato
+    devices                lista los aparatos que pueden pedir credenciales
+    unlink <ID|nombre>     retira un aparato del perfil
 `)
   process.exit(orden ? 1 : 0)
 }

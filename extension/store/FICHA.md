@@ -198,11 +198,11 @@ servida en headless:
 - [ ] la consola de aparatos **con aparatos dentro**
 
 La tercera se intentó en headless y sale con un error en rojo, con razón: sin sesión no
-hay bóveda de identidad a la que preguntar, así que la consola dice que no pudo componer
-el código. Correcto para el usuario, inservible como escaparate.
+hay bóveda de identidad a la que preguntar. Correcto para el usuario, inservible como
+escaparate.
 
 En `chrome://extensions` → «Cargar descomprimida» → carpeta `extension/`, con una bóveda
-corriendo al otro lado (`dotrino-vault passwords <ID> on`, o `npx dotrino-passmanager
+corriendo al otro lado (`dotrino-vault caps <ID> +contrasenas`, o `npx dotrino-passmanager
 serve`).
 
 ## Lo que hay que esperar

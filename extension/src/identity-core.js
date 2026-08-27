@@ -188,4 +188,64 @@ export const identity = {
     const { handlers } = await identityCore()
     return handlers.signData({ data })
   },
+
+  // ----- sellado: la llave de CIFRADO del perfil, la que la bóveda conoce por el acta -----
+  //
+  // La privada no sale de aquí: se le pide que abra, no que la entregue.
+  async encryptionPubkey () {
+    const { handlers } = await identityCore()
+    return handlers.getEncryptionPubkey()
+  },
+  async encrypt (recipients, plaintext) {
+    const { handlers } = await identityCore()
+    return handlers.encrypt({ recipients, plaintext })
+  },
+  /** Devuelve el texto, no `{ plaintext }`: el sobre se abre para leerlo. */
+  async decrypt (senderEncryptionPubkey, envelope) {
+    const { handlers } = await identityCore()
+    return (await handlers.decrypt({ senderEncryptionPubkey, myToken: null, envelope })).plaintext
+  },
+
+  // ----- emparejamiento con la bóveda: el del ecosistema, sin nada propio -----
+
+  /** Con qué bóveda está emparejado este perfil (`{ paired, master, proxy, … }`). */
+  async vaultStatus () {
+    const { handlers } = await identityCore()
+    return handlers.vaultStatus()
+  },
+
+  /**
+   * La llave de CIFRADO de la bóveda, para sellarle lo que se le pide. Sale del ACTA,
+   * como la de cualquier miembro: no hay que pedírsela ni pegarla en ninguna parte.
+   */
+  async vaultEncPub () {
+    const { handlers } = await identityCore()
+    const v = await handlers.vaultStatus()
+    if (!v?.paired) return null
+    const { members } = await handlers.profileMembers()
+    return (members || []).find((m) => m.pub === v.master)?.encPub || null
+  },
+
+  /**
+   * Conectar este navegador a una bóveda: el enrolamiento estándar
+   * (`vaultPair`) — llave nueva, código de seis que se teclea en la bóveda, cert
+   * firmado por la maestra y entrada en el acta del perfil.
+   *
+   * `join: 'new'` porque la cuenta de la bóveda entra COMO OTRA cuenta de este
+   * navegador: la que ya usabas no se toca. Y como el multi-perfil no es reactivo, se
+   * deja ACTIVA la nueva y se rearranca el núcleo, igual que al crear un perfil.
+   */
+  async pairWithVault ({ qr, label, onCode }) {
+    const c = await identityCore()
+    const off = c.onVaultEvent((e) => {
+      if (e?.phase === 'challenge') { try { onCode?.({ code: e.code, deviceId: e.deviceId }) } catch (_) {} }
+    })
+    try {
+      const r = await c.handlers.vaultPair({ qr, label: label || '', join: 'new' })
+      const prof = await c.handlers.currentProfile()
+      await c.handlers.switchProfile({ id: prof.id })
+      await restart()
+      return { ...r, profileId: prof.id }
+    } finally { off() }
+  },
 }
