@@ -7,8 +7,8 @@
 > `pass.dotrino.com`.
 >
 > **Publicado en npm:** `@dotrino/passmanager@0.1.0` y `@dotrino/proxy-client@0.13.0`.
-> **Passkeys hechas** (§7) y **consola de aparatos** en `pass.dotrino.com/devices.html`
-> (§6.2).
+> **Passkeys hechas** (§7). La bóveda y sus aparatos se administran en
+> `vault.dotrino.com/vault` — una sola dirección desde el 2026-08-26 (§6.2).
 >
 > **El vault del ecosistema atiende** (`dotrino-vault passwords <ID> on`): almacén
 > cifrado en reposo, llave propia, lista de aparatos que se cruza con el acta, y la
