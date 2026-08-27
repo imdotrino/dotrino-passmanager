@@ -45,6 +45,17 @@ function styles () {
       pointer-events: auto;
       box-shadow: 0 0 0 1px rgba(255,255,255,.55);
     }
+    /* El aviso de guardar: abajo a la derecha, por encima de todo y sin heredar nada
+       del sitio. Fijo, para que no se vaya con el scroll de la página. */
+    .save-prompt {
+      position: fixed;
+      right: 16px; bottom: 16px;
+      width: 320px; height: 168px;
+      border: 0; border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.28);
+      pointer-events: auto;
+      color-scheme: normal;
+    }
     .marker:hover, .marker:focus-visible { opacity: 1; outline: none; }
     .marker:focus-visible { box-shadow: 0 0 0 2px #fff, 0 0 0 4px ${BRAND}; }
 
@@ -228,3 +239,34 @@ export function closeModal () {
 
 /** Para las pruebas: el shadow root, que es cerrado y no se alcanza desde fuera. */
 export function _shadow () { return shadow }
+
+/**
+ * EL AVISO DE «¿la guardo?», después de entrar.
+ *
+ * Es un IFRAME DE LA EXTENSIÓN, no HTML nuestro dentro de la página, y esa diferencia
+ * es toda la seguridad de esto: el botón que acaba escribiendo en la bóveda se pulsa en
+ * el origen `chrome-extension://`, así que la petición llega con ese origen y pasa por
+ * la misma puerta que el popup. La página no puede pulsarlo, ni leerlo, ni fingirlo —
+ * y no ve nada de lo que hay dentro.
+ *
+ * Aquí no viaja ninguna contraseña. Lo que se capturó vive en el service worker; el
+ * aviso solo enseña de qué sitio y de qué usuario se trata.
+ */
+let prompt = null
+
+export function mountSavePrompt (params) {
+  const sr = ensureHost()
+  closeSavePrompt()
+  const frame = document.createElement('iframe')
+  frame.className = 'save-prompt'
+  frame.setAttribute('title', 'Dotrino')
+  frame.src = chrome.runtime.getURL('src/save-prompt.html') + '?' + new URLSearchParams(params)
+  sr.append(frame)
+  prompt = frame
+  return frame
+}
+
+export function closeSavePrompt () {
+  prompt?.remove()
+  prompt = null
+}

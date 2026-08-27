@@ -134,6 +134,82 @@ async function readForm () {
   return null
 }
 
+// --- guardar lo que acabas de escribir --------------------------------------
+//
+// Los gestores que la gente ya usa preguntan DESPUÉS de entrar, en la página siguiente,
+// y tienen razón: al enviar el formulario ya no hay nada que leer, y pedirlo antes es
+// pedirle al usuario que se acuerde. Así que se captura al enviar y se pregunta luego.
+//
+// **Capturar no es guardar.** Lo escrito va al service worker y se queda ahí, en la
+// memoria de la sesión y con fecha de caducidad; en la bóveda no entra nada hasta que
+// el usuario lo diga, y ese «sí» se pulsa en un iframe de la EXTENSIÓN, no en la
+// página. La regla de siempre sigue en pie: el sitio no puede escribir en tu bóveda.
+
+/** Lo escrito en un formulario de acceso, si hay contraseña. */
+function credentialsIn (form) {
+  const secret = form?.password?.value || ''
+  if (!secret) return null
+  return { username: form.username?.value || '', secret, url: location.href }
+}
+
+function capture (cred) {
+  if (!cred) return
+  try { chrome.runtime.sendMessage({ op: 'capture', payload: cred }, () => void chrome.runtime.lastError) } catch (_) {}
+}
+
+// 1. El envío del formulario, que es el caso normal. En captura para que llegue aunque
+//    la página cancele el evento después.
+addEventListener('submit', (e) => {
+  const f = lastForms.find(x => x.form && x.form === e.target) || lastForms[0]
+  if (f) return capture(credentialsIn(f))
+  // Sin nada detectado todavía (una SPA que acaba de montar el formulario): se mira el
+  // propio formulario que se envía, que es síncrono y no depende de la última pasada.
+  const pass = e.target?.querySelector?.('input[type=password]')
+  if (!pass?.value) return
+  const campos = [...(e.target.querySelectorAll('input') || [])]
+  const antes = campos.slice(0, campos.indexOf(pass))
+    .filter(el => ['text', 'email', 'tel', ''].includes(el.type))
+  capture({ username: antes.at(-1)?.value || '', secret: pass.value, url: location.href })
+}, true)
+
+// 2. Y la salida de la página, porque media web entra sin disparar `submit`: un botón
+//    que llama a `fetch` y navega a mano. Sin esto el gestor solo aprendería de los
+//    formularios de siempre, que son cada vez menos.
+addEventListener('pagehide', () => {
+  for (const f of lastForms) { const c = credentialsIn(f); if (c) return capture(c) }
+}, { capture: true })
+
+/**
+ * ¿Quedó algo por preguntar de la página anterior? Se pregunta aquí, ya cargada.
+ *
+ * Y se pregunta VARIAS VECES durante unos segundos, no una sola: entre enviar el
+ * formulario y cargar la página siguiente hay una carrera de verdad —el service worker
+ * puede estar dormido y tardar en anotar lo capturado, y la página nueva suele llegar
+ * antes—. Preguntando una vez el aviso no salía casi nunca; costó verlo porque no falla,
+ * simplemente no aparece.
+ */
+async function offerSave () {
+  for (const espera of [0, 400, 1000, 2000]) {
+    if (espera) await new Promise(r => setTimeout(r, espera))
+    const r = await ask('pending-save', { host: location.hostname })
+    const p = r?.result
+    if (!p?.has) continue
+    const { ui } = await mods
+    ui.mountSavePrompt({
+      host: p.host || '',
+      user: p.username || '',
+      ...(p.dup ? { dup: p.dup, dupHint: p.dupHint || '' } : {}),
+    })
+    return
+  }
+}
+
+// El aviso se cierra solo: es un iframe de la extensión y no alcanza al DOM de aquí.
+addEventListener('message', async (e) => {
+  if (e.data?._dotrino !== 'close-save-prompt') return
+  ;(await mods).ui.closeSavePrompt()
+})
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Solo del propio popup: un messageFor con `sender.tab` viene de una página.
   if (sender.tab) { sendResponse({ error: { code: 'denied' } }); return false }
@@ -168,3 +244,4 @@ addEventListener('scroll', seguir, { passive: true, capture: true })
 addEventListener('resize', seguir, { passive: true })
 
 scan()
+offerSave().catch(() => {})

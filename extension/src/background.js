@@ -29,6 +29,7 @@ import {
   createCredential, signAssertion, credentialMatches, b64urlDecode,
 } from './vendor/passmanager/webauthn.js'
 import { parseInvite } from './vendor/vault/invite.js'
+import { maskUsername } from './vendor/passmanager/model.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
 import { identity } from './identity-core.js'
 
@@ -394,8 +395,99 @@ async function webauthnGet (p) {
   throw new VaultError(CODES.NOT_FOUND, 'ninguna passkey sirve para lo que pide el sitio')
 }
 
+// --- lo capturado, a la espera de que el usuario diga que sí ------------------
+//
+// Guardar se pregunta DESPUÉS de entrar, en la página siguiente, que es cuando la
+// persona sabe si la contraseña era buena. Entre una página y otra hay que sostener lo
+// escrito, y eso es un secreto en claro: se sostiene lo mínimo y se dice dónde.
+//
+//   · en `chrome.storage.session`, que NUNCA toca el disco y muere con el navegador
+//   · UNO a la vez, y con caducidad — un «ahora no» no deja nada esperando
+//   · nunca vuelve a la página: el aviso que lo enseña es un iframe de la extensión y
+//     solo recibe el sitio y el usuario, jamás la contraseña
+const PENDING = 'passmanager/pending-save'
+const PENDING_TTL_MS = 5 * 60 * 1000
+
+const hostOf = (url) => { try { return new URL(url).hostname } catch { return '' } }
+
+async function readPending () {
+  const p = (await chrome.storage.session.get(PENDING))[PENDING]
+  if (!p) return null
+  if (Date.now() - p.ts > PENDING_TTL_MS) { await chrome.storage.session.remove(PENDING); return null }
+  return p
+}
+
+/**
+ * La página avisa de lo que se acaba de escribir. NO escribe en la bóveda: solo lo deja
+ * apuntado. Es la única operación que un sitio puede disparar y que toca algo nuestro, y
+ * por eso no toca nada que importe — como mucho pisa una captura anterior suya.
+ */
+async function capture ({ username, secret, url }) {
+  if (!secret) return { ok: false }
+  await chrome.storage.session.set({
+    [PENDING]: { username: username || '', secret, url: url || '', host: hostOf(url), ts: Date.now() },
+  })
+  return { ok: true }
+}
+
+/**
+ * ¿Hay algo que ofrecer en este sitio? Devuelve el sitio y el usuario, NUNCA la
+ * contraseña: quien pregunta es el content script, o sea la página.
+ *
+ * Se ofrece solo en el MISMO sitio donde se escribió. Entrar en un sitio y que el aviso
+ * te salga en otro sería enseñarle a ese otro un usuario que no es suyo.
+ */
+async function pendingSave ({ host } = {}) {
+  const p = await readPending()
+  if (!p) return { has: false }
+  if (host && p.host && host !== p.host) return { has: false }
+
+  // ¿Ya hay una cuenta que se le parezca aquí? La bóveda solo devuelve la pista del
+  // usuario (enmascarada), así que se compara pista con pista. No se decide por el
+  // usuario: si hay UNA parecida se le ofrecen las dos salidas, y si hay varias solo
+  // la de guardar — actualizar la equivocada le pisa una contraseña que sí servía.
+  let dup = null
+  try {
+    const hits = await (await connect()).find(p.url)
+    const mascara = maskUsername(p.username)
+    const iguales = hits.filter(h => h.hint && h.hint === mascara)
+    if (iguales.length === 1) dup = { id: iguales[0].id, hint: iguales[0].title || iguales[0].hint }
+  } catch (_) { /* sin bóveda a mano: se ofrece guardar de todos modos */ }
+
+  return { has: true, host: p.host, username: p.username, ...(dup ? { dup: dup.id, dupHint: dup.hint } : {}) }
+}
+
+/**
+ * El «sí». Llega del iframe del aviso, que corre en el origen de la EXTENSIÓN: por eso
+ * pasa la misma puerta que el popup y la página no puede dispararlo.
+ */
+async function savePending ({ id } = {}) {
+  const p = await readPending()
+  if (!p) throw new VaultError(CODES.NOT_FOUND, 'ya no hay nada que guardar')
+  const v = await connect()
+  await v.put({
+    ...(id ? { id } : {}),
+    type: 'login',
+    title: p.host,
+    sites: [p.host],
+    username: p.username,
+    secret: p.secret,
+  })
+  await chrome.storage.session.remove(PENDING)
+  return { ok: true }
+}
+
+async function dismissPending () {
+  await chrome.storage.session.remove(PENDING)
+  return { ok: true }
+}
+
 const OPS = {
   status,
+  capture,
+  'pending-save': pendingSave,
+  'save-pending': savePending,
+  'dismiss-pending': dismissPending,
   'webauthn-create': webauthnCreate,
   'webauthn-get': webauthnGet,
   link: p => link(p),
@@ -435,7 +527,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const deLaExtension = (sender.origin || sender.url || '').startsWith(`chrome-extension://${chrome.runtime.id}`)
   // Cambiar de perfil es cambiar de bóveda: si una página pudiera, te enseñaría las
   // credenciales de otro perfil o te las guardaría en el que ella eligiera.
-  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get'].includes(msg.op)) {
+  //
+  // `capture` y `pending-save` SÍ los puede disparar la página, y es a propósito: son
+  // los dos lados del aviso de guardar. Ninguno escribe en la bóveda ni saca nada de
+  // ella — uno apunta lo que el propio sitio acaba de recibir, y el otro devuelve el
+  // sitio y el usuario, nunca la contraseña. El «sí» que sí escribe (`save-pending`)
+  // se queda fuera de esta lista: se pulsa en el iframe de la extensión.
+  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

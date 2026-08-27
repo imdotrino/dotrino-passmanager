@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dotrino</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #14161c;
+    color: #e9edf2;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    height: 100vh;
+  }
+  h1 { font-size: .95rem; margin: 0 0 2px; }
+  .who { font-size: .82rem; opacity: .72; word-break: break-all; }
+  .note { font-size: .78rem; opacity: .72; margin: 8px 0 0; }
+  .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    font: inherit; cursor: pointer; border: 0; border-radius: 8px;
+    padding: .5rem .8rem; background: #00658c; color: #fff;
+  }
+  button.ghost { background: transparent; color: #e9edf2; border: 1px solid rgba(255,255,255,.22); }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .err { color: #ff8a8a; font-size: .8rem; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+  <h1 data-t="title">¿Guardo esta contraseña?</h1>
+  <div class="who"><span id="user"></span> · <span id="host"></span></div>
+  <p class="note" id="note" hidden></p>
+  <p class="err" id="err" hidden></p>
+  <div class="row">
+    <button id="save" data-testid="save-prompt-save"></button>
+    <button id="update" class="ghost" data-testid="save-prompt-update" hidden></button>
+    <button id="no" class="ghost" data-testid="save-prompt-dismiss"></button>
+  </div>
+  <script type="module" src="save-prompt.js"></script>
+</body>
+</html>

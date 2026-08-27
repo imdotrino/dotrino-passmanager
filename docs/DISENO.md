@@ -420,10 +420,59 @@ extra**: un gestor que no genera obliga a inventárselas, y ahí es donde se rep
 siempre.
 
 Y desde el navegador hay un solo caso, el que ocurre de verdad: **guardar la contraseña
-que acabas de escribir**. Está en el popup y no en la página, y esa diferencia es de
-seguridad, no de estética — si la página pudiera guardar por su cuenta, llenaría la
-bóveda de entradas inventadas. El popup es UI de la extensión, con el usuario delante;
-el content script solo atiende peticiones que vienen de él (`sender.tab` las delata).
+que acabas de escribir**. La decisión nunca es de la página: si el sitio pudiera guardar
+por su cuenta, llenaría la bóveda de entradas inventadas. Hay dos formas de decir que sí,
+y las dos se pulsan en UI de la extensión:
+
+- **El aviso de después de entrar** (§4.0.1), que es el camino normal.
+- **El popup**, con «Guardar la contraseña de esta página», mientras el formulario sigue
+  escrito. Sigue estando para lo que el aviso no cubre.
+
+### 4.0.1. El aviso sale DESPUÉS de entrar, no antes
+
+> Dicho por el dueño el 2026-08-27: *«los gestores actuales muestran la solicitud de
+> guardar después de que el formulario ha sido enviado, en la página siguiente»*.
+
+Y es lo correcto: al enviar el formulario ya no queda nada escrito que leer, y pedirlo
+antes es pedirle al usuario que se acuerde de un paso que ningún otro gestor le pide.
+Antes había que abrir el popup **antes** de pulsar «Entrar»; quien se olvidaba, volvía a
+escribirlo todo.
+
+El recorrido, y dónde está cada pieza:
+
+| | Quién | Qué |
+|---|---|---|
+| al enviar | content script | lee usuario y contraseña del formulario y las manda al service worker (`capture`) |
+| entre páginas | service worker | las sostiene en `chrome.storage.session`, **una sola** y con caducidad de 5 min |
+| ya en la página siguiente | content script | pregunta si hay algo pendiente **para este mismo sitio** y monta el aviso |
+| el aviso | **iframe de la extensión** | enseña el sitio y el usuario. La contraseña **no llega hasta aquí** |
+| el «sí» | service worker | lee lo capturado y escribe en la bóveda; después lo borra |
+
+**Por qué un iframe y no HTML nuestro dentro de la página.** Porque el botón que acaba
+escribiendo en la bóveda tiene que pulsarse en el origen de la extensión: así el mensaje
+llega con origen `chrome-extension://` y pasa por la misma puerta que el popup, sin
+abrirle a la página ninguna operación nueva. La página no puede pulsarlo, ni leerlo, ni
+fingirlo — vive además en el Shadow DOM cerrado del §4.1.
+
+**Lo que la página SÍ puede disparar**, y por qué no importa: `capture` (apuntar lo que
+ella misma acaba de recibir) y `pending-save` (preguntar si hay algo suyo pendiente, que
+devuelve el sitio y el usuario, nunca la contraseña). Ninguna escribe en la bóveda ni
+saca nada de ella.
+
+**El coste, dicho en voz alta:** entre una página y la siguiente hay una contraseña en
+claro en `chrome.storage.session`. Ese almacén nunca toca el disco y muere con el
+navegador, se sostiene **una sola** captura, caduca a los 5 minutos y un «ahora no» la
+borra. Es el precio de preguntar cuando la persona ya sabe si la contraseña servía, y no
+hay forma de tener lo uno sin lo otro.
+
+**Dos cosas que costaron encontrarse al probarlo en Chrome de verdad** (por eso existe
+`extension/test/guardar.e2e.mjs`):
+
+- Preguntar **una sola vez** al cargar no vale: el service worker puede estar dormido y
+  la página nueva llega antes de que haya anotado nada. Se reintenta unas veces durante
+  un par de segundos. No fallaba — simplemente el aviso no aparecía.
+- Media web entra **sin disparar `submit`** (un botón que llama a `fetch` y navega a
+  mano), así que además se captura al salir de la página.
 
 Editar desde el navegador **no está**, y es deliberado por ahora: son formularios
 enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóveda.

@@ -48,6 +48,10 @@ node bin/passmanager.js import claves.csv     # de 1Password, Bitwarden o Chrome
 Los **sitios vacíos** significan que la entrada sirve en cualquier parte — así se
 guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera una**.
 
+Desde el navegador, guardar se pregunta **después de entrar**, en la página siguiente,
+como en cualquier gestor. El aviso es un iframe de la extensión: la página no lo pulsa,
+ni lo lee, ni escribe en tu bóveda. Detalle en [`docs/DISENO.md`](./docs/DISENO.md) §4.0.1.
+
 Y para que los aparatos puedan pedir. Se conectan **como cualquier aparato del
 ecosistema**: la bóveda enseña una invitación, el aparato enseña seis caracteres y se
 teclean aquí. No hay códigos de enlace que pegar en las dos direcciones.
