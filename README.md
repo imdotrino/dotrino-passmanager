@@ -48,6 +48,10 @@ node bin/passmanager.js import claves.csv     # de 1Password, Bitwarden o Chrome
 Los **sitios vacíos** significan que la entrada sirve en cualquier parte — así se
 guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera una**.
 
+En la página, el gestor pone un botón en la esquina de un campo **solo cuando puede
+hacer algo ahí**: poner algo que tienes guardado, o guardar lo que acabas de escribir. Si
+no hay ni lo uno ni lo otro, no hay botón. Nada se rellena solo.
+
 Desde el navegador, guardar se pregunta **después de entrar**, en la página siguiente,
 como en cualquier gestor — y también en formularios que no son un acceso (tu nombre, el
 correo, la dirección). El aviso lista **una fila por dato**, marcando lo que es nuevo y lo

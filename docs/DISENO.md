@@ -574,6 +574,25 @@ De ahí sale cómo se pinta el aviso, que es la parte que importa:
 —un cuarto de circunferencia azul en la esquina superior derecha del campo, con el
 **pájaro de la marca** dentro y traslúcido— y espera.
 
+**Y solo los que puede ayudar, que no son todos** (dueño, 2026-08-28). El marcador sale
+si hay **algo guardado que quepa ahí**, o si el campo **ya tiene algo escrito** y se
+puede ofrecer guardarlo; si no puede hacer ninguna de las dos, no hay botón. Un marcador
+que al pulsarlo dice «no tengo nada» es un adorno en cada casilla de cada formulario de
+la web. Aparece y desaparece según se escribe.
+
+Lo que eso implica, y es un cambio de verdad: **abrir una página con un formulario ahora
+sí le pregunta algo a la bóveda** — `find`, que es la **mitad pública** (§4.0.2): qué
+entradas hay para este sitio y qué guardan, sin llave y sin aprobación. Lo privado sigue
+igual: **`get` sale al elegir en el modal**, nunca antes. Para que navegar dentro de un
+sitio no sea un viaje por página, el service worker recuerda esa respuesta pública un
+minuto y la tira en cuanto se escribe algo.
+
+Pulsar el marcador de un campo **con algo escrito** ofrece **«Guardar lo que escribiste»**,
+que es el mismo camino del §4.0.1 —se apunta y se abre el aviso, con sus filas y su
+elección de dónde va— disparado a mano en vez de al enviar. Sirve para los formularios que
+uno no llega a enviar, y para guardar antes de pulsar «Entrar». El mínimo de dos datos del
+§4.0.2 no aplica aquí: pulsar el botón **es** pedirlo.
+
 El pájaro y no el icono entero: a ese tamaño el candado no se lee y queda una mancha, y
 lo único que hay que poder distinguir ahí es de quién es el botón.
 
@@ -600,7 +619,7 @@ regla que rige todo lo demás aquí.
 Consecuencias en el código:
 
 - La petición de la credencial (`get`) sale **al elegir en el modal**, no al detectar
-  el campo. Abrir una página no pide nada a la bóveda.
+  el campo. Lo que sí sale al cargar es `find`, que no abre nada (arriba).
 - El botón y el modal viven en un **Shadow DOM cerrado**: ni heredan los estilos del
   sitio ni el sitio los alcanza.
 - Los botones siguen a sus campos en scroll y resize, y se remontan cuando la SPA

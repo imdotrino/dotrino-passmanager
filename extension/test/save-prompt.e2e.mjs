@@ -76,6 +76,9 @@ try {
   ok(!!frame, 'el aviso aparece solo en la página siguiente')
   if (!frame) throw new Error('no salió el aviso')
   const guardar = frame.locator('[data-testid=save-prompt-save]')
+  // A que esté PINTADO: el botón existe en el HTML antes de que el aviso sepa qué va a
+  // escribir. Se espera a la primera fila de campo, que solo aparece ya cargado.
+  await frame.locator('[data-testid=save-prompt-field]').first().waitFor({ timeout: 8000 })
   await guardar.waitFor({ state: 'visible', timeout: 8000 })
 
   ok((await frame.locator('#host').textContent()) === 'localhost', 'enseña el sitio')

@@ -170,6 +170,7 @@ async function activeProfile () {
 
 /** Cerrar lo abierto: era del perfil de antes y no se reutiliza con otra identidad. */
 function dropOpen () {
+  forgetFinds()
   transport = null
   vault = null
   vaultOf = null
@@ -362,6 +363,7 @@ async function webauthnCreate (p) {
 
   // Se guarda ANTES de devolverla: si el sitio la registra y nosotros no la tenemos,
   // el usuario se queda fuera de su cuenta sin saber por qué.
+  forgetFinds()
   await v.put({
     type: 'webauthn',
     title: p.rpName || p.rpId,
@@ -391,6 +393,7 @@ async function webauthnGet (p) {
     })
     // El contador tiene que subir en la bóveda: si se queda quieto, el servidor
     // sospecha que la credencial está clonada.
+    forgetFinds()
     await v.put({ ...entrada, webauthn: { ...entrada.webauthn, signCount } })
     return response
   }
@@ -645,8 +648,10 @@ async function savePending ({ id, pick } = {}) {
     fields,
     ...(base?.createdAt ? { createdAt: base.createdAt } : {}),
   })
-  // Lo recordado de esa entrada ya no vale: acaba de cambiar.
+  // Lo recordado de esa entrada ya no vale: acaba de cambiar. Y la lista pública del
+  // sitio tampoco, que es de donde salen los marcadores.
   if (id) { try { await cache.forget(id) } catch (_) {} }
+  forgetFinds()
   await chrome.storage.session.remove(PENDING)
   return { ok: true }
 }
@@ -671,6 +676,29 @@ async function getEntry (v, id) {
   return entry
 }
 
+/**
+ * Lo PÚBLICO de un sitio, recordado un minuto.
+ *
+ * Desde que el marcador solo sale si sirve de algo, cada página con un formulario
+ * pregunta `find` al cargar. Con la bóveda propia eso es gratis; con una conectada es un
+ * viaje por el proxio, y navegar dentro de un sitio no puede ser un viaje por página.
+ * Solo se recuerda lo público —lo mismo que `find` devuelve a cualquiera—, y cualquier
+ * escritura lo tira.
+ */
+const FIND_TTL_MS = 60 * 1000
+const findMemo = new Map()
+
+const forgetFinds = () => findMemo.clear()
+
+async function findFor (url) {
+  const host = hostOf(url)
+  const hit = findMemo.get(host)
+  if (hit && Date.now() - hit.ts < FIND_TTL_MS) return hit.result
+  const result = await (await connect()).find(url)
+  if (host) findMemo.set(host, { ts: Date.now(), result })
+  return result
+}
+
 const OPS = {
   status,
   capture,
@@ -687,9 +715,9 @@ const OPS = {
   'profile-use': useProfile,
   'profile-rename': renameProfile,
   'profile-remove': removeProfile,
-  find: async p => (await connect()).find(p.url),
+  find: p => findFor(p.url),
   get: async p => getEntry(await connect(), p.id),
-  put: async p => (await connect()).put(p.entry),
+  put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

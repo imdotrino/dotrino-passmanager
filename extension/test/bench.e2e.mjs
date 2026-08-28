@@ -34,10 +34,20 @@ const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =
 const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('   [error de página]', e.message))
 
+/**
+ * El aviso, YA PINTADO.
+ *
+ * Se espera a que haya una fila de campo, no a que exista el botón: el botón viene en el
+ * HTML y está ahí antes de que el aviso sepa qué va a escribir ni dónde. Pulsarlo en ese
+ * hueco elegía el destino de antes, y fallaba una vez de cada tantas.
+ */
 async function aviso (ms = 10000) {
   for (let i = 0; i < ms / 250; i++) {
     const f = page.frames().find((x) => x.url().includes('/src/save-prompt.html'))
-    if (f) { await f.locator('[data-testid=save-prompt-save]').waitFor({ timeout: 5000 }); return f }
+    if (f) {
+      await f.locator('[data-testid=save-prompt-field]').first().waitFor({ timeout: 8000 })
+      return f
+    }
     await page.waitForTimeout(250)
   }
   return null
@@ -240,8 +250,8 @@ try {
   ok(campos7.find((c) => c.kind === 'email')?.value === 'ana@datos.com', 'y lo que no cambió sigue ahí')
   ok(campos7.length === 5, 'sin sumar campos de la nada: ' + campos7.length)
 
-  // --- caso 9: «ahora no» ---
-  console.log('\ncaso 9 · ahora no')
+  // --- caso 10: «ahora no» ---
+  console.log('\ncaso 10 · ahora no')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=user]', 'dani@ejemplo.com')
@@ -256,8 +266,8 @@ try {
     .some((e) => e.hint === 'd•••i@ejemplo.com')
   ok(!nada, 'y no guarda nada')
 
-  // --- caso 10: los marcadores para rellenar ---
-  console.log('\ncaso 10 · marcadores en los campos')
+  // --- caso 11: los marcadores para rellenar ---
+  console.log('\ncaso 11 · marcadores en los campos')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(1200)
   const marcadores = await page.evaluate(() => {

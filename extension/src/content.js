@@ -9,7 +9,13 @@
 const mods = Promise.all([
   import(chrome.runtime.getURL('src/detect.js')),
   import(chrome.runtime.getURL('src/ui.js')),
-]).then(([detect, ui]) => ({ detect, ui }))
+  import(chrome.runtime.getURL('src/i18n.js')),
+]).then(([detect, ui, i18n]) => ({ detect, ui, i18n }))
+
+// El idioma sale del navegador y NO de `localStorage`: aquí ese almacén es el de la
+// PÁGINA, no el nuestro, y no se lee lo que es del sitio ni para esto.
+const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es'
+const t = (key, ...args) => (cache.i18n ? cache.i18n.t(lang, key, ...args) : '')
 
 let lastForms = []
 let lastData = []
@@ -26,7 +32,36 @@ function ask (op, payload) {
   })
 }
 
-/** Los campos markable: el usuario/contraseña de cada acceso, y los datos sueltos. */
+/**
+ * LO PÚBLICO de lo que hay guardado para este sitio. Se pregunta una vez por página.
+ *
+ * `find` no abre nada: devuelve la mitad pública (§4.0.2) —qué entradas hay, con qué
+ * usuario y qué guardan—, sin llave y sin aprobación. Hace falta para saber si el campo
+ * merece un marcador, y es lo único que se pide sin que el usuario haya pulsado nada.
+ */
+let vaultFor = { host: null, entries: [], error: null }
+
+async function entriesForHost () {
+  if (vaultFor.host === location.host) return vaultFor
+  const r = await ask('find', { url: location.href })
+  vaultFor = { host: location.host, entries: r?.error ? [] : (r.result || []), error: r?.error?.code || null }
+  return vaultFor
+}
+
+/** Lo guardado ya no vale: se acaba de escribir algo. */
+function forgetEntries () {
+  vaultFor = { host: null, entries: [], error: null }
+}
+
+/**
+ * Los campos donde el gestor PUEDE hacer algo, que no son todos.
+ *
+ * Un marcador en cada casilla de cada formulario de la web es un adorno: la mitad de las
+ * veces no hay nada que poner ahí. Se marca cuando hay algo guardado que quepa, o cuando
+ * el campo ya tiene algo escrito y se puede ofrecer guardarlo (dueño, 2026-08-28).
+ */
+let shownKey = ''
+
 async function scan () {
   const { detect, ui } = await mods
   try {
@@ -44,38 +79,92 @@ async function scan () {
     if (!markable.some(m => m.el === d.el)) markable.push(d)
   }
 
-  ui.mountMarkers(markable, onPick)
-  return markable
-}
-
-/** El usuario pulsó el botón de un campo: se le enseña qué puede poner ahí. */
-async function onPick (field) {
-  const { ui } = await mods
-  const r = await ask('find', { url: location.href })
-
-  if (r.error) {
-    ui.showModal({ title: 'Dotrino', empty: messageFor(r.error.code) })
-    return
+  // Sin campos no se le pregunta nada a la bóveda: una página que no tiene formularios
+  // no tiene por qué despertar a nadie.
+  if (!markable.length) {
+    if (shownKey) { ui.mountMarkers([], onPick); shownKey = '' }
+    return []
   }
 
-  const entries = r.result || []
+  const { entries } = await entriesForHost()
+  const shown = []
+  for (const f of markable) {
+    const offers = detect.fieldOffers(
+      { kind: f.kind, value: f.el.value, formSecret: f.form?.password?.value }, entries)
+    if (offers.fill || offers.save) shown.push({ ...f, offers, title: titleFor(offers) })
+  }
+
+  // Volver a montarlos en cada tecla haría parpadear el que tienes debajo del cursor: se
+  // rehacen solo cuando cambia QUÉ se marca o QUÉ ofrece.
+  const key = shown
+    .map(f => `${markable.findIndex(m => m.el === f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}`)
+    .join('|')
+  if (key !== shownKey) {
+    ui.mountMarkers(shown, onPick)
+    shownKey = key
+  } else {
+    ui.reposition()
+  }
+  return shown
+}
+
+const titleFor = (offers) => offers.fill ? t('fill') : t('saveThis')
+
+/**
+ * El usuario pulsó el botón de un campo: se le enseña qué se puede hacer ahí.
+ *
+ * Dos cosas, y pueden estar las dos a la vez: **poner** algo guardado, y **guardar** lo
+ * que ya está escrito. La segunda va abajo, separada, porque no es una opción más de
+ * «qué pongo aquí».
+ */
+async function onPick (field) {
+  const { ui } = await mods
+  const { entries, error } = await entriesForHost()
+
   const esDato = !!field.kind
-  const options = entries
-    .filter(e => esDato ? e.hasFields : (e.hasSecret || e.type === 'login'))
-    .map(e => ({ id: e.id, name: e.title || e.sites?.[0] || '—', hint: e.hint || e.sites?.[0] || '' }))
+  const options = field.offers?.fill
+    ? entries
+      .filter(e => esDato ? e.hasFields : (e.hasSecret || e.type === 'login'))
+      .map(e => ({ id: e.id, name: e.title || e.sites?.[0] || '—', hint: e.hint || e.sites?.[0] || '' }))
+    : []
 
   ui.showModal({
     title: 'Dotrino',
-    what: esDato ? field.kind : 'acceso',
+    what: esDato ? field.kind : t('fieldLogin'),
     options,
-    empty: 'Nada guardado para este campo.',
+    empty: error ? messageFor(error) : t('nothingForField'),
+    closeLabel: t('close'),
+    action: field.offers?.save ? { label: t('saveThis'), onAction: () => saveFromField(field) } : null,
     onChoose: async (opt) => {
       // Aquí, y solo aquí, se pide UNA credencial: al elegirla el usuario.
       const got = await ask('get', { id: opt.id })
-      if (got.error) return ui.showModal({ title: 'Dotrino', empty: messageFor(got.error.code) })
+      if (got.error) return ui.showModal({ title: 'Dotrino', empty: messageFor(got.error.code), closeLabel: t('close') })
       await fill(field, got.result)
     },
   })
+}
+
+/**
+ * GUARDAR lo que hay escrito, sin esperar a enviar el formulario.
+ *
+ * Es el mismo camino que el aviso de después de entrar (§4.0.1): se apunta lo escrito y
+ * se abre el aviso, con su lista de campos y su elección de dónde va. Lo que cambia es
+ * solo el disparador — aquí lo pulsa el usuario en el campo, en vez de salir solo en la
+ * página siguiente—, y quien escribe en la bóveda sigue siendo el iframe de la
+ * extensión, nunca la página.
+ */
+async function saveFromField (field) {
+  const { ui } = await mods
+  // Un campo de datos suelto no tiene «formulario de acceso»: se captura el suyo.
+  const form = field.kind
+    ? { form: field.el.form || null, password: null, username: null }
+    : field.form
+  // `force`: pulsar el botón ES la intención. El mínimo de dos datos existe para no
+  // molestar a nadie sin que lo pida, y aquí lo está pidiendo.
+  const hecho = captureFrom(form, { force: true })
+  if (!hecho) return ui.showModal({ title: 'Dotrino', empty: t('nothingToSave'), closeLabel: t('close') })
+  await hecho
+  await offerSave([0, 300, 800])
 }
 
 async function fill (field, entry) {
@@ -102,10 +191,10 @@ function parseFields (raw) {
 }
 
 function messageFor (code) {
-  if (code === 'no-link' || code === 'unreachable') return 'Esta extensión no está enlazada a ninguna bóveda.'
-  if (code === 'denied') return 'Tu bóveda no autoriza a esta extensión todavía.'
-  if (code === 'approval-timeout') return 'Tu bóveda no respondió. ¿Está encendida?'
-  return 'No se pudo hablar con tu bóveda.'
+  if (code === 'no-link' || code === 'unreachable') return t('noVault')
+  if (code === 'denied') return t('denied')
+  if (code === 'approval-timeout') return t('noAnswer')
+  return t('noTalk')
 }
 
 // --- lo que puede pedir el POPUP -------------------------------------------
@@ -116,8 +205,8 @@ function messageFor (code) {
 /** Rellena el primer formulario de acceso con una credencial que el usuario eligió. */
 async function fillLogin ({ username, secret }) {
   const { detect, ui } = await mods
-  const forms = lastForms.length ? lastForms : await scan()
-  const f = forms[0]
+  if (!lastForms.length) await scan()
+  const f = lastForms[0]
   if (!f) return false
   let done = false
   if (f.username && username) done = detect.fillField(f.username, username) || done
@@ -128,8 +217,8 @@ async function fillLogin ({ username, secret }) {
 
 /** Lo que hay escrito en el formulario, para poder guardarlo en la bóveda. */
 async function readForm () {
-  const forms = lastForms.length ? lastForms : await scan()
-  for (const f of forms) {
+  if (!lastForms.length) await scan()
+  for (const f of lastForms) {
     const secret = f.password?.value || ''
     if (!secret) continue
     return { username: f.username?.value || '', secret, url: location.href }
@@ -149,8 +238,10 @@ async function readForm () {
 // página. La regla de siempre sigue en pie: el sitio no puede escribir en tu bóveda.
 
 function capture (cred) {
-  if (!cred) return
-  try { chrome.runtime.sendMessage({ op: 'capture', payload: cred }, () => void chrome.runtime.lastError) } catch (_) {}
+  if (!cred) return Promise.resolve()
+  // Devuelve promesa para quien pueda esperarla (el botón del campo); en `pagehide` no
+  // hay tiempo de esperar nada, pero el mensaje sale igual — se despacha al llamar.
+  try { return ask('capture', cred) } catch (_) { return Promise.resolve() }
 }
 
 /**
@@ -164,8 +255,11 @@ function capture (cred) {
  */
 const enoughData = (fields) => fields.length >= 2
 
-/** Lo mismo pero sin esperar a nadie: en `pagehide` no hay tiempo para un `await`. */
-function captureFrom (form) {
+/**
+ * Lo mismo pero sin esperar a nadie: en `pagehide` no hay tiempo para un `await`.
+ * Con `force` se salta el mínimo de dos datos: es para cuando el usuario lo pide.
+ */
+function captureFrom (form, { force = false } = {}) {
   const { detect } = cache
   if (!detect) return false
   const secret = form?.password?.value || ''
@@ -173,21 +267,27 @@ function captureFrom (form) {
   // formularios, lo que se guarda es lo del que se envió.
   const scope = form?.form || document
   const fields = detect.readDataFields(scope, { skip: [form?.username, form?.password] })
-  if (!secret && !enoughData(fields)) return false
-  capture({
+  if (!secret && !(force ? fields.length : enoughData(fields))) return false
+  return capture({
     username: secret ? detect.readUsername(form) : '',
     secret,
     fields,
     url: location.href,
   })
-  return true
 }
 
 // El usuario ESCRIBIÓ algo. Se apunta porque `pagehide` no sabe distinguir entre salir
 // de un formulario que acabas de llenar y salir de una página que solo lo enseñaba: sin
 // esto, abrir tus ajustes y volver atrás pediría guardar lo que ya estaba ahí.
 let touched = false
-addEventListener('input', () => { touched = true }, { capture: true, passive: true })
+let typingT = null
+addEventListener('input', () => {
+  touched = true
+  // Escribir cambia lo que el gestor puede ofrecer: un campo vacío no tiene nada que
+  // guardar, y en cuanto tiene algo, sí. Con freno, que esto corre por cada tecla.
+  clearTimeout(typingT)
+  typingT = setTimeout(() => { scan().catch(() => {}) }, 250)
+}, { capture: true, passive: true })
 
 // 1. El envío del formulario, que es el caso normal. En captura para que llegue aunque
 //    la página cancele el evento después.
@@ -224,8 +324,8 @@ addEventListener('pagehide', () => {
  * antes—. Preguntando una vez el aviso no salía casi nunca; costó verlo porque no falla,
  * simplemente no aparece.
  */
-async function offerSave () {
-  for (const wait of [0, 400, 1000, 2000]) {
+async function offerSave (waits = [0, 400, 1000, 2000]) {
+  for (const wait of waits) {
     if (wait) await new Promise(r => setTimeout(r, wait))
     const r = await ask('pending-save', { host: location.hostname })
     const p = r?.result
@@ -251,8 +351,13 @@ addEventListener('message', async (e) => {
   if (op !== 'close-save-prompt' && op !== 'size-save-prompt') return
   const { ui } = await mods
   if (e.origin !== EXT_ORIGIN && e.source !== ui.promptWindow()) return
-  if (op === 'close-save-prompt') ui.closeSavePrompt()
-  else ui.sizeSavePrompt(e.data.h)
+  if (op === 'close-save-prompt') {
+    ui.closeSavePrompt()
+    // Puede que se acabe de guardar algo: lo que se sabía de la bóveda ya no vale, y los
+    // marcadores de la página tienen que enterarse.
+    forgetEntries()
+    scan().catch(() => {})
+  } else ui.sizeSavePrompt(e.data.h)
 })
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -272,10 +377,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // Las SPA remontan el formulario después de cargar; sin esto el gestor funciona en la
 // primera visita y deja de funcionar al navegar dentro del sitio.
-let t = null
+let scanT = null
 const observer = new MutationObserver(() => {
-  clearTimeout(t)
-  t = setTimeout(scan, 300)
+  clearTimeout(scanT)
+  scanT = setTimeout(() => { scan().catch(() => {}) }, 300)
 })
 observer.observe(document.documentElement, { childList: true, subtree: true })
 
@@ -288,5 +393,5 @@ const seguir = () => {
 addEventListener('scroll', seguir, { passive: true, capture: true })
 addEventListener('resize', seguir, { passive: true })
 
-scan()
+scan().catch(() => {})
 offerSave().catch(() => {})

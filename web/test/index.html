@@ -23,7 +23,7 @@
   Antes de empezar: carga la extensión en
   <code>chrome://extensions</code> → «Cargar descomprimida» → la carpeta
   <code>extension/</code>, o descomprime
-  <a href="../app/dotrino-passmanager-0.5.0.zip">el .zip</a>.
+  <a href="../app/dotrino-passmanager-0.6.0.zip">el .zip</a>.
 </p>
 
 <h2>Guardar</h2>
@@ -104,7 +104,17 @@
 </div>
 
 <div class="caso">
-  <h3>9 · «Ahora no»</h3>
+  <h3>9 · Guardar sin enviar el formulario</h3>
+  <p>Escribe usuario y contraseña y <b>no pulses «Entrar»</b>: pulsa el marcador de la
+    esquina del campo.</p>
+  <p><a href="login.html">Abrir</a></p>
+  <div class="espera">El marcador ofrece <b>«Guardar lo que escribiste»</b>, y al pulsarlo
+    sale el mismo aviso de siempre —con sus filas y su elección de dónde va— sin haber
+    enviado nada.</div>
+</div>
+
+<div class="caso">
+  <h3>10 · «Ahora no»</h3>
   <p>Cualquiera de los anteriores, descartando el aviso.</p>
   <div class="espera">El aviso se cierra, <b>no vuelve</b> al recargar, y lo capturado se
     borra: no queda una contraseña esperando en la memoria del navegador.</div>
@@ -113,7 +123,16 @@
 <h2>Rellenar</h2>
 
 <div class="caso">
-  <h3>10 · Poner una credencial guardada</h3>
+  <h3>11 · El marcador solo sale si sirve</h3>
+  <p>Empieza con la bóveda vacía (más abajo dice cómo) y abre el formulario.</p>
+  <p><a href="login.html">Abrir</a></p>
+  <div class="espera">Con nada guardado y los campos vacíos <b>no hay ningún marcador</b>.
+    Escribe la contraseña y aparece, ofreciendo guardarla. Guarda, vuelve a entrar al
+    formulario vacío, y ahora aparece ofreciendo <b>rellenar</b>.</div>
+</div>
+
+<div class="caso">
+  <h3>12 · Poner una credencial guardada</h3>
   <p>Con algo ya guardado del caso 1, vuelve al formulario.</p>
   <p><a href="login.html">Abrir</a></p>
   <div class="espera">Cada campo lleva un <b>cuarto de círculo azul</b> en su esquina
@@ -122,22 +141,24 @@
 </div>
 
 <div class="caso">
-  <h3>11 · Campos que no son contraseñas</h3>
+  <h3>13 · Campos que no son contraseñas</h3>
   <p>Correo, teléfono, dirección, cédula: lo que guardaste como campos sueltos.</p>
   <p><a href="fields.html">Abrir</a></p>
-  <div class="espera">Se marcan los campos de datos y <b>no</b> el buscador. Se respeta el
-    <code>autocomplete="off"</code> del sitio.</div>
+  <div class="espera">Con algo escrito (o con datos ya guardados) se marcan los campos de
+    datos y <b>no</b> el buscador. Se respeta el <code>autocomplete="off"</code> del
+    sitio.</div>
 </div>
 
 <h2>Detección</h2>
 
 <div class="caso">
-  <h3>12 · Los casos raros</h3>
+  <h3>14 · Los casos raros</h3>
   <p>Contraseña oculta, registro con confirmación, buscador delante del usuario, campos sin
     <code>name</code>, shadow DOM, y un formulario que se monta tarde.</p>
   <p><a href="forms.html">Abrir</a></p>
-  <div class="espera">Se marca el usuario y la contraseña de cada acceso <b>de verdad</b>,
-    y nada más. El formulario que aparece tarde también acaba marcado.</div>
+  <div class="espera">Escribe una contraseña en cada formulario: se marca el usuario y la
+    contraseña de cada acceso <b>de verdad</b>, y nada más. El que aparece tarde también
+    acaba marcado.</div>
 </div>
 
 <h2>Empezar de cero</h2>

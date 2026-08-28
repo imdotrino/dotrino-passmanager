@@ -146,6 +146,11 @@ function styles () {
     .opt .name { font-weight: 600; display: block; }
     .opt .hint { font-size: 11px; opacity: .65; }
     .empty { margin: 0; font-size: 12px; opacity: .7; }
+    .act {
+      margin-top: 10px; width: 100%; padding: 9px;
+      border: 0; border-radius: 9px; background: ${BRAND}; color: #fff;
+      font: inherit; font-weight: 600; cursor: pointer;
+    }
     .close {
       margin-top: 10px; width: 100%; padding: 8px;
       border: 0; border-radius: 9px; background: none; color: inherit;
@@ -190,8 +195,8 @@ export function mountMarkers (fields, pick) {
     node.className = 'marker'
     node.type = 'button'
     node.tabIndex = 0
-    node.setAttribute('aria-label', 'Dotrino')
-    node.title = 'Dotrino'
+    node.setAttribute('aria-label', f.title || 'Dotrino')
+    node.title = f.title || 'Dotrino'
     node.dataset.kind = f.kind || 'login'
     node.addEventListener('mousedown', e => e.preventDefault()) // no robar el foco
     node.addEventListener('click', (e) => {
@@ -207,10 +212,12 @@ export function mountMarkers (fields, pick) {
 }
 
 /**
- * El modal con lo que se puede poner en ESE campo.
- * @param {object} opts  `{ title, what, options: [{ id, name, hint }], onChoose, onClose }`
+ * El modal con lo que se puede hacer en ESE campo: poner algo guardado, o guardar lo que
+ * hay escrito.
+ * @param {object} opts  `{ title, what, options: [{ id, name, hint }], empty, action,
+ *   closeLabel, onChoose, onClose }` — `action` es `{ label, onAction }`
  */
-export function showModal ({ title, what, options = [], empty, onChoose, onClose }) {
+export function showModal ({ title, what, options = [], empty, action, closeLabel, onChoose, onClose }) {
   const sr = ensureHost()
   closeModal()
 
@@ -264,10 +271,22 @@ export function showModal ({ title, what, options = [], empty, onChoose, onClose
     sheet.append(p)
   }
 
+  // Guardar lo que hay escrito en el campo. Va abajo y separado de la lista: no es una
+  // opción más de «qué pongo aquí», es la otra cosa que se puede hacer.
+  if (action) {
+    const b = document.createElement('button')
+    b.className = 'act'
+    b.type = 'button'
+    b.dataset.testid = 'field-modal-save'
+    b.textContent = action.label
+    b.addEventListener('click', () => { closeModal(); action.onAction?.() })
+    sheet.append(b)
+  }
+
   const close = document.createElement('button')
   close.className = 'close'
   close.type = 'button'
-  close.textContent = 'Cerrar'
+  close.textContent = closeLabel || 'Cerrar'
   close.addEventListener('click', () => { closeModal(); onClose?.() })
   sheet.append(close)
 

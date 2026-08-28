@@ -287,6 +287,36 @@ export function readUsername ({ form, username, password } = {}) {
   return ''
 }
 
+/**
+ * QUÉ puede hacer el gestor en este campo. De aquí sale si se marca o no (§4.1).
+ *
+ * Un botón que al pulsarlo dice «no tengo nada» es peor que no tener botón: enseña un
+ * adorno en cada casilla de cada formulario de la web. Así que el marcador solo aparece
+ * cuando puede hacer una de las dos cosas —poner algo guardado, o guardar lo que hay
+ * escrito—, y desaparece cuando no.
+ *
+ * Se decide con **lo público** de lo guardado (lo que devuelve `find`: si la entrada
+ * tiene contraseña, si tiene campos), nunca abriendo nada. Por eso para los campos de
+ * datos la respuesta es gruesa —«hay entradas con campos», no «hay un teléfono»—: qué
+ * campo guarda cada entrada va cifrado, y averiguarlo sería abrirlas todas.
+ *
+ * @param {object} field   `{ kind, value, formSecret }` — `kind` null si es un acceso
+ * @param {Array}  entries lo público de lo guardado para este sitio
+ */
+export function fieldOffers (field, entries = []) {
+  const hay = Array.isArray(entries) ? entries : []
+  const lleno = (v) => !!String(v ?? '').trim()
+  if (field?.kind) {
+    return { fill: hay.some(e => e.hasFields), save: lleno(field.value) }
+  }
+  // En un acceso, lo que se puede guardar es la credencial, y sin contraseña escrita no
+  // hay ninguna: un usuario suelto no se guarda, así que ahí no se ofrece.
+  return {
+    fill: hay.some(e => e.hasSecret || e.type === 'login'),
+    save: lleno(field?.formSecret),
+  }
+}
+
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */
 export function fillField (el, value) {
   if (!el) return false
