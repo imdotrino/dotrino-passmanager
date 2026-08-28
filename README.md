@@ -65,18 +65,21 @@ node bin/passmanager.js unlink AB12-CD34      # retirar uno del perfil
 
 ## Probar la extensión a mano
 
-Hay un **banco de pruebas** con los casos que de verdad rompen a los gestores: acceso que
-navega, acceso sin `submit`, dos pantallas, registro con confirmación, campos de datos y
-los raros de detección. Cada caso dice qué debería pasar.
+**[pass.dotrino.com/probar/](https://pass.dotrino.com/probar/)** — banco de pruebas con
+los casos que de verdad rompen a los gestores: acceso que navega, acceso sin `submit`,
+dos pantallas, registro con confirmación, campos de datos y los raros de detección. Cada
+caso dice qué debería pasar. Se abre y ya; carga la extensión y a probar.
+
+No manda nada a ninguna parte: los formularios solo pasan a otra página de ahí mismo.
+`noindex` y fuera del `robots.txt` — es una página interna, no parte del producto.
+
+En local, y para recorrerlo solo:
 
 ```bash
-npm run test:web                # sirve extension/test en http://localhost:8099
-npm run test:banco              # y lo recorre solo, en un Chrome de verdad
+npm run test:web                # sirve web/probar en http://localhost:8099
+npm run test:banco              # lo recorre entero, en un Chrome de verdad
 npm run test:extension          # el aviso de guardar, de punta a punta
 ```
-
-Tiene que ser por `http://`, no abriendo el archivo: la extensión solo entra en `http` y
-`https`. En `chrome://extensions` → «Cargar descomprimida» → carpeta `extension/`.
 
 ## Desarrollo
 

@@ -11,7 +11,7 @@
     "test": "cd lib && npm test",
     "serve": "node bin/passmanager.js serve",
     "test:e2e": "node --test test/*.test.mjs",
-    "test:web": "python3 -m http.server 8099 --directory extension/test",
+    "test:web": "python3 -m http.server 8099 --directory web/probar",
     "test:extension": "node extension/test/guardar.e2e.mjs",
     "test:banco": "node extension/test/banco.e2e.mjs"
   },

@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /probar/
 
 Sitemap: https://pass.dotrino.com/sitemap.xml
