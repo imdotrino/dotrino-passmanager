@@ -65,7 +65,7 @@ node bin/passmanager.js unlink AB12-CD34      # retirar uno del perfil
 
 ## Probar la extensión a mano
 
-**[pass.dotrino.com/probar/](https://pass.dotrino.com/probar/)** — banco de pruebas con
+**[pass.dotrino.com/test/](https://pass.dotrino.com/test/)** — banco de pruebas con
 los casos que de verdad rompen a los gestores: acceso que navega, acceso sin `submit`,
 dos pantallas, registro con confirmación, campos de datos y los raros de detección. Cada
 caso dice qué debería pasar. Se abre y ya; carga la extensión y a probar.
@@ -76,9 +76,9 @@ No manda nada a ninguna parte: los formularios solo pasan a otra página de ahí
 En local, y para recorrerlo solo:
 
 ```bash
-npm run test:web                # sirve web/probar en http://localhost:8099
-npm run test:banco              # lo recorre entero, en un Chrome de verdad
-npm run test:extension          # el aviso de guardar, de punta a punta
+npm run test:web                # sirve web/test en http://localhost:8099
+npm run test:bench              # lo recorre entero, en un Chrome de verdad
+npm run test:save-prompt        # el aviso de guardar, de punta a punta
 ```
 
 ## Desarrollo

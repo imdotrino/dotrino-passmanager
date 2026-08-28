@@ -45,9 +45,9 @@ const ask = (op, payload) => new Promise((resolve, reject) => {
 })
 
 /** Cerrarse es pedirle al content script que quite el iframe: él es quien lo montó. */
-const cerrar = () => { try { window.parent.postMessage({ _dotrino: 'close-save-prompt' }, '*') } catch (_) {} }
+const close = () => { try { window.parent.postMessage({ _dotrino: 'close-save-prompt' }, '*') } catch (_) {} }
 
-function fallo (e) {
+function fail (e) {
   $('err').textContent = e?.code === 'denied'
     ? t(lang, 'denied')
     : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink')
@@ -56,21 +56,21 @@ function fallo (e) {
   for (const b of document.querySelectorAll('button')) b.disabled = false
 }
 
-async function guardar (id) {
+async function save (id) {
   for (const b of document.querySelectorAll('button')) b.disabled = true
   try {
     await ask('save-pending', id ? { id } : {})
-    cerrar()
-  } catch (e) { fallo(e) }
+    close()
+  } catch (e) { fail(e) }
 }
 
-$('save').onclick = () => guardar(null)
-$('update').onclick = () => guardar(dup)
+$('save').onclick = () => save(null)
+$('update').onclick = () => save(dup)
 $('no').onclick = async () => {
   // Descartar BORRA lo capturado. Si se quedara ahí, un «ahora no» dejaría una
   // contraseña en claro esperando en la memoria del navegador sin que nadie la pidiera.
   try { await ask('dismiss-pending') } catch (_) {}
-  cerrar()
+  close()
 }
 
 $('save').focus()

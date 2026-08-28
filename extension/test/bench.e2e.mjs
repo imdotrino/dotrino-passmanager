@@ -50,7 +50,7 @@ try {
   await page.waitForTimeout(600)
   await page.fill('#u', 'ana@ejemplo.com')
   await page.fill('#p', 'clave-spa')
-  await Promise.all([page.waitForURL(/dentro/), page.click('#go')])
+  await Promise.all([page.waitForURL(/inside/), page.click('#go')])
   let f = await aviso()
   ok(!!f, 'el aviso sale aunque no haya submit')
   if (f) ok((await f.locator('#user').textContent()) === 'ana@ejemplo.com', 'con el usuario correcto')
@@ -58,13 +58,13 @@ try {
 
   // --- caso 3: dos pasos ---
   console.log('\ncaso 3 · acceso en dos pasos')
-  await page.goto(`${SITE}/paso1.html`)
+  await page.goto(`${SITE}/step1.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=user]', 'beto@ejemplo.com')
-  await Promise.all([page.waitForURL(/paso2/), page.click('button[type=submit]')])
+  await Promise.all([page.waitForURL(/step2/), page.click('button[type=submit]')])
   await page.waitForTimeout(500)
   await page.fill('input[name=password]', 'clave-dos-pasos')
-  await Promise.all([page.waitForURL(/dentro/), page.click('button[type=submit]')])
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'el aviso sale en el segundo paso')
   if (f) ok((await f.locator('#user').textContent()) === 'beto@ejemplo.com',
@@ -73,27 +73,27 @@ try {
 
   // --- caso 5: registro con confirmación ---
   console.log('\ncaso 5 · registro con confirmación')
-  await page.goto(`${SITE}/registro.html`)
+  await page.goto(`${SITE}/signup.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=email]', 'caro@ejemplo.com')
   await page.fill('input[name=pass1]', 'la-buena')
   await page.fill('input[name=pass2]', 'la-buena')
-  await Promise.all([page.waitForURL(/dentro/), page.click('button[type=submit]')])
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'el aviso sale al registrarse')
   if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
-  const reg = (await pedir('find', { url: `${SITE}/dentro.html` }))?.result || []
+  const reg = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
   const suya = reg.find((e) => e.hint === 'c•••o@ejemplo.com')
   const full = suya ? (await pedir('get', { id: suya.id }))?.result : null
   ok(full?.secret === 'la-buena', 'guarda la PRIMERA contraseña, no la de confirmar')
 
   // --- caso 4: la misma cuenta con otra contraseña ---
   console.log('\ncaso 4 · misma cuenta, otra contraseña')
-  await page.goto(`${SITE}/entrar.html`)
+  await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=user]', 'ana@ejemplo.com')
   await page.fill('input[name=password]', 'clave-nueva')
-  await Promise.all([page.waitForURL(/dentro/), page.click('button[type=submit]')])
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'el aviso vuelve a salir')
   if (f) {
@@ -105,7 +105,7 @@ try {
     await actualizar.click()
     await page.waitForTimeout(1200)
   }
-  const tras = (await pedir('find', { url: `${SITE}/dentro.html` }))?.result || []
+  const tras = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
   const deAna = tras.filter((e) => e.hint === 'a•••a@ejemplo.com')
   ok(deAna.length === 1, 'actualizar NO duplica la cuenta (hay ' + deAna.length + ')')
   const anaFull = deAna[0] ? (await pedir('get', { id: deAna[0].id }))?.result : null
@@ -113,23 +113,23 @@ try {
 
   // --- caso 6: «ahora no» ---
   console.log('\ncaso 6 · ahora no')
-  await page.goto(`${SITE}/entrar.html`)
+  await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=user]', 'dani@ejemplo.com')
   await page.fill('input[name=password]', 'no-la-guardes')
-  await Promise.all([page.waitForURL(/dentro/), page.click('button[type=submit]')])
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'sale el aviso')
   if (f) { await f.locator('[data-testid=save-prompt-dismiss]').click(); await page.waitForTimeout(800) }
   const pend = await sw.evaluate(() => chrome.storage.session.get('passmanager/pending-save'))
   ok(!pend['passmanager/pending-save'], 'descartar BORRA lo capturado')
-  const nada = ((await pedir('find', { url: `${SITE}/dentro.html` }))?.result || [])
+  const nada = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
     .some((e) => e.hint === 'd•••i@ejemplo.com')
   ok(!nada, 'y no guarda nada')
 
   // --- caso 7: los marcadores para rellenar ---
   console.log('\ncaso 7 · marcadores en los campos')
-  await page.goto(`${SITE}/entrar.html`)
+  await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(1200)
   const marcadores = await page.evaluate(() => {
     // El shadow root es cerrado: se cuenta por lo que se ve, no por el DOM.

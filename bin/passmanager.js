@@ -66,14 +66,14 @@ const store = {
  * tenga que saber nada de criptografía.
  */
 let _identity = null
-async function abrirIdentidad () {
+async function openIdentity () {
   _identity ||= await Identity.connect({ dir: IDENTITY_DIR })
   return _identity
 }
 
 /** Los aparatos que el acta autoriza a pedir credenciales. */
 async function listDevices () {
-  const id = await abrirIdentidad()
+  const id = await openIdentity()
   const r = await id.profileMembers()
   return (r?.members || []).filter((m) => (m.caps || []).includes(PASSWORDS_CAP))
 }
@@ -311,7 +311,7 @@ async function gen (length) {
 
 async function serve (...args) {
   const vault = await abrirBoveda()
-  const identity = await abrirIdentidad()
+  const identity = await openIdentity()
 
   // LA BÓVEDA DEL ECOSISTEMA: este proceso es la CA de su perfil, exactamente como el
   // daemon `dotrino-vault` o como una pestaña de `vault.dotrino.com/vault`. De aquí
@@ -378,7 +378,7 @@ async function serve (...args) {
 
   // La invitación se abre sola cuando todavía no hay a quién responder — es el primer
   // minuto del gestor y no tendría sentido pedir un comando más. Después, a petición.
-  if (!known.length || args.includes('--pair')) await emparejar(handle)
+  if (!known.length || args.includes('--pair')) await pairDevice(handle)
   else console.log('Para conectar otro aparato:  dotrino-passmanager serve --pair')
 }
 
@@ -388,7 +388,7 @@ async function serve (...args) {
  * bóveda solo lo aprende cuando lo escribes, y por eso aprobar exige tener el aparato
  * delante.
  */
-async function emparejar (handle) {
+async function pairDevice (handle) {
   const { qr } = await handle.startPairing({
     // Lo único que va a hacer ese aparato. Pedirlo en dos pasos era el paso que nadie
     // daba, y dejaba al gestor conectado pero mudo.
@@ -426,7 +426,7 @@ async function unlink (ref) {
   const list = await listDevices()
   const d = list.find(x => x.id === ref || x.label === ref)
   if (!d) return console.error('No encuentro ese aparato.')
-  const identity = await abrirIdentidad()
+  const identity = await openIdentity()
   await identity.revokeDevice(d.pub)
   console.log('Aparato retirado del perfil. Deja de poder pedir en la siguiente petición.')
 }

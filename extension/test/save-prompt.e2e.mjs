@@ -52,11 +52,11 @@ try {
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
 
   // --- 1. entrar: se escribe y se envía, y la página NAVEGA ---
-  await page.goto(`${SITE}/entrar.html`)
+  await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(600)
   await page.fill('input[name=user]', 'seyacat@dotrino.com')
   await page.fill('input[name=password]', 'hunter2-de-prueba')
-  await Promise.all([page.waitForURL(/dentro\.html/), page.click('button[type=submit]')])
+  await Promise.all([page.waitForURL(/inside\.html/), page.click('button[type=submit]')])
   console.log('navegó a:', new URL(page.url()).pathname)
 
   // --- 2. el aviso sale SOLO, en la página siguiente ---
@@ -82,8 +82,8 @@ try {
   ok((await frame.locator('#user').textContent()) === 'seyacat@dotrino.com', 'enseña el usuario')
 
   // La contraseña NO puede estar en el aviso: solo la sabe el service worker.
-  const dentro = await frame.locator('body').innerHTML()
-  ok(!dentro.includes('hunter2-de-prueba'), 'la contraseña NO viaja al aviso')
+  const inner = await frame.locator('body').innerHTML()
+  ok(!inner.includes('hunter2-de-prueba'), 'la contraseña NO viaja al aviso')
 
   // Ni la página puede leer lo que hay dentro: shadow root cerrado y otro origen.
   const alcanzable = await page.evaluate(() => {
@@ -94,13 +94,13 @@ try {
   ok(await page.locator('iframe').count() === 0, 'la página no ve ningún iframe del gestor')
 
   // --- 3. se guarda al pulsar, y solo entonces ---
-  const antes = await pedir('find', { url: `${SITE}/dentro.html` })
+  const antes = await pedir('find', { url: `${SITE}/inside.html` })
   ok((antes?.result || []).length === 0, 'antes de pulsar, la bóveda no tiene nada')
 
   await guardar.click()
   await page.waitForTimeout(1200)
 
-  const despues = await pedir('find', { url: `${SITE}/dentro.html` })
+  const despues = await pedir('find', { url: `${SITE}/inside.html` })
   const items = despues?.result || []
   ok(items.length === 1, 'después de pulsar, la entrada está guardada')
   ok(items[0]?.title === 'localhost', 'con el sitio como título')
@@ -118,7 +118,7 @@ try {
   ok(!pend['passmanager/pending-save'], 'no queda ninguna contraseña esperando en la sesión')
 
   // --- 5. y no vuelve a preguntar por lo mismo ---
-  await page.goto(`${SITE}/dentro.html`)
+  await page.goto(`${SITE}/inside.html`)
   await page.waitForTimeout(1500)
   const otra = page.frames().some(f => f.url().includes('/src/save-prompt.html'))
   ok(!otra, 'no vuelve a preguntar al recargar')

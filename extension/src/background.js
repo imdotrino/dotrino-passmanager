@@ -449,9 +449,9 @@ async function pendingSave ({ host } = {}) {
   let dup = null
   try {
     const hits = await (await connect()).find(p.url)
-    const mascara = maskUsername(p.username)
-    const iguales = hits.filter(h => h.hint && h.hint === mascara)
-    if (iguales.length === 1) dup = { id: iguales[0].id, hint: iguales[0].title || iguales[0].hint }
+    const mask = maskUsername(p.username)
+    const sameUser = hits.filter(h => h.hint && h.hint === mask)
+    if (sameUser.length === 1) dup = { id: sameUser[0].id, hint: sameUser[0].title || sameUser[0].hint }
   } catch (_) { /* sin bóveda a mano: se ofrece guardar de todos modos */ }
 
   return { has: true, host: p.host, username: p.username, ...(dup ? { dup: dup.id, dupHint: dup.hint } : {}) }

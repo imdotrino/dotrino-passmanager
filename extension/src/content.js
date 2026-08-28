@@ -1,4 +1,4 @@
-// Content script: marca los campos donde el gestor puede ayudar, y espera.
+// Content script: marca los campos donde el gestor puede ayudar, y wait.
 //
 // **No autocompleta nada.** No tiene la bóveda ni la llave: le pregunta al service
 // worker qué hay para ESTE sitio y solo pide una credencial cuando el usuario elige
@@ -191,8 +191,8 @@ addEventListener('pagehide', () => {
  * simplemente no aparece.
  */
 async function offerSave () {
-  for (const espera of [0, 400, 1000, 2000]) {
-    if (espera) await new Promise(r => setTimeout(r, espera))
+  for (const wait of [0, 400, 1000, 2000]) {
+    if (wait) await new Promise(r => setTimeout(r, wait))
     const r = await ask('pending-save', { host: location.hostname })
     const p = r?.result
     if (!p?.has) continue

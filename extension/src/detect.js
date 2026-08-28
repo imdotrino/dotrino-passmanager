@@ -230,10 +230,10 @@ export function readUsername ({ form, username, password } = {}) {
   const scope = form || password.getRootNode?.() || password.ownerDocument
   const inputs = [...(scope.querySelectorAll?.('input') || [])]
   const i = inputs.indexOf(password)
-  const antes = i > 0 ? inputs.slice(0, i) : []
+  const before = i > 0 ? inputs.slice(0, i) : []
   // De atrás hacia delante: el más cercano a la contraseña que tenga algo escrito.
-  for (let k = antes.length - 1; k >= 0; k--) {
-    const el = antes[k]
+  for (let k = before.length - 1; k >= 0; k--) {
+    const el = before[k]
     if (!['text', 'email', 'tel', ''].includes(el.type)) continue
     if (el.value) return el.value
   }
