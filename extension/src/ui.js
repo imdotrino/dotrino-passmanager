@@ -15,8 +15,8 @@ const HOST_ID = 'dotrino-passmanager-ui'
  *
  *   · `DISC` — el cuarto de circunferencia azul, que NO crece: se apoya sobre el extremo
  *     derecho del campo, así que agrandarlo es tapar lo que el usuario escribe.
- *   · `BIRD` — el pájaro, que sí crece y SALE del disco. Es lo único que hay que poder
- *     distinguir ahí, y dentro del disco no cabe a un tamaño reconocible.
+ *   · `BIRD` — el pájaro, que sí crece. Es lo único que hay que poder distinguir ahí, y
+ *     atado al tamaño del disco no se reconoce.
  *
  * Del ave sale el tamaño del botón (es su caja), así que también su zona de pulsación:
  * se pulsa el pájaro entero, no solo el trozo azul.
@@ -79,15 +79,15 @@ function styles () {
       border-radius: 0 0 0 100%;
       box-shadow: 0 0 0 1px rgba(255,255,255,.55);
     }
-    /* Y el pájaro encima, más grande que el disco y saliéndose de él. Va relleno de azul
+    /* Y el pájaro encima, centrado sobre el disco y mayor que él: traslúcido, se apoya
+       en el azul en vez de taparlo, y las dos piezas cuadran como una sola. Va relleno de azul
        con reborde blanco porque cruza dos fondos: el azul del disco y el del campo. Ni
        blanco ni azul a secas se ven en los dos. */
     .marker::after {
       content: '';
       position: absolute;
-      /* Anclado a la esquina, no centrado en su caja: centrado se descolgaba del disco y
-         parecían dos cosas sueltas. Así el ave se apoya en el cuarto de círculo y sale
-         de él hacia abajo y hacia la izquierda, que es donde hay campo libre. */
+      /* Centrado sobre el disco, no en su propia caja: centrado en la caja se descolgaba
+         y parecían dos cosas sueltas. Los valores son del dueño. */
       top: -10px; right: -12px;
       width: ${BIRD}px; height: ${BIRD_H}px;
       background: url("${MARK}") no-repeat center / contain;

@@ -488,17 +488,16 @@ enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóv
 El pájaro y no el icono entero: a ese tamaño el candado no se lee y queda una mancha, y
 lo único que hay que poder distinguir ahí es de quién es el botón.
 
-**El ave SALE del disco, y el disco no crece** (dueño, 2026-08-28). Son dos medidas
-distintas a propósito: el cuarto de circunferencia se queda en **20 px** —se apoya sobre
-el extremo derecho del campo, así que agrandarlo es tapar lo que el usuario escribe— y el
-ave va a **34 px**, apoyada en la esquina y saliéndose hacia abajo y hacia la izquierda,
-que es donde hay sitio. Dentro del disco no cabe a un tamaño reconocible, y reconocerla es
-lo único que ese botón tiene que conseguir.
+**El ave crece; el disco no** (dueño, 2026-08-28). Son dos medidas distintas a propósito:
+el cuarto de circunferencia se queda en **20 px** —se apoya sobre el extremo derecho del
+campo, así que agrandarlo es tapar lo que el usuario escribe— y el ave va a **34 px**,
+centrada sobre él. Atada al tamaño del disco no se reconoce, y reconocerla es lo único que
+ese botón tiene que conseguir.
 
-De ahí sale el detalle que no es cosmético: el ave **cruza dos fondos** —el azul del disco
-y el del campo, que puede ser claro u oscuro—, así que va **rellena de azul con reborde
-blanco**. Blanca a secas desaparece sobre un formulario claro; azul a secas desaparece
-sobre el disco.
+Las dos piezas **cuadran como una sola**: el ave es traslúcida y se apoya en el azul en
+vez de taparlo. Va **rellena de azul con reborde blanco** porque se dibuja sobre dos
+fondos —el disco y el campo, que puede ser claro u oscuro—; blanca a secas desaparece
+sobre un formulario claro, y azul a secas se pierde contra el disco.
 
 El botón es la caja del ave, no la del disco: se pulsa el pájaro entero.
 Al pulsarlo aparece un modal con lo que se puede poner **ahí**, y solo al elegir una
