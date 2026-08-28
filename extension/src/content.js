@@ -13,6 +13,9 @@ const mods = Promise.all([
 
 let lastForms = []
 let lastData = []
+// Los módulos YA resueltos: `submit` y `pagehide` no admiten esperar a un `import()`.
+const cache = {}
+mods.then((m) => Object.assign(cache, m))
 
 function ask (op, payload) {
   return new Promise(resolve => {
@@ -145,38 +148,37 @@ async function readForm () {
 // el usuario lo diga, y ese «sí» se pulsa en un iframe de la EXTENSIÓN, no en la
 // página. La regla de siempre sigue en pie: el sitio no puede escribir en tu bóveda.
 
-/** Lo escrito en un formulario de acceso, si hay contraseña. */
-function credentialsIn (form) {
-  const secret = form?.password?.value || ''
-  if (!secret) return null
-  return { username: form.username?.value || '', secret, url: location.href }
-}
-
 function capture (cred) {
   if (!cred) return
   try { chrome.runtime.sendMessage({ op: 'capture', payload: cred }, () => void chrome.runtime.lastError) } catch (_) {}
+}
+
+/** Lo mismo pero sin esperar a nadie: en `pagehide` no hay tiempo para un `await`. */
+function captureFrom (form) {
+  const secret = form?.password?.value || ''
+  if (!secret) return false
+  const { detect } = cache
+  capture({ username: detect ? detect.readUsername(form) : (form.username?.value || ''), secret, url: location.href })
+  return true
 }
 
 // 1. El envío del formulario, que es el caso normal. En captura para que llegue aunque
 //    la página cancele el evento después.
 addEventListener('submit', (e) => {
   const f = lastForms.find(x => x.form && x.form === e.target) || lastForms[0]
-  if (f) return capture(credentialsIn(f))
+  if (f && captureFrom(f)) return
   // Sin nada detectado todavía (una SPA que acaba de montar el formulario): se mira el
   // propio formulario que se envía, que es síncrono y no depende de la última pasada.
   const pass = e.target?.querySelector?.('input[type=password]')
   if (!pass?.value) return
-  const campos = [...(e.target.querySelectorAll('input') || [])]
-  const antes = campos.slice(0, campos.indexOf(pass))
-    .filter(el => ['text', 'email', 'tel', ''].includes(el.type))
-  capture({ username: antes.at(-1)?.value || '', secret: pass.value, url: location.href })
+  captureFrom({ form: e.target, password: pass, username: null })
 }, true)
 
 // 2. Y la salida de la página, porque media web entra sin disparar `submit`: un botón
 //    que llama a `fetch` y navega a mano. Sin esto el gestor solo aprendería de los
 //    formularios de siempre, que son cada vez menos.
 addEventListener('pagehide', () => {
-  for (const f of lastForms) { const c = credentialsIn(f); if (c) return capture(c) }
+  for (const f of lastForms) if (captureFrom(f)) return
 }, { capture: true })
 
 /**

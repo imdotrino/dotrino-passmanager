@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Entrar (2 de 2) · caso 3</title><link rel="stylesheet" href="banco.css"></head>
+<body>
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Entrar</h1>
+<p class="lead">Paso 2 de 2: la contraseña de <b id="quien">…</b>.</p>
+<form method="GET" action="dentro.html">
+  <!-- El usuario viaja en un campo de solo lectura, que es lo que hacen los de verdad:
+       sigue estando en el formulario, para que el gestor sepa de quién es la contraseña. -->
+  <label>Usuario <input name="user" type="text" autocomplete="username" readonly></label>
+  <label>Contraseña <input name="password" type="password" autocomplete="current-password"></label>
+  <button type="submit">Entrar</button>
+</form>
+<script>
+  const user = new URLSearchParams(location.search).get('user') || ''
+  document.querySelector('input[name=user]').value = user
+  document.getElementById('quien').textContent = user || 'nadie'
+</script>
+</body></html>

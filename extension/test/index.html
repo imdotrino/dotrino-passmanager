@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas · gestor de contraseñas</title>
+<link rel="stylesheet" href="banco.css">
+</head>
+<body>
+<h1>Banco de pruebas del gestor</h1>
+<p class="lead">
+  Formularios reales para probar la extensión a mano. Cada caso dice <b>qué debería
+  pasar</b>: si no pasa, es un fallo del gestor, no de la página.
+</p>
+
+<p class="aviso">
+  Tiene que servirse por <code>http://</code>, no abriendo el archivo: la extensión solo
+  entra en <code>http</code> y <code>https</code>. Desde la raíz del repo:<br>
+  <code>npm run test:web</code> y abre <code>http://localhost:8099/</code>.
+</p>
+
+<h2>Guardar</h2>
+
+<div class="caso">
+  <h3>1 · Acceso corriente que navega</h3>
+  <p>Lo que hace el 90 % de la web: un <code>&lt;form&gt;</code> que se envía y cambia de página.</p>
+  <p><a href="entrar.html">Abrir</a></p>
+  <div class="espera">Al llegar a la página siguiente, <b>abajo a la derecha</b> tiene que
+    salir «¿Guardo esta contraseña?» con el sitio y el usuario que escribiste.</div>
+</div>
+
+<div class="caso">
+  <h3>2 · Acceso sin <code>submit</code> (SPA)</h3>
+  <p>Un botón que valida por su cuenta y navega a mano. Cada vez más común, y donde muchos
+    gestores dejan de aprender.</p>
+  <p><a href="spa.html">Abrir</a></p>
+  <div class="espera">Igual que el 1: el aviso <b>también</b> tiene que salir.</div>
+</div>
+
+<div class="caso">
+  <h3>3 · Acceso en dos pasos</h3>
+  <p>Primero el usuario, y la contraseña en la pantalla siguiente — como Google o Microsoft.</p>
+  <p><a href="paso1.html">Abrir</a></p>
+  <div class="espera">El aviso tiene que llevar <b>el usuario del primer paso</b>, no vacío.</div>
+</div>
+
+<div class="caso">
+  <h3>4 · La misma cuenta con otra contraseña</h3>
+  <p>Haz el caso 1, guarda, y vuelve a entrar con <b>el mismo usuario</b> y una contraseña
+    distinta.</p>
+  <p><a href="entrar.html">Abrir</a></p>
+  <div class="espera">Ahora el aviso tiene que ofrecer <b>dos</b> salidas: «Guardar como
+    nueva» y «Actualizar la que hay». Elegir es cosa tuya — actualizar la equivocada pisa
+    una contraseña que servía.</div>
+</div>
+
+<div class="caso">
+  <h3>5 · Registro con confirmación</h3>
+  <p>Dos contraseñas seguidas. No es un acceso, pero sí es una contraseña que acabas de
+    estrenar y que querrás guardar.</p>
+  <p><a href="registro.html">Abrir</a></p>
+  <div class="espera">Tiene que ofrecerse a guardar <b>la primera</b> contraseña, nunca la
+    de confirmar.</div>
+</div>
+
+<div class="caso">
+  <h3>6 · «Ahora no»</h3>
+  <p>Cualquiera de los anteriores, descartando el aviso.</p>
+  <div class="espera">El aviso se cierra, <b>no vuelve</b> al recargar, y lo capturado se
+    borra: no queda una contraseña esperando en la memoria del navegador.</div>
+</div>
+
+<h2>Rellenar</h2>
+
+<div class="caso">
+  <h3>7 · Poner una credencial guardada</h3>
+  <p>Con algo ya guardado del caso 1, vuelve al formulario.</p>
+  <p><a href="entrar.html">Abrir</a></p>
+  <div class="espera">Cada campo lleva un <b>cuarto de círculo azul</b> en su esquina
+    superior derecha. Al pulsarlo sale lo que hay para este sitio; al elegir, se escribe.
+    <b>Nada se rellena solo</b> — eso es deliberado.</div>
+</div>
+
+<div class="caso">
+  <h3>8 · Campos que no son contraseñas</h3>
+  <p>Correo, teléfono, dirección, cédula: lo que guardaste como campos sueltos.</p>
+  <p><a href="campos.html">Abrir</a></p>
+  <div class="espera">Se marcan los campos de datos y <b>no</b> el buscador. Se respeta el
+    <code>autocomplete="off"</code> del sitio.</div>
+</div>
+
+<h2>Detección</h2>
+
+<div class="caso">
+  <h3>9 · Los casos raros</h3>
+  <p>Contraseña oculta, registro con confirmación, buscador delante del usuario, campos sin
+    <code>name</code>, shadow DOM, y un formulario que se monta tarde.</p>
+  <p><a href="formularios.html">Abrir</a></p>
+  <div class="espera">Se marca el usuario y la contraseña de cada acceso <b>de verdad</b>,
+    y nada más. El formulario que aparece tarde también acaba marcado.</div>
+</div>
+
+<h2>Empezar de cero</h2>
+<p class="lead">
+  Para vaciar la bóveda: abre el popup, «Añadir un perfil» → «Con su bóveda aquí», y borra
+  el anterior. Cada perfil es una bóveda distinta y no se ven entre ellos.
+</p>
+</body>
+</html>

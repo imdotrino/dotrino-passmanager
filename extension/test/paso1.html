@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Entrar (1 de 2) · caso 3</title><link rel="stylesheet" href="banco.css"></head>
+<body>
+<!--
+  Acceso en dos pantallas, como Google o Microsoft: el usuario aquí y la contraseña en la
+  siguiente. Lo que se prueba es que el aviso acabe llevando el usuario del PRIMER paso,
+  que en la pantalla de la contraseña ya no está escrito en ningún campo editable.
+-->
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Entrar</h1>
+<p class="lead">Paso 1 de 2: solo el usuario.</p>
+<form method="GET" action="paso2.html">
+  <label>Usuario <input name="user" type="text" autocomplete="username"></label>
+  <button type="submit">Siguiente</button>
+</form>
+</body></html>

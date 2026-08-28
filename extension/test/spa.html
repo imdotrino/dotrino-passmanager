@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Entrar sin submit · caso 2</title><link rel="stylesheet" href="banco.css"></head>
+<body>
+<!--
+  El acceso que NO dispara `submit`: un botón que valida por su cuenta y navega a mano.
+  Es cada vez más común y es donde un gestor que solo escucha `submit` deja de aprender.
+  Aquí la captura tiene que salir por la salida de la página (`pagehide`).
+-->
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Entrar</h1>
+<p class="lead">Sin <code>&lt;form&gt;</code> y sin <code>submit</code>: el botón navega a mano.</p>
+<div>
+  <label>Usuario <input id="u" type="text" autocomplete="username"></label>
+  <label>Contraseña <input id="p" type="password" autocomplete="current-password"></label>
+  <button id="go">Entrar</button>
+</div>
+<script>
+  document.getElementById('go').onclick = () => {
+    // Como una SPA de verdad: nada de submit, se navega y punto.
+    location.href = 'dentro.html'
+  }
+</script>
+</body></html>

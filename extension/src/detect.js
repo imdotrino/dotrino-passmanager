@@ -211,6 +211,35 @@ export function findDataFields (doc = document) {
   return out
 }
 
+/**
+ * DE QUIÉN es la contraseña que se acaba de escribir — que no es lo mismo que en qué
+ * campo se podría rellenar el usuario.
+ *
+ * En un acceso de dos pantallas (Google, Microsoft y media web detrás) el usuario llega
+ * a la segunda en un campo de **solo lectura**. Ahí no se puede escribir, así que no se
+ * marca y `findLoginForms` no lo devuelve — pero es justo de donde hay que leer quién
+ * es. Sin esto el aviso de guardar salía sin usuario, y una credencial sin usuario no
+ * sirve para volver a entrar.
+ *
+ * Los `hidden` se quedan fuera a propósito: ahí vive tanto el usuario como el token de
+ * turno, y confundirlos guardaría basura con cara de cuenta.
+ */
+export function readUsername ({ form, username, password } = {}) {
+  if (username?.value) return username.value
+  if (!password) return ''
+  const scope = form || password.getRootNode?.() || password.ownerDocument
+  const inputs = [...(scope.querySelectorAll?.('input') || [])]
+  const i = inputs.indexOf(password)
+  const antes = i > 0 ? inputs.slice(0, i) : []
+  // De atrás hacia delante: el más cercano a la contraseña que tenga algo escrito.
+  for (let k = antes.length - 1; k >= 0; k--) {
+    const el = antes[k]
+    if (!['text', 'email', 'tel', ''].includes(el.type)) continue
+    if (el.value) return el.value
+  }
+  return ''
+}
+
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */
 export function fillField (el, value) {
   if (!el) return false

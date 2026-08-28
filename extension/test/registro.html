@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Crear cuenta · caso 5</title><link rel="stylesheet" href="banco.css"></head>
+<body>
+<!--
+  Registro con confirmación: dos contraseñas seguidas. El gestor tiene que quedarse con la
+  PRIMERA — la de confirmar no es una credencial, es una comprobación.
+-->
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Crear cuenta</h1>
+<p class="lead">Dos contraseñas seguidas, como en cualquier registro.</p>
+<form method="GET" action="dentro.html">
+  <label>Correo <input name="email" type="email" autocomplete="email"></label>
+  <label>Contraseña <input name="pass1" type="password" autocomplete="new-password"></label>
+  <label>Repite la contraseña <input name="pass2" type="password" autocomplete="new-password"></label>
+  <button type="submit">Crear cuenta</button>
+</form>
+</body></html>

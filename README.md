@@ -63,6 +63,21 @@ node bin/passmanager.js devices               # los que pueden pedir credenciale
 node bin/passmanager.js unlink AB12-CD34      # retirar uno del perfil
 ```
 
+## Probar la extensión a mano
+
+Hay un **banco de pruebas** con los casos que de verdad rompen a los gestores: acceso que
+navega, acceso sin `submit`, dos pantallas, registro con confirmación, campos de datos y
+los raros de detección. Cada caso dice qué debería pasar.
+
+```bash
+npm run test:web                # sirve extension/test en http://localhost:8099
+npm run test:banco              # y lo recorre solo, en un Chrome de verdad
+npm run test:extension          # el aviso de guardar, de punta a punta
+```
+
+Tiene que ser por `http://`, no abriendo el archivo: la extensión solo entra en `http` y
+`https`. En `chrome://extensions` → «Cargar descomprimida» → carpeta `extension/`.
+
 ## Desarrollo
 
 ```bash
