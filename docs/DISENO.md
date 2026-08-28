@@ -486,10 +486,13 @@ enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóv
 **pájaro de la marca** dentro y traslúcido— y espera.
 
 El pájaro y no el icono entero: a ese tamaño el candado no se lee y queda una mancha, y
-lo único que hay que poder distinguir ahí es de quién es el botón. **El tamaño lo manda
-el ave**, no al revés: ocupa casi todo el cuarto de círculo y el marcador se hizo de
-20 px para que quepa — con 15 no se reconocía. Traslúcido porque acompaña al campo, no
-compite con él.
+lo único que hay que poder distinguir ahí es de quién es el botón. **El ave LLENA el
+cuarto de círculo**, sin margen — con margen quedaba una mota. Traslúcido porque acompaña
+al campo, no compite con él.
+
+**La circunferencia no crece para que quepa el ave; crece el ave dentro de ella**
+(dueño, 2026-08-28). El marcador se apoya sobre el extremo derecho del campo, así que
+agrandarlo es tapar lo que el usuario escribe: 20 px es lo que cabe sin estorbar.
 Al pulsarlo aparece un modal con lo que se puede poner **ahí**, y solo al elegir una
 opción se escribe.
 

@@ -52,11 +52,11 @@ function styles () {
       position: absolute;
       width: ${MARKER}px; height: ${MARKER}px;
       padding: 0; border: 0; margin: 0;
-      /* El pájaro ocupa casi todo el cuarto de círculo, pegado a la esquina: es lo
-         único que hay que poder distinguir ahí, y más pequeño no se reconocía. Por eso
-         el marcador creció de 15 a 20 px — el tamaño lo manda el ave, no al revés. */
-      background: ${BRAND} url("${MARK}") no-repeat right 0 top 1px;
-      background-size: 17px 18.33px;
+      /* El pájaro LLENA el cuarto de círculo, sin margen: es lo único que hay que poder
+         distinguir ahí, y con margen quedaba una mota. La circunferencia no crece por
+         eso — crece el ave dentro de ella. */
+      background: ${BRAND} url("${MARK}") no-repeat right 0 top 0;
+      background-size: ${MARKER}px ${(MARKER * 203.17926 / 188.39659).toFixed(2)}px;
       /* Un cuarto de circunferencia: recto arriba y a la derecha, curvo abajo a la
          izquierda. Se apoya en la esquina superior derecha del campo. */
       border-radius: 0 0 0 100%;
