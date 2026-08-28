@@ -580,6 +580,25 @@ puede ofrecer guardarlo; si no puede hacer ninguna de las dos, no hay botón. Un
 que al pulsarlo dice «no tengo nada» es un adorno en cada casilla de cada formulario de
 la web. Aparece y desaparece según se escribe.
 
+**Cualquier campo, se reconozca o no** (dueño, 2026-08-28): *«si lleno un campo,
+cualquiera sea, aparece el semicírculo y me permite guardar ESE campo, en un record
+existente o uno nuevo»*. El número de socio, el código del portal, la referencia del
+pedido: son los **campos libres** del §4.2 y se guardan por su **etiqueta**, que es su
+única identidad. Dos consecuencias que conviene tener claras:
+
+- **Un campo que no se reconoce solo ofrece GUARDAR, nunca rellenar.** Para saber si hay
+  algo suyo guardado habría que abrir las entradas y mirar sus etiquetas, y eso es la
+  mitad privada (§4.0.2). Se marca cuando tiene algo escrito, y solo entonces.
+- **Lo que se guarda es ESE campo.** Pulsar el botón de uno lo marca a él; los demás del
+  mismo formulario van en el aviso pero **sin marcar**, para que estén a un clic sin
+  volver a empezar. Igual al enviar un formulario: lo reconocido va marcado y los campos
+  libres acompañan sin marcar — enviar un formulario no es pedir que se guarde el código
+  de un cupón. Y los campos libres **no cuentan** para el mínimo de dos datos que hace
+  saltar el aviso solo: si contaran, cualquier formulario de dos casillas lo sacaría.
+
+Una caja de **búsqueda** nunca es un dato de nadie, se reconozca el resto o no; y lo que
+no es un dato por su propio tipo (casillas, botones, ficheros) tampoco entra.
+
 Lo que eso implica, y es un cambio de verdad: **abrir una página con un formulario ahora
 sí le pregunta algo a la bóveda** — `find`, que es la **mitad pública** (§4.0.2): qué
 entradas hay para este sitio y qué guardan, sin llave y sin aprobación. Lo privado sigue
@@ -639,6 +658,10 @@ Dos reglas:
 - **`kind` es opcional y solo sirve para colocar el dato**: dice qué es (un correo, un
   teléfono) para saber en qué hueco va. Sin `kind` el campo se guarda y se copia
   igual — solo no aparece ofrecido en un campo del formulario.
+- **Sin `kind`, la etiqueta ES la identidad del campo.** Es por lo que se empareja con lo
+  que ya hay guardado (para decir si cambia o si es nuevo), así que al actualizar una
+  entrada **se conserva la etiqueta que ya tenía**: cambiarla no sería editar el campo,
+  sería crear otro al lado.
 
 Para reconocer el hueco se mira primero el **`autocomplete` que declara el sitio**
 (cuando está, no hay nada que adivinar, y se respeta `off`), y solo si no lo declara

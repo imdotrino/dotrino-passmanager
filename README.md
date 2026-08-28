@@ -52,6 +52,10 @@ En la página, el gestor pone un botón en la esquina de un campo **solo cuando 
 hacer algo ahí**: poner algo que tienes guardado, o guardar lo que acabas de escribir. Si
 no hay ni lo uno ni lo otro, no hay botón. Nada se rellena solo.
 
+Vale para **cualquier** campo, lo reconozca o no: el número de socio o el código del
+portal se guardan por el nombre que les pone la página, y eliges si van a una entrada que
+ya tienes o a una nueva.
+
 Desde el navegador, guardar se pregunta **después de entrar**, en la página siguiente,
 como en cualquier gestor — y también en formularios que no son un acceso (tu nombre, el
 correo, la dirección). El aviso lista **una fila por dato**, marcando lo que es nuevo y lo

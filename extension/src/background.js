@@ -31,6 +31,9 @@ import {
 import { parseInvite } from './vendor/vault/invite.js'
 import { maskUsername } from './vendor/passmanager/model.js'
 import { KINDS } from './vendor/passmanager/fields.js'
+// La misma regla de identidad que usa la página: la clase si se reconoce, y si no la
+// etiqueta. Dos ideas distintas de qué es «el mismo campo» sería un campo duplicado.
+import { fieldKey } from './detect.js'
 import { t, pickLang, KIND_LABEL } from './i18n.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
 import { identity } from './identity-core.js'
@@ -416,6 +419,7 @@ const PENDING_TTL_MS = 5 * 60 * 1000
 // medio megabyte en la memoria de sesión del navegador.
 const MAX_FIELDS = 24
 const MAX_VALUE = 512
+const MAX_LABEL = 60
 
 const hostOf = (url) => { try { return new URL(url).hostname } catch { return '' } }
 
@@ -425,17 +429,26 @@ function parseFields (raw) {
   try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
 }
 
-/** Lo capturado, acotado: clases conocidas, una por clase y con tope de tamaño. */
+/**
+ * Lo capturado, acotado: uno por campo y con tope de tamaño.
+ *
+ * Entran también los campos que la página no supo clasificar. Son los **campos libres**
+ * del modelo (§4.2) —`{ label, value }` sin clase— y no valen menos: el código del
+ * portal o el número de socio se rellenan tanto como un correo. Su etiqueta es su
+ * identidad, así que se guarda y se acota como todo lo demás.
+ */
 function cleanFields (fields) {
   const out = []
   const vistos = new Set()
   for (const f of Array.isArray(fields) ? fields : []) {
     const kind = KINDS.includes(f?.kind) ? f.kind : null
-    if (!kind || vistos.has(kind)) continue
-    const value = String(f.value ?? '').trim().slice(0, MAX_VALUE)
+    const label = String(f?.label ?? '').trim().slice(0, MAX_LABEL)
+    const value = String(f?.value ?? '').trim().slice(0, MAX_VALUE)
     if (!value) continue
-    vistos.add(kind)
-    out.push({ kind, value })
+    const key = fieldKey({ kind, label })
+    if (vistos.has(key)) continue
+    vistos.add(key)
+    out.push({ ...(kind ? { kind } : {}), ...(label ? { label } : {}), value })
     if (out.length >= MAX_FIELDS) break
   }
   return out
@@ -456,7 +469,7 @@ async function readPending () {
  * Lo capturado ya no es solo usuario+contraseña: un formulario de datos (el perfil, la
  * dirección de envío) es igual de guardable, y llega sin contraseña ninguna.
  */
-async function capture ({ username, secret, url, fields }) {
+async function capture ({ username, secret, url, fields, focus }) {
   const limpios = cleanFields(fields)
   if (!secret && !limpios.length) return { ok: false }
   await chrome.storage.session.set({
@@ -464,6 +477,10 @@ async function capture ({ username, secret, url, fields }) {
       username: username || '',
       secret: secret || '',
       fields: limpios,
+      // QUÉ se pulsó: lo que viene marcado en el aviso. Al enviar un formulario no hay
+      // nada pulsado y va todo marcado; al pulsar el botón de un campo, ese campo — que
+      // es lo que el usuario pidió guardar, ni más ni menos.
+      focus: Array.isArray(focus) ? focus.slice(0, MAX_FIELDS + 2).map(String) : [],
       url: url || '',
       host: hostOf(url),
       ts: Date.now(),
@@ -524,7 +541,7 @@ async function diffAgainst (v, id, p) {
   const antes = new Map()
   if (base.username) antes.set('username', base.username)
   if (base.secret) antes.set('secret', base.secret)
-  for (const f of parseFields(base.fields)) if (f.kind) antes.set(f.kind, f.value)
+  for (const f of parseFields(base.fields)) antes.set(fieldKey(f), f.value)
 
   const fila = (key, value, secret) => {
     const viejo = antes.get(key) || ''
@@ -538,7 +555,7 @@ async function diffAgainst (v, id, p) {
   const out = []
   if (p.username) out.push(fila('username', p.username, false))
   if (p.secret) out.push(fila('secret', p.secret, true))
-  for (const f of p.fields || []) out.push(fila(f.kind, f.value, false))
+  for (const f of p.fields || []) out.push(fila(fieldKey(f), f.value, false))
   return out
 }
 
@@ -586,10 +603,23 @@ async function pendingDetail ({ id, reveal } = {}) {
   // Lo que se va a escribir es lo que el usuario ACABA de teclear: no sale de la bóveda
   // y por eso viaja siempre. La contraseña es la excepción de siempre — va en `null` y
   // el aviso la enseña tapada.
+  // `pick`: si viene marcado de entrada. Lo decide `focus` — lo que el usuario pulsó.
+  const marca = (key) => !p.focus?.length || p.focus.includes(key)
   const typed = []
-  if (p.username) typed.push({ key: 'username', value: p.username, secret: false })
-  if (p.secret) typed.push({ key: 'secret', value: null, secret: true })
-  for (const f of p.fields || []) typed.push({ key: f.kind, value: f.value, secret: false })
+  if (p.username) typed.push({ key: 'username', value: p.username, secret: false, pick: marca('username') })
+  if (p.secret) typed.push({ key: 'secret', value: null, secret: true, pick: marca('secret') })
+  for (const f of p.fields || []) {
+    const key = fieldKey(f)
+    typed.push({
+      key,
+      // Los campos con clase los nombra el aviso en su idioma; los libres se llaman como
+      // los llama el sitio, que es todo lo que se sabe de ellos.
+      ...(f.kind ? {} : { label: f.label || '' }),
+      value: f.value,
+      secret: false,
+      pick: marca(key),
+    })
+  }
 
   const diffs = {}
   const mirar = ask ? (reveal && id ? [id] : []) : candidates.map(c => c.id)
@@ -624,10 +654,13 @@ async function savePending ({ id, pick } = {}) {
 
   const fields = parseFields(base?.fields)
   for (const f of p.fields || []) {
-    if (!quiere(f.kind)) continue
-    const i = fields.findIndex(x => x.kind === f.kind)
-    const label = (i >= 0 && fields[i].label) || KIND_LABEL[lang]?.[f.kind] || f.kind
-    const fila = { label, value: f.value, kind: f.kind }
+    const key = fieldKey(f)
+    if (!quiere(key)) continue
+    const i = fields.findIndex(x => fieldKey(x) === key)
+    // La etiqueta que ya tenía manda: es la identidad del campo libre, y cambiarla sería
+    // crear otro. Si no había, la del sitio; y si el campo tiene clase, su nombre.
+    const label = (i >= 0 && fields[i].label) || f.label || KIND_LABEL[lang]?.[f.kind] || f.kind || ''
+    const fila = { label, value: f.value, ...(f.kind ? { kind: f.kind } : {}) }
     if (i >= 0) fields[i] = fila
     else fields.push(fila)
   }

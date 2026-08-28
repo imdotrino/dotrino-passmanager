@@ -147,6 +147,10 @@ try {
   if (f) {
     // Esta vez NO se actualiza: se crea otra entrada para la misma cuenta.
     await f.locator('[data-testid=save-prompt-target-new]').check()
+    // Cambiar de destino cambia las filas y con ellas el ALTO del aviso, que lo fija la
+    // página DESDE FUERA del iframe: Playwright mira la estabilidad dentro del marco y
+    // no ve ese movimiento, así que sin esta pausa el clic puede caer en otro botón.
+    await page.waitForTimeout(400)
     await f.locator('[data-testid=save-prompt-save]').click()
     await page.waitForTimeout(1200)
   }
@@ -172,6 +176,7 @@ try {
     ok(!!fecha.trim(), 'con la fecha de cada una, que es lo que las distingue: ' + fecha)
     ok(!/clave-/.test(await destinos.nth(1).textContent()), 'y sin enseñar ninguna contraseña')
     await f.locator(`[data-testid=save-prompt-target-${otraId}]`).check()
+    await page.waitForTimeout(400)
     await f.locator('[data-testid=save-prompt-save]').click()
     await page.waitForTimeout(1200)
   }
@@ -205,6 +210,7 @@ try {
     ok(await f.locator('[data-testid=save-prompt-field]').count() === 6, 'una fila por dato')
     ok(await f.locator('[data-testid=save-prompt-pick-city]').isChecked(), 'todas marcadas de entrada')
     await f.locator('[data-testid=save-prompt-pick-city]').uncheck()
+    await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
     await page.waitForTimeout(1200)
   }
@@ -249,6 +255,42 @@ try {
   ok(campos7.find((c) => c.kind === 'tel')?.value === '0988000111', 'el teléfono nuevo entra')
   ok(campos7.find((c) => c.kind === 'email')?.value === 'ana@datos.com', 'y lo que no cambió sigue ahí')
   ok(campos7.length === 5, 'sin sumar campos de la nada: ' + campos7.length)
+
+  // --- caso 15: un campo que el gestor NO conoce ---
+  //
+  // «Número de socio» no es un correo ni un teléfono: no hay clase que le corresponda.
+  // Se guarda igual, por su etiqueta, que es su única identidad. Y al enviar el
+  // formulario viaja SIN marcar: enviar no es pedir que se guarde.
+  console.log('\ncaso 15 · un campo que el gestor no conoce')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(500)
+  for (const [n, v] of Object.entries({ ...datos, city: '', member: 'SOC-4471' })) {
+    await page.fill(`input[name="${n}"]`, v)
+  }
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'el aviso sale')
+  if (f) {
+    const libre = f.locator('[data-testid="save-prompt-field"][data-field="label:Número de socio"]')
+    ok(await libre.count() === 1, 'el campo libre sale en el aviso')
+    ok((await libre.locator('.k').textContent()) === 'Número de socio',
+      'con el nombre que le pone la página')
+    ok((await libre.locator('.v').textContent()) === 'SOC-4471', 'y su valor')
+    const marcada = await libre.locator('input[type=checkbox]').isChecked()
+    ok(!marcada, 'pero SIN marcar: enviar no es pedir que se guarde')
+    // Se marca a mano y se guarda en la entrada de datos que ya había.
+    await libre.locator('input[type=checkbox]').check()
+    await page.waitForTimeout(300)
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await page.waitForTimeout(1200)
+  }
+  const conSocio = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
+    .filter((e) => e.type === 'data')
+  const abiertaSocio = conSocio[0] ? (await pedir('get', { id: conSocio[0].id }))?.result : null
+  const socio = JSON.parse(abiertaSocio?.fields || '[]').find((c) => c.label === 'Número de socio')
+  ok(!!socio, 'y queda guardado por su etiqueta')
+  ok(socio?.value === 'SOC-4471', 'con su valor: ' + socio?.value)
+  ok(socio?.kind === undefined, 'sin inventarle una clase que no tiene')
 
   // --- caso 10: «ahora no» ---
   console.log('\ncaso 10 · ahora no')

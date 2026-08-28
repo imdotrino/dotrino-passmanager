@@ -18,6 +18,9 @@
   <label>Teléfono <input name="tel" type="tel" autocomplete="tel"></label>
   <label>Dirección <input name="street-address" type="text" autocomplete="street-address"></label>
   <label>Ciudad <input name="city" type="text" autocomplete="address-level2"></label>
+  <!-- Este el gestor NO lo reconoce: no hay `autocomplete` ni pista en el nombre. Es un
+       campo libre, y se guarda por su etiqueta. -->
+  <label>Número de socio <input name="member" type="text"></label>
   <button type="submit">Guardar mis datos</button>
 </form>
 </body></html>

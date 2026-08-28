@@ -105,6 +105,9 @@ function rowsFor (id) {
     .filter((r) => r.status !== 'same')
 }
 
+/** Cómo se llama esta fila: los campos libres, como los llama el sitio. */
+const labelOf = (row) => row.label || kindLabel(lang, row.key)
+
 function renderTargets () {
   const ul = $('targets')
   ul.textContent = ''
@@ -173,7 +176,9 @@ function renderFields () {
   const ul = $('fields')
   ul.textContent = ''
   const rows = rowsFor(target)
-  picked = new Set(rows.map((r) => r.key))
+  // Marcadas las que se pidieron: al enviar un formulario, todas; al pulsar el botón de
+  // un campo, ese. Los demás quedan a mano, sin marcar.
+  picked = new Set(rows.filter((r) => r.pick !== false).map((r) => r.key))
 
   for (const row of rows) {
     const li = document.createElement('li')
@@ -185,7 +190,7 @@ function renderFields () {
 
     const box = document.createElement('input')
     box.type = 'checkbox'
-    box.checked = true
+    box.checked = picked.has(row.key)
     box.dataset.testid = `save-prompt-pick-${row.key}`
     box.addEventListener('change', () => {
       if (box.checked) picked.add(row.key)
@@ -195,7 +200,8 @@ function renderFields () {
 
     const k = document.createElement('span')
     k.className = 'k'
-    k.textContent = kindLabel(lang, row.key)
+    k.textContent = labelOf(row)
+    k.title = labelOf(row)
 
     const v = document.createElement('span')
     v.className = 'v'

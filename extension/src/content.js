@@ -66,7 +66,9 @@ async function scan () {
   const { detect, ui } = await mods
   try {
     lastForms = detect.findLoginForms(document)
-    lastData = detect.findDataFields(document)
+    // `free`: también los campos que no se reconocen, para poder guardar lo que el
+    // usuario escriba en ellos (§4.1). Solo se marcan cuando tienen algo.
+    lastData = detect.findDataFields(document, { free: true })
   } catch { lastForms = []; lastData = [] }
 
   const markable = []
@@ -90,7 +92,8 @@ async function scan () {
   const shown = []
   for (const f of markable) {
     const offers = detect.fieldOffers(
-      { kind: f.kind, value: f.el.value, formSecret: f.form?.password?.value }, entries)
+      { kind: f.kind, free: f.free, value: f.el.value, formSecret: f.form?.password?.value },
+      entries)
     if (offers.fill || offers.save) shown.push({ ...f, offers, title: titleFor(offers) })
   }
 
@@ -121,7 +124,7 @@ async function onPick (field) {
   const { ui } = await mods
   const { entries, error } = await entriesForHost()
 
-  const esDato = !!field.kind
+  const esDato = !!field.kind || !!field.free
   const options = field.offers?.fill
     ? entries
       .filter(e => esDato ? e.hasFields : (e.hasSecret || e.type === 'login'))
@@ -130,7 +133,7 @@ async function onPick (field) {
 
   ui.showModal({
     title: 'Dotrino',
-    what: esDato ? field.kind : t('fieldLogin'),
+    what: esDato ? nameOf(field) : t('fieldLogin'),
     options,
     empty: error ? messageFor(error) : t('nothingForField'),
     closeLabel: t('close'),
@@ -144,6 +147,12 @@ async function onPick (field) {
   })
 }
 
+/** El nombre del campo tal como se le enseña al usuario. */
+function nameOf (field) {
+  if (field.kind) return cache.i18n ? cache.i18n.kindLabel(lang, field.kind) : field.kind
+  return field.label || t('otherField')
+}
+
 /**
  * GUARDAR lo que hay escrito, sin esperar a enviar el formulario.
  *
@@ -154,16 +163,33 @@ async function onPick (field) {
  * extensión, nunca la página.
  */
 async function saveFromField (field) {
-  const { ui } = await mods
-  // Un campo de datos suelto no tiene «formulario de acceso»: se captura el suyo.
-  const form = field.kind
-    ? { form: field.el.form || null, password: null, username: null }
-    : field.form
-  // `force`: pulsar el botón ES la intención. El mínimo de dos datos existe para no
-  // molestar a nadie sin que lo pida, y aquí lo está pidiendo.
-  const hecho = captureFrom(form, { force: true })
-  if (!hecho) return ui.showModal({ title: 'Dotrino', empty: t('nothingToSave'), closeLabel: t('close') })
-  await hecho
+  const { detect, ui } = await mods
+  const noHay = () => ui.showModal({ title: 'Dotrino', empty: t('nothingToSave'), closeLabel: t('close') })
+
+  // Se guarda ESE campo: es el que se pulsó. Los demás del mismo formulario van también,
+  // pero SIN marcar — así una pulsación guarda una cosa, y si querías más están ahí sin
+  // volver a empezar.
+  let payload = null
+  if (!field.kind && !field.free) {
+    // Un acceso: la credencial entera, que es una sola cosa aunque sean dos campos.
+    const f = field.form
+    if (!f?.password?.value) return noHay()
+    payload = {
+      username: detect.readUsername(f),
+      secret: f.password.value,
+      fields: detect.readDataFields(f.form || document, { skip: [f.username, f.password] }),
+      focus: ['username', 'secret'],
+      url: location.href,
+    }
+  } else {
+    const scope = field.el.form || document
+    const fields = detect.readDataFields(scope)
+    const key = detect.fieldKey({ kind: field.kind, label: field.label })
+    if (!fields.some(x => detect.fieldKey(x) === key)) return noHay()
+    payload = { username: '', secret: '', fields, focus: [key], url: location.href }
+  }
+
+  await capture(payload)
   await offerSave([0, 300, 800])
 }
 
@@ -179,8 +205,10 @@ async function fill (field, entry) {
     return
   }
 
+  // Se busca por CLAVE, que para un campo libre es su etiqueta: es su única identidad.
   const campos = parseFields(entry.fields)
-  const campo = campos.find(f => f.kind === field.kind)
+  const key = detect.fieldKey({ kind: field.kind, label: field.label })
+  const campo = campos.find(f => detect.fieldKey(f) === key)
   if (campo) detect.fillField(field.el, campo.value)
   ui.reposition()
 }
@@ -252,8 +280,11 @@ function capture (cred) {
  * reconocido no basta: la caja de «suscríbete a nuestro boletín» al pie de un blog es
  * exactamente eso, y preguntar ahí convierte el aviso en algo que se cierra sin leer.
  * Con dos clases distintas ya es un formulario que habla del usuario.
+ *
+ * Cuentan solo los RECONOCIDOS. Los campos libres viajan en la captura pero no la
+ * provocan: si contaran, cualquier formulario de dos casillas sacaría el aviso.
  */
-const enoughData = (fields) => fields.length >= 2
+const enoughData = (fields) => fields.filter(f => f.kind).length >= 2
 
 /**
  * Lo mismo pero sin esperar a nadie: en `pagehide` no hay tiempo para un `await`.
@@ -272,6 +303,10 @@ function captureFrom (form, { force = false } = {}) {
     username: secret ? detect.readUsername(form) : '',
     secret,
     fields,
+    // Marcado viene lo que el gestor reconoce; los campos libres van sin marcar. Enviar
+    // un formulario no es pedir que se guarde el código de un cupón, pero tenerlo ahí
+    // a un clic sí ahorra volver a escribirlo.
+    focus: ['username', 'secret', ...fields.filter(f => f.kind).map(f => detect.fieldKey(f))],
     url: location.href,
   })
 }

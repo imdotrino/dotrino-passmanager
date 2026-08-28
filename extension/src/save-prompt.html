@@ -66,11 +66,16 @@
   /* Cuatro columnas, una por pieza: casilla · qué es · qué se va a escribir · si es
      nuevo o si cambia. Con tres, la etiqueta de nuevo/cambia caía a otra línea. */
   .f {
-    display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
+    display: grid; grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) auto;
     align-items: baseline; gap: 8px; padding: 5px 6px; cursor: pointer;
   }
   .f input { margin: 0; accent-color: #00658c; }
-  .k { font-size: .78rem; opacity: .7; }
+  /* El nombre puede ser largo (el de un campo libre lo pone el sitio): se recorta él,
+     porque el valor es lo que hay que poder leer para decidir. */
+  .k {
+    font-size: .78rem; opacity: .7;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .v {
     font-size: .84rem; text-align: right;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

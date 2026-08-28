@@ -97,6 +97,32 @@ function tokenize (texto) {
   }
 }
 
+/**
+ * CÓMO SE LLAMA un campo, para poder guardarlo con un nombre que signifique algo.
+ *
+ * Los campos libres del modelo son `{ label, value }` (§4.2): sin `kind`, la etiqueta es
+ * su única identidad — es lo que se enseña, y es por lo que se empareja con lo guardado.
+ * Se coge lo que lee una persona antes que lo que lee la máquina.
+ */
+export function fieldLabel (el) {
+  const visto = labelTextOf(el)
+  const texto = visto ||
+    el.getAttribute('aria-label') || el.placeholder || el.name || el.id || ''
+  return String(texto).replace(/\s+/g, ' ').trim().slice(0, 60)
+}
+
+/**
+ * La CLAVE de un campo: su clase si se reconoce, y si no, su etiqueta.
+ *
+ * Es lo que empareja el campo de la página con lo guardado, y lo que viaja en el aviso
+ * como «esta fila». Un campo libre no tiene más identidad que su nombre.
+ */
+export function fieldKey ({ kind, label } = {}) {
+  if (kind) return kind
+  const l = String(label || '').trim()
+  return l ? `label:${l}` : 'other'
+}
+
 function haystack (el) {
   return [
     // La etiqueta primero: es lo que el usuario lee, y suele ser lo único fiable
@@ -105,6 +131,14 @@ function haystack (el) {
     el.name, el.id, el.getAttribute('autocomplete'), el.getAttribute('aria-label'),
     el.placeholder, el.getAttribute('data-testid'), el.getAttribute('data-test'),
   ].filter(Boolean).join(' ').toLowerCase()
+}
+
+/** ¿Es una caja de búsqueda? Lo que se escribe ahí no es un dato de nadie. */
+export function looksLikeSearch (el) {
+  const h = haystack(el)
+  const { tokens, compacto } = tokenize(h)
+  if (el.type === 'search') return true
+  return SEARCH_HINTS.some(s => matchesHint(h, tokens, compacto, s))
 }
 
 function looksLikeUser (el) {
@@ -205,20 +239,40 @@ export function kindOf (el) {
   return null
 }
 
+// Tipos de `input` que no contienen un dato del usuario por mucho que tengan `value`:
+// una casilla marcada vale «on», y un botón vale su rótulo.
+const NOT_DATA = ['password', 'hidden', 'checkbox', 'radio', 'submit', 'button', 'reset', 'file', 'image']
+
 /**
- * Campos rellenables de la página que NO son usuario ni contraseña.
- * Devuelve `[{ el, kind }]`, sin repetir clase: si hay dos casillas de correo, se
- * rellena la primera visible y no se inventa nada con la otra.
+ * Campos de la página que NO son usuario ni contraseña.
+ *
+ * Devuelve `[{ el, kind, free, label }]`, sin repetir: si hay dos casillas de correo, se
+ * usa la primera visible y no se inventa nada con la otra.
+ *
+ * Con `free` entran también **los que no se reconocen** —el código del portal, el número
+ * de socio, lo que sea—, que no tienen `kind` y se identifican por su etiqueta. Solo
+ * sirven para GUARDAR lo que el usuario escribió: para rellenarlos habría que saber qué
+ * etiqueta guarda cada entrada, y eso está dentro (§4.0.2), así que no se ofrece.
  */
-export function findDataFields (doc = document) {
+export function findDataFields (doc = document, { free = false } = {}) {
   const out = []
   const vistos = new Set()
   for (const el of collectInputs(doc).filter(isVisible)) {
-    if (el.type === 'password' || el.type === 'hidden') continue
+    if (NOT_DATA.includes(el.type)) continue
+    if (looksLikeSearch(el)) continue
     const kind = kindOf(el)
-    if (!kind || vistos.has(kind)) continue
-    vistos.add(kind)
-    out.push({ el, kind })
+    if (kind) {
+      if (vistos.has(kind)) continue
+      vistos.add(kind)
+      out.push({ el, kind })
+      continue
+    }
+    if (!free) continue
+    const label = fieldLabel(el)
+    const key = fieldKey({ label })
+    if (vistos.has(key)) continue
+    vistos.add(key)
+    out.push({ el, kind: null, free: true, label })
   }
   return out
 }
@@ -247,13 +301,18 @@ export function readDataFields (scope = document, { skip = [] } = {}) {
   const vistos = new Set()
   for (const el of collectInputs(scope)) {
     if (fuera.has(el)) continue
-    if (el.type === 'password' || el.disabled || !onScreen(el)) continue
+    if (NOT_DATA.includes(el.type) || el.disabled || !onScreen(el)) continue
+    if (looksLikeSearch(el)) continue
     const value = String(el.value || '').trim()
     if (!value) continue
     const kind = kindOf(el)
-    if (!kind || vistos.has(kind)) continue
-    vistos.add(kind)
-    out.push({ kind, value })
+    const label = fieldLabel(el)
+    const key = fieldKey({ kind, label })
+    if (vistos.has(key)) continue
+    vistos.add(key)
+    // Sin clase reconocida, el campo se guarda por su etiqueta: es libre (§4.2), no es
+    // un dato de segunda. Lo que no tiene ni etiqueta ni nombre se guarda como «otro».
+    out.push(kind ? { kind, label, value } : { label, value })
   }
   return out
 }
@@ -306,6 +365,10 @@ export function readUsername ({ form, username, password } = {}) {
 export function fieldOffers (field, entries = []) {
   const hay = Array.isArray(entries) ? entries : []
   const lleno = (v) => !!String(v ?? '').trim()
+  // Un campo que no se reconoce solo se puede guardar: para saber si hay algo suyo
+  // guardado habría que abrir las entradas y mirar sus etiquetas, y eso es la mitad
+  // privada. Así que aparece cuando tiene algo escrito, y solo entonces.
+  if (field?.free) return { fill: false, save: lleno(field.value) }
   if (field?.kind) {
     return { fill: hay.some(e => e.hasFields), save: lleno(field.value) }
   }

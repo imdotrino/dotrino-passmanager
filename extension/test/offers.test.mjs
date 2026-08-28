@@ -7,7 +7,7 @@
 //   npm run test:offers      (necesita el vendor: npm --prefix extension run build)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fieldOffers } from '../src/detect.js'
+import { fieldOffers, fieldKey } from '../src/detect.js'
 
 const conClave = { id: '1', type: 'login', hasSecret: true, hasFields: false }
 const conCampos = { id: '2', type: 'data', hasSecret: false, hasFields: true }
@@ -52,4 +52,18 @@ test('las dos cosas a la vez: hay guardado y hay escrito', () => {
 test('una lista rara no revienta', () => {
   assert.deepEqual(fieldOffers({ kind: 'email', value: '' }, null), { fill: false, save: false })
   assert.deepEqual(fieldOffers({}, undefined), { fill: false, save: false })
+})
+
+test('un campo que no se reconoce solo se puede guardar, y solo si tiene algo', () => {
+  const vacio = fieldOffers({ free: true, label: 'Número de socio', value: '' }, [conCampos])
+  assert.deepEqual(vacio, { fill: false, save: false })
+  const lleno = fieldOffers({ free: true, label: 'Número de socio', value: 'SOC-4471' }, [])
+  assert.deepEqual(lleno, { fill: false, save: true })
+})
+
+test('la clave de un campo es su clase, y si no la tiene, su etiqueta', () => {
+  assert.equal(fieldKey({ kind: 'email', label: 'Tu correo' }), 'email')
+  assert.equal(fieldKey({ label: 'Número de socio' }), 'label:Número de socio')
+  assert.equal(fieldKey({ label: '  ' }), 'other')
+  assert.equal(fieldKey({}), 'other')
 })
