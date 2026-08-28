@@ -33,7 +33,7 @@ import { maskUsername } from './vendor/passmanager/model.js'
 import { KINDS } from './vendor/passmanager/fields.js'
 // La misma regla de identidad que usa la página: la clase si se reconoce, y si no la
 // etiqueta. Dos ideas distintas de qué es «el mismo campo» sería un campo duplicado.
-import { fieldKey } from './detect.js'
+import { fieldKey, fieldOffers } from './detect.js'
 import { t, pickLang, KIND_LABEL } from './i18n.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
 import { identity } from './identity-core.js'
@@ -471,7 +471,9 @@ async function readPending () {
  */
 async function capture ({ username, secret, url, fields, focus }) {
   const limpios = cleanFields(fields)
-  if (!secret && !limpios.length) return { ok: false }
+  // Un usuario suelto también se guarda: es media credencial, y la otra media se suma
+  // luego a la misma entrada. Lo que no se guarda es nada.
+  if (!secret && !username && !limpios.length) return { ok: false }
   await chrome.storage.session.set({
     [PENDING]: {
       username: username || '',
@@ -505,7 +507,9 @@ async function capture ({ username, secret, url, fields, focus }) {
  * este mismo sitio. Va primero, y es el que queda preseleccionado.
  */
 async function candidatesFor (p, v) {
-  const login = !!p.secret
+  // Con usuario pero sin contraseña también se está guardando una cuenta: los candidatos
+  // son las cuentas del sitio, no las entradas de datos.
+  const login = !!p.secret || !!p.username
   const mask = maskUsername(p.username)
   const hits = await v.find(p.url)
   return hits
@@ -667,7 +671,7 @@ async function savePending ({ id, pick } = {}) {
 
   await v.put({
     ...(id ? { id } : {}),
-    type: base?.type || (p.secret ? 'login' : 'data'),
+    type: base?.type || ((p.secret || p.username) ? 'login' : 'data'),
     title: base?.title || p.host,
     // Los de la entrada que se actualiza, tal cual: una entrada SIN sitios sirve en
     // cualquier parte (§4.2), y ponerle el host aquí la convertiría en la de este sitio
@@ -720,8 +724,10 @@ async function getEntry (v, id) {
  */
 const FIND_TTL_MS = 60 * 1000
 const findMemo = new Map()
+// Y lo mismo abierto, cuando abrir no cuesta nada (ver `openedFor`).
+const openMemo = new Map()
 
-const forgetFinds = () => findMemo.clear()
+const forgetFinds = () => { findMemo.clear(); openMemo.clear() }
 
 async function findFor (url) {
   const host = hostOf(url)
@@ -730,6 +736,82 @@ async function findFor (url) {
   const result = await (await connect()).find(url)
   if (host) findMemo.set(host, { ts: Date.now(), result })
   return result
+}
+
+/**
+ * Lo guardado del sitio, ABIERTO, para poder decidir campo a campo.
+ *
+ * La tabla del §4.1 pregunta dos cosas que solo se saben mirando dentro: si alguna
+ * entrada tiene ESTE campo, y si lo tiene con ESTE mismo valor. Con la bóveda propia
+ * —la de la extensión— abrir no cuesta nada ni sale de aquí, así que se hace y la
+ * respuesta es exacta.
+ *
+ * Con una bóveda **conectada** abrir cuesta una aprobación en el teléfono, y pedirla al
+ * cargar cada página sería insoportable: ahí se devuelve `null` y quien pregunta se
+ * queda con lo público (§4.0.2), que dice si hay entradas con campos pero no cuáles. El
+ * botón sale de más en vez de faltar — de más es un aviso que dirá que no cambia nada;
+ * de menos es un gestor que parece roto.
+ */
+async function openedFor (url) {
+  const v = await connect()
+  if (v.capabilities?.needsApproval !== false) return null
+  const host = hostOf(url)
+  const hit = openMemo.get(host)
+  if (hit && Date.now() - hit.ts < FIND_TTL_MS) return hit.list
+  const list = []
+  for (const meta of await findFor(url)) {
+    try {
+      const e = await v.get(meta.id)
+      const keys = new Map()
+      for (const f of parseFields(e.fields)) keys.set(fieldKey(f), f.value)
+      list.push({ id: e.id, type: e.type, username: e.username || '', secret: e.secret || '', keys })
+    } catch (_) { /* una que no abre no cuenta */ }
+  }
+  openMemo.set(host, { ts: Date.now(), list })
+  return list
+}
+
+/**
+ * QUÉ OFRECER en cada campo de la página, y desde qué entradas.
+ *
+ * Lo pregunta el content script en cada pasada. Devuelve **dos booleanos y una lista de
+ * ids** por campo: nada de la bóveda cruza al proceso de la página, y la comparación
+ * —que necesita el valor guardado— se hace aquí, que es donde vive.
+ *
+ * Lo escrito sí viaja hacia aquí, pero es del propio formulario: la página ya lo tiene.
+ */
+async function offersFor ({ url, fields } = {}) {
+  let metas = []
+  try { metas = await findFor(url) } catch (_) { metas = [] }
+  let abiertas = null
+  try { abiertas = await openedFor(url) } catch (_) { abiertas = null }
+
+  const out = []
+  for (const f of Array.isArray(fields) ? fields : []) {
+    const acceso = f.key === 'login'
+    const libre = !acceso && !KINDS.includes(f.key)
+    // Lo escrito en ESTA casilla, también en un acceso: el usuario y la contraseña son
+    // dos botones distintos, y el de la contraseña no se enciende porque haya usuario.
+    const value = f.value || ''
+
+    let ids = []
+    let same = false
+    if (abiertas) {
+      const suyas = abiertas.filter(e => acceso ? !!e.secret || !!e.username : e.keys.has(f.key))
+      ids = suyas.map(e => e.id)
+      same = acceso
+        // La credencial es una cosa: es la misma si coinciden las dos mitades que haya.
+        ? suyas.some(e => e.secret === (f.secret || '') && e.username === (f.username || ''))
+        : suyas.some(e => e.keys.get(f.key) === (f.value || ''))
+    } else if (!libre) {
+      // Sin abrir solo se puede ir por lo grueso, y un campo que no se reconoce no tiene
+      // ni eso: su identidad es la etiqueta, y las etiquetas están dentro.
+      ids = metas.filter(m => acceso ? (m.hasSecret || m.type === 'login') : m.hasFields).map(m => m.id)
+    }
+
+    out.push({ id: f.id, ids, ...fieldOffers({ value, stored: ids.length > 0, same }) })
+  }
+  return out
 }
 
 const OPS = {
@@ -749,6 +831,7 @@ const OPS = {
   'profile-rename': renameProfile,
   'profile-remove': removeProfile,
   find: p => findFor(p.url),
+  offers: p => offersFor(p),
   get: async p => getEntry(await connect(), p.id),
   put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
 }
@@ -776,7 +859,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
   // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
   // extensión.
-  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save'].includes(msg.op)) {
+  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

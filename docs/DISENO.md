@@ -574,27 +574,62 @@ De ahí sale cómo se pinta el aviso, que es la parte que importa:
 —un cuarto de circunferencia azul en la esquina superior derecha del campo, con el
 **pájaro de la marca** dentro y traslúcido— y espera.
 
-**Y solo los que puede ayudar, que no son todos** (dueño, 2026-08-28). El marcador sale
-si hay **algo guardado que quepa ahí**, o si el campo **ya tiene algo escrito** y se
-puede ofrecer guardarlo; si no puede hacer ninguna de las dos, no hay botón. Un marcador
-que al pulsarlo dice «no tengo nada» es un adorno en cada casilla de cada formulario de
-la web. Aparece y desaparece según se escribe.
+**Y solo los que puede ayudar, que no son todos.** El botón es **por campo**, y cuándo
+sale es una tabla, no una impresión (dueño, 2026-08-28):
 
-**Cualquier campo, se reconozca o no** (dueño, 2026-08-28): *«si lleno un campo,
-cualquiera sea, aparece el semicírculo y me permite guardar ESE campo, en un record
-existente o uno nuevo»*. El número de socio, el código del portal, la referencia del
-pedido: son los **campos libres** del §4.2 y se guardan por su **etiqueta**, que es su
-única identidad. Dos consecuencias que conviene tener claras:
+| ¿hay entradas del sitio? | ¿alguna tiene ESTE campo? | el campo está… | ¿botón? | al pulsarlo |
+|---|---|---|---|---|
+| no | — | vacío | **no** | — |
+| no | — | con algo escrito | **sí** | guardar → solo cabe una entrada nueva |
+| sí | ninguna | vacío | **no** | — |
+| sí | ninguna | con algo escrito | **sí** | guardar → en una de las que hay, o en una nueva |
+| sí | alguna | vacío | **sí** | **rellenar** (de cuál, si hay varias) + **rellenar todo** |
+| sí | alguna | escrito **igual** a lo guardado | **no** | — |
+| sí | alguna | escrito **distinto** | **sí** | guardar → en esa entrada, o en una nueva |
 
-- **Un campo que no se reconoce solo ofrece GUARDAR, nunca rellenar.** Para saber si hay
-  algo suyo guardado habría que abrir las entradas y mirar sus etiquetas, y eso es la
-  mitad privada (§4.0.2). Se marca cuando tiene algo escrito, y solo entonces.
-- **Lo que se guarda es ESE campo.** Pulsar el botón de uno lo marca a él; los demás del
-  mismo formulario van en el aviso pero **sin marcar**, para que estén a un clic sin
-  volver a empezar. Igual al enviar un formulario: lo reconocido va marcado y los campos
-  libres acompañan sin marcar — enviar un formulario no es pedir que se guarde el código
-  de un cupón. Y los campos libres **no cuentan** para el mínimo de dos datos que hace
-  saltar el aviso solo: si contaran, cualquier formulario de dos casillas lo sacaría.
+Lo que hay que leer ahí, dicho en palabras:
+
+- **Con una sola letra ya hay botón.** No hay que llenar el formulario: cada casilla
+  responde por sí sola. (Antes el de un acceso miraba la contraseña del formulario, así
+  que escribir el usuario no encendía nada — y parecía que había que llenarlo todo.)
+- **Rellenar solo en un campo vacío.** Escribir encima de lo que puso el usuario sería
+  decidir por él; lo que quiere ahí es guardar lo suyo.
+- **Lo que ya está guardado igual no se ofrece.** Es el caso de justo después de
+  rellenar: el campo tiene el valor de la bóveda y el botón desaparece solo.
+- **Nada se rellena solo, tampoco aquí.** Rellenar es siempre un botón que se pulsa, y
+  hay dos: **«Rellenar este valor»** (eliges de qué entrada) y **«Rellenar todos los
+  valores»**, que pone en la página todo lo que esa entrada tenga. El segundo existe para
+  no repetir la elección campo por campo en un formulario de seis casillas; si hay varias
+  entradas, primero pregunta de cuál — rellenar seis campos desde la equivocada es peor
+  que no rellenar ninguno.
+- **Cualquier campo, se reconozca o no** (dueño, 2026-08-28): *«si lleno un campo,
+  cualquiera sea, aparece el semicírculo y me permite guardar ESE campo, en un record
+  existente o uno nuevo»*. El número de socio, el código del portal: son los **campos
+  libres** del §4.2 y su identidad es la **etiqueta** que les pone la página.
+- **Lo que se guarda es ESE campo.** Los demás del mismo formulario van en el aviso pero
+  **sin marcar**, para que estén a un clic sin volver a empezar. Igual al enviar un
+  formulario: lo reconocido va marcado y los libres acompañan sin marcar — enviar un
+  formulario no es pedir que se guarde el código de un cupón. Y los libres **no cuentan**
+  para el mínimo de dos datos que hace saltar el aviso solo.
+
+#### Las dos preguntas de la tabla se responden mirando dentro
+
+«¿Alguna entrada tiene este campo?» y «¿lo tiene con este mismo valor?» no se contestan
+con lo público (§4.0.2): hay que **abrir** las entradas del sitio. De ahí sale la única
+diferencia entre las dos bóvedas:
+
+| | la bóveda propia (la extensión) | una bóveda conectada |
+|---|---|---|
+| abrir cuesta | nada, y no sale de aquí | **una aprobación en el teléfono** |
+| la tabla se aplica | exacta | por lo grueso: «hay entradas con campos», sin saber cuáles |
+| en la práctica | el botón sale justo cuando sirve | puede salir de más — nunca de menos |
+
+Pedir aprobación al cargar cada página sería insoportable, así que con una bóveda
+conectada **no se abre nada** para pintar botones. El botón que sobra lleva a un aviso
+que dirá que no cambia nada; el que falta deja un gestor que parece roto. Se prefiere lo
+primero. Lo que sí es igual en las dos: **la decisión se toma en el service worker** —lo
+escrito viaja hacia él (la página ya lo tiene), y de vuelta salen dos booleanos y de qué
+entradas; ningún valor guardado entra en el proceso de la página.
 
 Una caja de **búsqueda** nunca es un dato de nadie, se reconozca el resto o no; y lo que
 no es un dato por su propio tipo (casillas, botones, ficheros) tampoco entra.

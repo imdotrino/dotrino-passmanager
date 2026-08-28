@@ -347,37 +347,34 @@ export function readUsername ({ form, username, password } = {}) {
 }
 
 /**
- * QUÉ puede hacer el gestor en este campo. De aquí sale si se marca o no (§4.1).
+ * QUÉ puede hacer el gestor en ESTE campo. De aquí sale si se marca o no (§4.1).
  *
- * Un botón que al pulsarlo dice «no tengo nada» es peor que no tener botón: enseña un
- * adorno en cada casilla de cada formulario de la web. Así que el marcador solo aparece
- * cuando puede hacer una de las dos cosas —poner algo guardado, o guardar lo que hay
- * escrito—, y desaparece cuando no.
+ * **La regla es por CAMPO, no por formulario** (dueño, 2026-08-28), y es esta:
  *
- * Se decide con **lo público** de lo guardado (lo que devuelve `find`: si la entrada
- * tiene contraseña, si tiene campos), nunca abriendo nada. Por eso para los campos de
- * datos la respuesta es gruesa —«hay entradas con campos», no «hay un teléfono»—: qué
- * campo guarda cada entrada va cifrado, y averiguarlo sería abrirlas todas.
+ * | | el campo está vacío | tiene algo escrito, distinto | tiene lo mismo que hay guardado |
+ * |---|---|---|---|
+ * | **nada guardado suyo** | sin botón | **guardar** | — |
+ * | **algo guardado suyo** | **rellenar** | **guardar** | sin botón |
  *
- * @param {object} field   `{ kind, value, formSecret }` — `kind` null si es un acceso
- * @param {Array}  entries lo público de lo guardado para este sitio
+ * Tres cosas que se leen ahí y conviene decir en voz alta:
+ *
+ * - Con **una sola letra** escrita ya hay botón. Antes el de un acceso miraba la
+ *   contraseña del formulario, así que escribir el usuario no encendía nada y parecía
+ *   que había que llenarlo todo.
+ * - **Rellenar solo en un campo vacío**: escribir encima de lo que puso el usuario sería
+ *   decidir por él, y lo que quiere ahí es guardar lo suyo.
+ * - **Lo que ya está guardado igual no se ofrece.** Es el caso de después de rellenar:
+ *   el campo tiene el valor de la bóveda, y un botón que solo puede volver a guardarlo
+ *   es un botón que no hace nada.
+ *
+ * Pura a propósito: `stored` y `same` los calcula el service worker, que es el único que
+ * puede mirar la bóveda. Aquí está la regla y nada más.
+ *
+ * @param {object} f `{ value, stored, same }`
  */
-export function fieldOffers (field, entries = []) {
-  const hay = Array.isArray(entries) ? entries : []
-  const lleno = (v) => !!String(v ?? '').trim()
-  // Un campo que no se reconoce solo se puede guardar: para saber si hay algo suyo
-  // guardado habría que abrir las entradas y mirar sus etiquetas, y eso es la mitad
-  // privada. Así que aparece cuando tiene algo escrito, y solo entonces.
-  if (field?.free) return { fill: false, save: lleno(field.value) }
-  if (field?.kind) {
-    return { fill: hay.some(e => e.hasFields), save: lleno(field.value) }
-  }
-  // En un acceso, lo que se puede guardar es la credencial, y sin contraseña escrita no
-  // hay ninguna: un usuario suelto no se guarda, así que ahí no se ofrece.
-  return {
-    fill: hay.some(e => e.hasSecret || e.type === 'login'),
-    save: lleno(field?.formSecret),
-  }
+export function fieldOffers ({ value, stored, same } = {}) {
+  const lleno = !!String(value ?? '').trim()
+  return { fill: !lleno && !!stored, save: lleno && !same }
 }
 
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */

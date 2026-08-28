@@ -126,6 +126,7 @@ function styles () {
     }
     @media (prefers-color-scheme: dark) {
       .sheet { background: #181d23; color: #e8eaf0; }
+      .act.ghost { border-color: #2b333c !important; }
       .opt { border-color: #262e36 !important; }
       .opt:hover { background: #202832 !important; }
     }
@@ -146,10 +147,14 @@ function styles () {
     .opt .name { font-weight: 600; display: block; }
     .opt .hint { font-size: 11px; opacity: .65; }
     .empty { margin: 0; font-size: 12px; opacity: .7; }
+    .lead { margin: 0 0 8px; font-size: 12px; opacity: .75; }
     .act {
-      margin-top: 10px; width: 100%; padding: 9px;
+      margin-top: 8px; width: 100%; padding: 9px;
       border: 0; border-radius: 9px; background: ${BRAND}; color: #fff;
       font: inherit; font-weight: 600; cursor: pointer;
+    }
+    .act.ghost {
+      background: none; color: inherit; border: 1px solid #d5dee4; font-weight: 500;
     }
     .close {
       margin-top: 10px; width: 100%; padding: 8px;
@@ -217,7 +222,7 @@ export function mountMarkers (fields, pick) {
  * @param {object} opts  `{ title, what, options: [{ id, name, hint }], empty, action,
  *   closeLabel, onChoose, onClose }` — `action` es `{ label, onAction }`
  */
-export function showModal ({ title, what, options = [], empty, action, closeLabel, onChoose, onClose }) {
+export function showModal ({ title, what, lead, options = [], empty, actions = [], closeLabel, onChoose, onClose }) {
   const sr = ensureHost()
   closeModal()
 
@@ -239,6 +244,15 @@ export function showModal ({ title, what, options = [], empty, action, closeLabe
   w.textContent = what || ''
   head.append(t, w)
   sheet.append(head)
+
+  // Qué significa pulsar una de las opciones. Sin esto la lista es ambigua: no se sabe
+  // si eliges de dónde rellenar o qué reemplazar.
+  if (lead) {
+    const p = document.createElement('p')
+    p.className = 'lead'
+    p.textContent = lead
+    sheet.append(p)
+  }
 
   if (options.length) {
     const ul = document.createElement('ul')
@@ -271,15 +285,15 @@ export function showModal ({ title, what, options = [], empty, action, closeLabe
     sheet.append(p)
   }
 
-  // Guardar lo que hay escrito en el campo. Va abajo y separado de la lista: no es una
-  // opción más de «qué pongo aquí», es la otra cosa que se puede hacer.
-  if (action) {
+  // Lo que se puede hacer además de elegir de la lista. Va abajo y separado: no son
+  // opciones más de «qué pongo aquí», son las otras cosas que se pueden hacer.
+  for (const a of actions.filter(Boolean)) {
     const b = document.createElement('button')
-    b.className = 'act'
+    b.className = a.ghost ? 'act ghost' : 'act'
     b.type = 'button'
-    b.dataset.testid = 'field-modal-save'
-    b.textContent = action.label
-    b.addEventListener('click', () => { closeModal(); action.onAction?.() })
+    if (a.testid) b.dataset.testid = a.testid
+    b.textContent = a.label
+    b.addEventListener('click', () => { closeModal(); a.onAction?.() })
     sheet.append(b)
   }
 

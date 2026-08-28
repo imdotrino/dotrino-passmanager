@@ -61,6 +61,7 @@ function forgetEntries () {
  * el campo ya tiene algo escrito y se puede ofrecer guardarlo (dueño, 2026-08-28).
  */
 let shownKey = ''
+let lastShown = []
 
 async function scan () {
   const { detect, ui } = await mods
@@ -88,13 +89,20 @@ async function scan () {
     return []
   }
 
-  const { entries } = await entriesForHost()
+  // Qué ofrecer en cada campo lo decide el service worker: comparar con lo guardado
+  // necesita el valor guardado, y eso no cruza al proceso de la página. De aquí sale lo
+  // escrito —que la página ya tiene— y vuelven dos booleanos y de qué entradas.
+  const r = await ask('offers', {
+    url: location.href,
+    fields: markable.map((f, i) => descFor(f, i)),
+  })
+  const dicho = r?.error ? [] : (r.result || [])
   const shown = []
-  for (const f of markable) {
-    const offers = detect.fieldOffers(
-      { kind: f.kind, free: f.free, value: f.el.value, formSecret: f.form?.password?.value },
-      entries)
-    if (offers.fill || offers.save) shown.push({ ...f, offers, title: titleFor(offers) })
+  for (let i = 0; i < markable.length; i++) {
+    const offers = dicho[i] || { fill: false, save: false, ids: [] }
+    if (offers.fill || offers.save) {
+      shown.push({ ...markable[i], offers, title: titleFor(offers) })
+    }
   }
 
   // Volver a montarlos en cada tecla haría parpadear el que tienes debajo del cursor: se
@@ -102,6 +110,7 @@ async function scan () {
   const key = shown
     .map(f => `${markable.findIndex(m => m.el === f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}`)
     .join('|')
+  lastShown = shown
   if (key !== shownKey) {
     ui.mountMarkers(shown, onPick)
     shownKey = key
@@ -112,6 +121,27 @@ async function scan () {
 }
 
 const titleFor = (offers) => offers.fill ? t('fill') : t('saveThis')
+
+/** Lo que se le cuenta al service worker de un campo para que decida. */
+function descFor (f, i) {
+  const { detect } = cache
+  if (f.kind || f.free) {
+    return {
+      id: i,
+      key: detect.fieldKey({ kind: f.kind, label: f.label }),
+      value: String(f.el.value || '').trim(),
+    }
+  }
+  // Un acceso es una cosa con dos mitades: se manda el formulario entero, y el «vacío»
+  // sigue siendo el de ESTA casilla.
+  return {
+    id: i,
+    key: 'login',
+    value: String(f.el.value || '').trim(),
+    username: f.form?.username?.value || '',
+    secret: f.form?.password?.value || '',
+  }
+}
 
 /**
  * El usuario pulsó el botón de un campo: se le enseña qué se puede hacer ahí.
@@ -125,19 +155,25 @@ async function onPick (field) {
   const { entries, error } = await entriesForHost()
 
   const esDato = !!field.kind || !!field.free
+  // Las entradas que tienen ESTE campo, dichas por el service worker: es lo que sabe
+  // mirar dentro. Aquí solo se les pone nombre con lo público que ya se tiene.
+  const suyas = new Set(field.offers?.ids || [])
   const options = field.offers?.fill
-    ? entries
-      .filter(e => esDato ? e.hasFields : (e.hasSecret || e.type === 'login'))
+    ? entries.filter(e => suyas.has(e.id))
       .map(e => ({ id: e.id, name: e.title || e.sites?.[0] || '—', hint: e.hint || e.sites?.[0] || '' }))
     : []
 
   ui.showModal({
     title: 'Dotrino',
     what: esDato ? nameOf(field) : t('fieldLogin'),
+    lead: options.length ? t('fillThisFrom') : '',
     options,
     empty: error ? messageFor(error) : t('nothingForField'),
     closeLabel: t('close'),
-    action: field.offers?.save ? { label: t('saveThis'), onAction: () => saveFromField(field) } : null,
+    actions: [
+      field.offers?.save && { label: t('saveThis'), testid: 'field-modal-save', onAction: () => saveFromField(field) },
+      options.length && { label: t('fillAll'), ghost: true, testid: 'field-modal-fill-all', onAction: () => fillAllFlow(options) },
+    ],
     onChoose: async (opt) => {
       // Aquí, y solo aquí, se pide UNA credencial: al elegirla el usuario.
       const got = await ask('get', { id: opt.id })
@@ -145,6 +181,50 @@ async function onPick (field) {
       await fill(field, got.result)
     },
   })
+}
+
+/**
+ * RELLENAR TODO desde una entrada: cada campo de la página que esa entrada tenga.
+ *
+ * **Sigue sin rellenarse nada solo** (§4.1): esto es un botón que el usuario pulsa, y
+ * antes elige de dónde. Lo que ahorra es repetir la elección campo por campo cuando la
+ * entrada tiene media docena.
+ */
+async function fillAllFlow (options) {
+  const { ui } = await mods
+  if (options.length === 1) return fillAllFrom(options[0].id)
+  // Con varias, primero de cuál: rellenar seis campos desde la entrada equivocada es
+  // peor que no rellenar ninguno.
+  ui.showModal({
+    title: 'Dotrino',
+    what: t('fillAll'),
+    lead: t('fillAllFrom'),
+    options,
+    closeLabel: t('close'),
+    onChoose: (opt) => fillAllFrom(opt.id),
+  })
+}
+
+async function fillAllFrom (id) {
+  const { detect, ui } = await mods
+  const got = await ask('get', { id })
+  if (got.error) {
+    return ui.showModal({ title: 'Dotrino', empty: messageFor(got.error.code), closeLabel: t('close') })
+  }
+  const entry = got.result
+  const campos = parseFields(entry.fields)
+  for (const f of lastShown) {
+    if (!f.kind && !f.free) {
+      if (f.el === f.form?.username && entry.username) detect.fillField(f.el, entry.username)
+      if (f.el === f.form?.password && entry.secret) detect.fillField(f.el, entry.secret)
+      continue
+    }
+    const key = detect.fieldKey({ kind: f.kind, label: f.label })
+    const campo = campos.find(x => detect.fieldKey(x) === key)
+    if (campo) detect.fillField(f.el, campo.value)
+  }
+  ui.reposition()
+  scan().catch(() => {})
 }
 
 /** El nombre del campo tal como se le enseña al usuario. */
@@ -171,14 +251,22 @@ async function saveFromField (field) {
   // volver a empezar.
   let payload = null
   if (!field.kind && !field.free) {
-    // Un acceso: la credencial entera, que es una sola cosa aunque sean dos campos.
+    // Un acceso. Se manda lo que haya en el formulario —usuario, contraseña o las dos—,
+    // y viene marcado lo del campo que se pulsó: con el usuario escrito y la contraseña
+    // todavía no, guardar el usuario es una cosa razonable de querer, y la contraseña se
+    // suma después a esa misma entrada.
     const f = field.form
-    if (!f?.password?.value) return noHay()
+    const username = detect.readUsername(f)
+    const secret = f?.password?.value || ''
+    if (!username && !secret) return noHay()
+    const esPass = field.el === f?.password
     payload = {
-      username: detect.readUsername(f),
-      secret: f.password.value,
-      fields: detect.readDataFields(f.form || document, { skip: [f.username, f.password] }),
-      focus: ['username', 'secret'],
+      username,
+      secret,
+      fields: detect.readDataFields(f?.form || document, { skip: [f?.username, f?.password] }),
+      // La contraseña sin usuario no sirve para volver a entrar: al pulsar en ella van
+      // las dos. Al pulsar en el usuario, solo él.
+      focus: esPass ? ['username', 'secret'] : ['username'],
       url: location.href,
     }
   } else {
