@@ -88,7 +88,7 @@ function styles () {
       /* Anclado a la esquina, no centrado en su caja: centrado se descolgaba del disco y
          parecían dos cosas sueltas. Así el ave se apoya en el cuarto de círculo y sale
          de él hacia abajo y hacia la izquierda, que es donde hay campo libre. */
-      top: -3px; right: -3px;
+      top: -10px; right: -12px;
       width: ${BIRD}px; height: ${BIRD_H}px;
       background: url("${MARK}") no-repeat center / contain;
     }
