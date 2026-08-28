@@ -482,7 +482,10 @@ enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóv
 > Decidido por el dueño el 2026-08-25.
 
 **Nada se rellena solo.** El gestor marca los campos donde puede ayudar con un botón
-—un cuarto de circunferencia azul en la esquina superior derecha del campo— y espera.
+—un cuarto de circunferencia azul en la esquina superior derecha del campo, con el
+**pájaro de la marca** dentro y traslúcido— y espera. El pájaro y no el icono entero:
+a 15 px el candado no se lee, y lo que tiene que reconocerse de un vistazo es de quién
+es ese botón. Traslúcido porque acompaña al campo, no compite con él.
 Al pulsarlo aparece un modal con lo que se puede poner **ahí**, y solo al elegir una
 opción se escribe.
 
