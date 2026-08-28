@@ -11,6 +11,12 @@ const BRAND = '#00658c'
 const HOST_ID = 'dotrino-passmanager-ui'
 
 /**
+ * El lado del marcador, en un solo sitio: lo usan el CSS y el cálculo de la posición, y
+ * cuando estaba escrito en los dos el botón se desplazaba al cambiarlo de tamaño.
+ */
+const MARKER = 20
+
+/**
  * El pájaro de la marca, en blanco, para ir dentro del marcador.
  *
  * Es el mismo trazo de `icons/icon.svg` recortado a su caja: a 15 px el candado entero
@@ -44,12 +50,13 @@ function styles () {
   s.textContent = `
     .marker {
       position: absolute;
-      width: 15px; height: 15px;
+      width: ${MARKER}px; height: ${MARKER}px;
       padding: 0; border: 0; margin: 0;
-      /* El pájaro va arriba a la derecha, que es donde el cuarto de círculo tiene
-         cuerpo: más abajo o más a la izquierda lo comería la curva. */
-      background: ${BRAND} url("${MARK}") no-repeat right 1px top 1.5px;
-      background-size: 9.5px 10.24px;
+      /* El pájaro ocupa casi todo el cuarto de círculo, pegado a la esquina: es lo
+         único que hay que poder distinguir ahí, y más pequeño no se reconocía. Por eso
+         el marcador creció de 15 a 20 px — el tamaño lo manda el ave, no al revés. */
+      background: ${BRAND} url("${MARK}") no-repeat right 0 top 1px;
+      background-size: 17px 18.33px;
       /* Un cuarto de circunferencia: recto arriba y a la derecha, curvo abajo a la
          izquierda. Se apoya en la esquina superior derecha del campo. */
       border-radius: 0 0 0 100%;
@@ -125,7 +132,7 @@ function place (node, el) {
   const r = el.getBoundingClientRect()
   if (!r.width || !r.height) { node.style.display = 'none'; return }
   node.style.display = ''
-  node.style.left = `${r.right + window.scrollX - 15}px`
+  node.style.left = `${r.right + window.scrollX - MARKER}px`
   node.style.top = `${r.top + window.scrollY}px`
 }
 

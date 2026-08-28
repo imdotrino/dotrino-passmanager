@@ -483,9 +483,13 @@ enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóv
 
 **Nada se rellena solo.** El gestor marca los campos donde puede ayudar con un botón
 —un cuarto de circunferencia azul en la esquina superior derecha del campo, con el
-**pájaro de la marca** dentro y traslúcido— y espera. El pájaro y no el icono entero:
-a 15 px el candado no se lee, y lo que tiene que reconocerse de un vistazo es de quién
-es ese botón. Traslúcido porque acompaña al campo, no compite con él.
+**pájaro de la marca** dentro y traslúcido— y espera.
+
+El pájaro y no el icono entero: a ese tamaño el candado no se lee y queda una mancha, y
+lo único que hay que poder distinguir ahí es de quién es el botón. **El tamaño lo manda
+el ave**, no al revés: ocupa casi todo el cuarto de círculo y el marcador se hizo de
+20 px para que quepa — con 15 no se reconocía. Traslúcido porque acompaña al campo, no
+compite con él.
 Al pulsarlo aparece un modal con lo que se puede poner **ahí**, y solo al elegir una
 opción se escribe.
 
