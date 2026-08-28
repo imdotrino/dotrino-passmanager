@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow"><title>Tus datos · caso 6</title><link rel="stylesheet" href="bench.css"></head>
+<body>
+<!--
+  Un formulario que NO es un acceso: no hay contraseña por ninguna parte. Es el caso de la
+  dirección de envío, el perfil de una tienda o el alta de un trámite — datos que rellenas
+  una y otra vez y que el gestor tiene que ofrecerse a guardar igual que una contraseña.
+-->
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Tus datos</h1>
+<p class="lead">Un formulario de datos, sin contraseña ninguna.</p>
+<form id="profile" method="GET" action="inside.html">
+  <label>Nombre <input name="given-name" type="text" autocomplete="given-name"></label>
+  <label>Apellidos <input name="family-name" type="text" autocomplete="family-name"></label>
+  <label>Correo <input name="email" type="email" autocomplete="email"></label>
+  <label>Teléfono <input name="tel" type="tel" autocomplete="tel"></label>
+  <label>Dirección <input name="street-address" type="text" autocomplete="street-address"></label>
+  <label>Ciudad <input name="city" type="text" autocomplete="address-level2"></label>
+  <button type="submit">Guardar mis datos</button>
+</form>
+</body></html>

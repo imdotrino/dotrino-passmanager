@@ -97,7 +97,10 @@ function styles () {
     .save-prompt {
       position: fixed;
       right: 16px; bottom: 16px;
+      /* El alto es provisional: lo fija el propio aviso cuando sabe cuánto ocupa
+         con sizeSavePrompt, porque la lista de campos no mide siempre lo mismo. */
       width: 320px; height: 168px;
+      max-height: 70vh;
       border: 0; border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0,0,0,.28);
       pointer-events: auto;
@@ -316,4 +319,21 @@ export function mountSavePrompt (params) {
 export function closeSavePrompt () {
   prompt?.remove()
   prompt = null
+}
+
+/**
+ * El alto que el aviso pide. Lo dibuja la página, así que su propio CSS no puede
+ * fijarlo: sin esto la lista de campos se corta por abajo.
+ *
+ * Se acota igual, y no por desconfianza del aviso —es nuestro— sino porque una lista
+ * larga en una ventana pequeña taparía la página entera.
+ */
+export function sizeSavePrompt (h) {
+  if (!prompt || !Number.isFinite(h)) return
+  prompt.style.height = `${Math.max(96, Math.min(h, Math.round(window.innerHeight * 0.7)))}px`
+}
+
+/** La ventana del aviso, para reconocer sus mensajes y no los de la página. */
+export function promptWindow () {
+  return prompt?.contentWindow || null
 }

@@ -111,8 +111,72 @@ try {
   const anaFull = deAna[0] ? (await pedir('get', { id: deAna[0].id }))?.result : null
   ok(anaFull?.secret === 'clave-nueva', 'y se quedó la contraseña nueva')
 
-  // --- caso 6: «ahora no» ---
-  console.log('\ncaso 6 · ahora no')
+  // --- caso 6: un formulario que NO es un acceso ---
+  //
+  // Sin contraseña por ninguna parte, y con una casilla por dato: se desmarca la ciudad
+  // y tiene que quedarse fuera. Es lo que hace que guardar un formulario no sea un sí o
+  // un no a todo.
+  console.log('\ncaso 6 · formulario de datos, con casillas')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(500)
+  const datos = {
+    'given-name': 'Ana', 'family-name': 'Ruiz', email: 'ana@datos.com',
+    tel: '0999111222', 'street-address': 'Calle 1 y Av. 2', city: 'Quito',
+  }
+  for (const [n, v] of Object.entries(datos)) await page.fill(`input[name="${n}"]`, v)
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'el aviso sale sin contraseña ninguna')
+  if (f) {
+    const titulo = await f.locator('[data-t=title]').textContent()
+    ok(/datos|info/i.test(titulo), 'y pregunta por los DATOS, no por una contraseña: ' + titulo)
+    ok(await f.locator('[data-testid=save-prompt-field]').count() === 6, 'una fila por dato')
+    ok(await f.locator('[data-testid=save-prompt-pick-city]').isChecked(), 'todas marcadas de entrada')
+    await f.locator('[data-testid=save-prompt-pick-city]').uncheck()
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await page.waitForTimeout(1200)
+  }
+  const guardados = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
+    .filter((e) => e.type === 'data')
+  ok(guardados.length === 1, 'queda UNA entrada de datos (hay ' + guardados.length + ')')
+  const abierta = guardados[0] ? (await pedir('get', { id: guardados[0].id }))?.result : null
+  const campos = JSON.parse(abierta?.fields || '[]')
+  ok(campos.length === 5, 'guarda solo lo marcado (5 de 6): ' + campos.length)
+  ok(!campos.some((c) => c.kind === 'city'), 'la ciudad desmarcada NO entra')
+  ok(campos.find((c) => c.kind === 'tel')?.value === '0999111222', 'y el teléfono sí')
+
+  // --- caso 7: lo mismo con un dato cambiado ---
+  console.log('\ncaso 7 · lo mismo, con un dato cambiado')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(500)
+  for (const [n, v] of Object.entries({ ...datos, tel: '0988000111', city: '' })) {
+    await page.fill(`input[name="${n}"]`, v)
+  }
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'el aviso vuelve a salir')
+  if (f) {
+    const filas = f.locator('[data-testid=save-prompt-field]')
+    ok(await filas.count() === 1, 'solo sale lo que cambia (hay ' + (await filas.count()) + ')')
+    ok(await filas.first().getAttribute('data-field') === 'tel', 'y es el teléfono')
+    ok(/cambia|change/i.test(await filas.first().locator('.tag').textContent()), 'marcado como «cambia»')
+    ok((await filas.first().locator('.old').textContent()) === '0999111222', 'con el número anterior tachado')
+    const actualizar = f.locator('[data-testid=save-prompt-update]')
+    ok(await actualizar.isVisible(), 'ofrece actualizar los datos que ya había')
+    await actualizar.click()
+    await page.waitForTimeout(1200)
+  }
+  const tras7 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
+    .filter((e) => e.type === 'data')
+  ok(tras7.length === 1, 'actualizar NO duplica la entrada de datos (hay ' + tras7.length + ')')
+  const abierta7 = tras7[0] ? (await pedir('get', { id: tras7[0].id }))?.result : null
+  const campos7 = JSON.parse(abierta7?.fields || '[]')
+  ok(campos7.find((c) => c.kind === 'tel')?.value === '0988000111', 'el teléfono nuevo entra')
+  ok(campos7.find((c) => c.kind === 'email')?.value === 'ana@datos.com', 'y lo que no cambió sigue ahí')
+  ok(campos7.length === 5, 'sin sumar campos de la nada: ' + campos7.length)
+
+  // --- caso 8: «ahora no» ---
+  console.log('\ncaso 8 · ahora no')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=user]', 'dani@ejemplo.com')
@@ -127,8 +191,8 @@ try {
     .some((e) => e.hint === 'd•••i@ejemplo.com')
   ok(!nada, 'y no guarda nada')
 
-  // --- caso 7: los marcadores para rellenar ---
-  console.log('\ncaso 7 · marcadores en los campos')
+  // --- caso 9: los marcadores para rellenar ---
+  console.log('\ncaso 9 · marcadores en los campos')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(1200)
   const marcadores = await page.evaluate(() => {

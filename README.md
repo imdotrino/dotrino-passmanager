@@ -49,8 +49,11 @@ Los **sitios vacíos** significan que la entrada sirve en cualquier parte — as
 guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera una**.
 
 Desde el navegador, guardar se pregunta **después de entrar**, en la página siguiente,
-como en cualquier gestor. El aviso es un iframe de la extensión: la página no lo pulsa,
-ni lo lee, ni escribe en tu bóveda. Detalle en [`docs/DISENO.md`](./docs/DISENO.md) §4.0.1.
+como en cualquier gestor — y también en formularios que no son un acceso (tu nombre, el
+correo, la dirección). El aviso lista **una fila por dato**, marcando lo que es nuevo y lo
+que cambia algo que ya tenías, con una casilla para elegir cuáles entran. Es un iframe de
+la extensión: la página no lo pulsa, ni lo lee, ni escribe en tu bóveda. Detalle en
+[`docs/DISENO.md`](./docs/DISENO.md) §4.0.1 y §4.0.2.
 
 Y para que los aparatos puedan pedir. Se conectan **como cualquier aparato del
 ecosistema**: la bóveda enseña una invitación, el aparato enseña seis caracteres y se

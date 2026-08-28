@@ -13,15 +13,27 @@ const USER_HINTS = [
 
 const SEARCH_HINTS = ['search', 'buscar', 'query', 'q']
 
-/** ¿El elemento está de verdad a la vista? Un campo oculto no se rellena. */
-export function isVisible (el) {
-  if (!el || el.disabled || el.readOnly) return false
+/**
+ * ¿El campo está a la vista? Solo la geometría: ni `disabled` ni `readOnly` entran aquí.
+ *
+ * Están separados porque las dos preguntas son distintas. Para RELLENAR hace falta poder
+ * escribir; para LEER lo que el usuario ya envió, no — un campo de solo lectura con el
+ * correo dentro es exactamente lo que hay que guardar.
+ */
+export function onScreen (el) {
+  if (!el) return false
   if (el.type === 'hidden') return false
   const rects = el.getClientRects()
   if (!rects.length) return false
   const cs = el.ownerDocument.defaultView?.getComputedStyle(el)
   if (!cs) return true
   return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0'
+}
+
+/** ¿Se puede escribir en él? Un campo oculto o bloqueado no se rellena. */
+export function isVisible (el) {
+  if (!el || el.disabled || el.readOnly) return false
+  return onScreen(el)
 }
 
 /**
@@ -207,6 +219,41 @@ export function findDataFields (doc = document) {
     if (!kind || vistos.has(kind)) continue
     vistos.add(kind)
     out.push({ el, kind })
+  }
+  return out
+}
+
+/**
+ * LO ESCRITO en un formulario que se acaba de enviar: `[{ kind, value }]`.
+ *
+ * Es la otra mitad de `findDataFields`, y son distintas a propósito: aquella busca
+ * huecos donde ofrecer un dato guardado, y esta lee lo que el usuario ACABA de poner
+ * para poder guardarlo. De ahí las dos diferencias:
+ *
+ *   · admite campos de **solo lectura** (una pantalla de confirmación los deja así, y
+ *     el dato sigue siendo el suyo), pero nunca ocultos: ahí vive tanto el correo como
+ *     el token de turno, y guardar basura con cara de dato es peor que no guardar;
+ *   · se queda solo con los que tienen algo escrito.
+ *
+ * Una clase por captura: dos casillas de correo en la misma página son el mismo correo
+ * repetido o el de otra persona, y ninguna de las dos cosas se resuelve adivinando.
+ *
+ * @param {Element|Document} scope  el formulario enviado, o el documento entero
+ * @param {object} opts  `{ skip }` — campos ya contados por otra vía (usuario, contraseña)
+ */
+export function readDataFields (scope = document, { skip = [] } = {}) {
+  const fuera = new Set(skip.filter(Boolean))
+  const out = []
+  const vistos = new Set()
+  for (const el of collectInputs(scope)) {
+    if (fuera.has(el)) continue
+    if (el.type === 'password' || el.disabled || !onScreen(el)) continue
+    const value = String(el.value || '').trim()
+    if (!value) continue
+    const kind = kindOf(el)
+    if (!kind || vistos.has(kind)) continue
+    vistos.add(kind)
+    out.push({ kind, value })
   }
   return out
 }

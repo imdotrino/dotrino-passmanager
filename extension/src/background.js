@@ -30,6 +30,8 @@ import {
 } from './vendor/passmanager/webauthn.js'
 import { parseInvite } from './vendor/vault/invite.js'
 import { maskUsername } from './vendor/passmanager/model.js'
+import { KINDS } from './vendor/passmanager/fields.js'
+import { t, pickLang, KIND_LABEL } from './i18n.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
 import { identity } from './identity-core.js'
 
@@ -407,8 +409,34 @@ async function webauthnGet (p) {
 //     solo recibe el sitio y el usuario, jamás la contraseña
 const PENDING = 'passmanager/pending-save'
 const PENDING_TTL_MS = 5 * 60 * 1000
+// Topes de lo capturado. Lo manda la PÁGINA: sin freno, un sitio podría dejar apuntado
+// medio megabyte en la memoria de sesión del navegador.
+const MAX_FIELDS = 24
+const MAX_VALUE = 512
 
 const hostOf = (url) => { try { return new URL(url).hostname } catch { return '' } }
+
+/** Los campos de una entrada abierta, que viajan como JSON dentro de un criptograma. */
+function parseFields (raw) {
+  if (Array.isArray(raw)) return raw.slice()
+  try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
+}
+
+/** Lo capturado, acotado: clases conocidas, una por clase y con tope de tamaño. */
+function cleanFields (fields) {
+  const out = []
+  const vistos = new Set()
+  for (const f of Array.isArray(fields) ? fields : []) {
+    const kind = KINDS.includes(f?.kind) ? f.kind : null
+    if (!kind || vistos.has(kind)) continue
+    const value = String(f.value ?? '').trim().slice(0, MAX_VALUE)
+    if (!value) continue
+    vistos.add(kind)
+    out.push({ kind, value })
+    if (out.length >= MAX_FIELDS) break
+  }
+  return out
+}
 
 async function readPending () {
   const p = (await chrome.storage.session.get(PENDING))[PENDING]
@@ -421,18 +449,56 @@ async function readPending () {
  * La página avisa de lo que se acaba de escribir. NO escribe en la bóveda: solo lo deja
  * apuntado. Es la única operación que un sitio puede disparar y que toca algo nuestro, y
  * por eso no toca nada que importe — como mucho pisa una captura anterior suya.
+ *
+ * Lo capturado ya no es solo usuario+contraseña: un formulario de datos (el perfil, la
+ * dirección de envío) es igual de guardable, y llega sin contraseña ninguna.
  */
-async function capture ({ username, secret, url }) {
-  if (!secret) return { ok: false }
+async function capture ({ username, secret, url, fields }) {
+  const limpios = cleanFields(fields)
+  if (!secret && !limpios.length) return { ok: false }
   await chrome.storage.session.set({
-    [PENDING]: { username: username || '', secret, url: url || '', host: hostOf(url), ts: Date.now() },
+    [PENDING]: {
+      username: username || '',
+      secret: secret || '',
+      fields: limpios,
+      url: url || '',
+      host: hostOf(url),
+      ts: Date.now(),
+    },
   })
   return { ok: true }
 }
 
 /**
+ * La entrada que este formulario ACTUALIZARÍA, si hay una. No se decide por el usuario:
+ * si hay UNA que se le parece se le ofrecen las dos salidas, y si hay varias solo la de
+ * guardar — actualizar la equivocada le pisa una contraseña que sí servía.
+ *
+ * Con cuenta, «parecerse» es tener el mismo usuario (la bóveda solo devuelve la pista
+ * enmascarada, así que se compara pista con pista). Sin cuenta —un formulario de datos—
+ * es la entrada de datos DE ESTE SITIO: una entrada sin sitios vale en cualquier parte
+ * (§4.2) y no se toca desde el formulario de un sitio cualquiera.
+ */
+async function findDup (p) {
+  try {
+    const hits = await (await connect()).find(p.url)
+    if (p.secret || p.username) {
+      const mask = maskUsername(p.username)
+      const iguales = hits.filter(h => h.hint && h.hint === mask)
+      return iguales.length === 1 ? { id: iguales[0].id, hint: iguales[0].title || iguales[0].hint } : null
+    }
+    const suyas = hits.filter(h => h.type === 'data' && !h.hint && (h.sites || []).includes(p.host))
+    return suyas.length === 1 ? { id: suyas[0].id, hint: suyas[0].title || p.host } : null
+  } catch (_) {
+    // Sin bóveda a mano: se ofrece guardar de todos modos.
+    return null
+  }
+}
+
+/**
  * ¿Hay algo que ofrecer en este sitio? Devuelve el sitio y el usuario, NUNCA la
- * contraseña: quien pregunta es el content script, o sea la página.
+ * contraseña ni lo que haya en la bóveda: quien pregunta es el content script, o sea la
+ * página. El detalle campo a campo es de `pending-detail`, que la página no puede pedir.
  *
  * Se ofrece solo en el MISMO sitio donde se escribió. Entrar en un sitio y que el aviso
  * te salga en otro sería enseñarle a ese otro un usuario que no es suyo.
@@ -441,38 +507,116 @@ async function pendingSave ({ host } = {}) {
   const p = await readPending()
   if (!p) return { has: false }
   if (host && p.host && host !== p.host) return { has: false }
-
-  // ¿Ya hay una cuenta que se le parezca aquí? La bóveda solo devuelve la pista del
-  // usuario (enmascarada), así que se compara pista con pista. No se decide por el
-  // usuario: si hay UNA parecida se le ofrecen las dos salidas, y si hay varias solo
-  // la de guardar — actualizar la equivocada le pisa una contraseña que sí servía.
-  let dup = null
-  try {
-    const hits = await (await connect()).find(p.url)
-    const mask = maskUsername(p.username)
-    const sameUser = hits.filter(h => h.hint && h.hint === mask)
-    if (sameUser.length === 1) dup = { id: sameUser[0].id, hint: sameUser[0].title || sameUser[0].hint }
-  } catch (_) { /* sin bóveda a mano: se ofrece guardar de todos modos */ }
-
+  const dup = await findDup(p)
   return { has: true, host: p.host, username: p.username, ...(dup ? { dup: dup.id, dupHint: dup.hint } : {}) }
+}
+
+/**
+ * QUÉ SE VA A ESCRIBIR, campo por campo: lo que el aviso enseña con una casilla por
+ * fila para que el usuario elija (dueño, 2026-08-28). Cada fila dice si el dato es
+ * NUEVO o si CAMBIA lo que ya había, porque no es lo mismo añadir el teléfono que
+ * pisar el que estaba bien.
+ *
+ * **Esta operación no la puede pedir la página**, y esa es la razón de que exista
+ * aparte de `pending-save`: comparar con lo guardado es leer la bóveda, y el resultado
+ * de la comparación —«esto ya lo tenías igual»— cuenta algo de lo que hay dentro. Se
+ * responde solo al origen de la extensión, que es donde vive el aviso.
+ *
+ * Las filas que no cambian nada no salen: no hay nada que decidir en ellas.
+ */
+async function pendingDetail () {
+  const p = await readPending()
+  if (!p) return { has: false }
+  const dup = await findDup(p)
+
+  // Lo que ya hay guardado, para poder decir «nuevo» o «cambia».
+  const antes = new Map()
+  if (dup) {
+    try {
+      const base = await getEntry(await connect(), dup.id)
+      if (base.username) antes.set('username', base.username)
+      if (base.secret) antes.set('secret', base.secret)
+      for (const f of parseFields(base.fields)) if (f.kind) antes.set(f.kind, f.value)
+    } catch (_) { /* si no se puede abrir, todo se ofrece como nuevo */ }
+  }
+
+  const rows = []
+  const add = (key, value, secret = false) => {
+    if (!value) return
+    const viejo = antes.get(key) || ''
+    if (viejo === value) return
+    rows.push({
+      key,
+      // La contraseña NO viaja al aviso, ni la nueva ni la que había: se enseña
+      // tapada. Lo demás sí, y tiene que verse — es lo que se está eligiendo.
+      value: secret ? null : value,
+      before: secret ? null : viejo,
+      changed: !!viejo,
+      secret,
+    })
+  }
+
+  add('username', p.username)
+  add('secret', p.secret, true)
+  for (const f of p.fields || []) add(f.kind, f.value)
+
+  return {
+    has: true,
+    host: p.host,
+    username: p.username,
+    login: !!p.secret,
+    ...(dup ? { dup: dup.id, dupHint: dup.hint } : {}),
+    rows,
+  }
 }
 
 /**
  * El «sí». Llega del iframe del aviso, que corre en el origen de la EXTENSIÓN: por eso
  * pasa la misma puerta que el popup y la página no puede dispararlo.
+ *
+ * `pick` son las casillas marcadas. Lo que no está marcado NO se escribe: si la entrada
+ * ya existía se queda como estaba, y si es nueva simplemente no entra. Sin lista se
+ * guarda todo, que es lo que hacía el aviso antes de tener casillas.
  */
-async function savePending ({ id } = {}) {
+async function savePending ({ id, pick } = {}) {
   const p = await readPending()
   if (!p) throw new VaultError(CODES.NOT_FOUND, 'ya no hay nada que guardar')
   const v = await connect()
+  const marcadas = Array.isArray(pick) ? new Set(pick) : null
+  const quiere = (k) => !marcadas || marcadas.has(k)
+
+  // Actualizar es SUMAR sobre lo que ya había, no reemplazarlo: una entrada tiene notas,
+  // TOTP y campos que este formulario ni ve, y perderlos por guardar un teléfono sería
+  // el peor error posible aquí.
+  let base = null
+  if (id) { try { base = await getEntry(v, id) } catch (_) { base = null } }
+  const lang = pickLang()
+
+  const fields = parseFields(base?.fields)
+  for (const f of p.fields || []) {
+    if (!quiere(f.kind)) continue
+    const i = fields.findIndex(x => x.kind === f.kind)
+    const label = (i >= 0 && fields[i].label) || KIND_LABEL[lang]?.[f.kind] || f.kind
+    const fila = { label, value: f.value, kind: f.kind }
+    if (i >= 0) fields[i] = fila
+    else fields.push(fila)
+  }
+
   await v.put({
     ...(id ? { id } : {}),
-    type: 'login',
-    title: p.host,
-    sites: [p.host],
-    username: p.username,
-    secret: p.secret,
+    type: base?.type || (p.secret ? 'login' : 'data'),
+    title: base?.title || p.host,
+    sites: base?.sites?.length ? base.sites : [p.host],
+    username: (quiere('username') && p.username) || base?.username || '',
+    secret: (quiere('secret') && p.secret) || base?.secret || '',
+    totp: base?.totp || '',
+    notes: base?.notes || '',
+    webauthn: base?.webauthn || null,
+    fields,
+    ...(base?.createdAt ? { createdAt: base.createdAt } : {}),
   })
+  // Lo recordado de esa entrada ya no vale: acaba de cambiar.
+  if (id) { try { await cache.forget(id) } catch (_) {} }
   await chrome.storage.session.remove(PENDING)
   return { ok: true }
 }
@@ -482,10 +626,26 @@ async function dismissPending () {
   return { ok: true }
 }
 
+/**
+ * UNA credencial abierta, pasando por lo ya entregado en esta sesión.
+ *
+ * La caché existe para no repetir aprobaciones en el teléfono. Con la bóveda propia no
+ * hay aprobación que ahorrar, y guardar un secreto que no hace falta es peor.
+ */
+async function getEntry (v, id) {
+  if ((await activeProfile()).kind === 'own') return v.get(id)
+  const recordada = await cache.get(id)
+  if (recordada) return recordada
+  const entry = await v.get(id)
+  await cache.put(id, entry)
+  return entry
+}
+
 const OPS = {
   status,
   capture,
   'pending-save': pendingSave,
+  'pending-detail': pendingDetail,
   'save-pending': savePending,
   'dismiss-pending': dismissPending,
   'webauthn-create': webauthnCreate,
@@ -498,17 +658,7 @@ const OPS = {
   'profile-rename': renameProfile,
   'profile-remove': removeProfile,
   find: async p => (await connect()).find(p.url),
-  get: async p => {
-    const v = await connect()
-    // La caché existe para no repetir aprobaciones en el teléfono. Con la bóveda propia
-    // no hay aprobación que ahorrar, y guardar un secreto que no hace falta es peor.
-    if ((await activeProfile()).kind === 'own') return v.get(p.id)
-    const recordada = await cache.get(p.id)
-    if (recordada) return recordada
-    const entry = await v.get(p.id)
-    await cache.put(p.id, entry)
-    return entry
-  },
+  get: async p => getEntry(await connect(), p.id),
   put: async p => (await connect()).put(p.entry),
 }
 
@@ -531,8 +681,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // `capture` y `pending-save` SÍ los puede disparar la página, y es a propósito: son
   // los dos lados del aviso de guardar. Ninguno escribe en la bóveda ni saca nada de
   // ella — uno apunta lo que el propio sitio acaba de recibir, y el otro devuelve el
-  // sitio y el usuario, nunca la contraseña. El «sí» que sí escribe (`save-pending`)
-  // se queda fuera de esta lista: se pulsa en el iframe de la extensión.
+  // sitio y el usuario, nunca la contraseña. Fuera de esta lista se quedan los dos que
+  // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
+  // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
+  // extensión.
   if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false

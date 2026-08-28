@@ -153,25 +153,55 @@ function capture (cred) {
   try { chrome.runtime.sendMessage({ op: 'capture', payload: cred }, () => void chrome.runtime.lastError) } catch (_) {}
 }
 
+/**
+ * ¿Vale la pena preguntar por un formulario SIN contraseña?
+ *
+ * Un formulario de datos —el perfil, la dirección de envío, el alta de una cuenta— es
+ * tan guardable como un acceso, y por eso se captura también. Pero un solo campo
+ * reconocido no basta: la caja de «suscríbete a nuestro boletín» al pie de un blog es
+ * exactamente eso, y preguntar ahí convierte el aviso en algo que se cierra sin leer.
+ * Con dos clases distintas ya es un formulario que habla del usuario.
+ */
+const enoughData = (fields) => fields.length >= 2
+
 /** Lo mismo pero sin esperar a nadie: en `pagehide` no hay tiempo para un `await`. */
 function captureFrom (form) {
-  const secret = form?.password?.value || ''
-  if (!secret) return false
   const { detect } = cache
-  capture({ username: detect ? detect.readUsername(form) : (form.username?.value || ''), secret, url: location.href })
+  if (!detect) return false
+  const secret = form?.password?.value || ''
+  // El ámbito es el formulario enviado, no la página: en una pantalla con dos
+  // formularios, lo que se guarda es lo del que se envió.
+  const scope = form?.form || document
+  const fields = detect.readDataFields(scope, { skip: [form?.username, form?.password] })
+  if (!secret && !enoughData(fields)) return false
+  capture({
+    username: secret ? detect.readUsername(form) : '',
+    secret,
+    fields,
+    url: location.href,
+  })
   return true
 }
+
+// El usuario ESCRIBIÓ algo. Se apunta porque `pagehide` no sabe distinguir entre salir
+// de un formulario que acabas de llenar y salir de una página que solo lo enseñaba: sin
+// esto, abrir tus ajustes y volver atrás pediría guardar lo que ya estaba ahí.
+let touched = false
+addEventListener('input', () => { touched = true }, { capture: true, passive: true })
 
 // 1. El envío del formulario, que es el caso normal. En captura para que llegue aunque
 //    la página cancele el evento después.
 addEventListener('submit', (e) => {
-  const f = lastForms.find(x => x.form && x.form === e.target) || lastForms[0]
+  const el = e.target
+  const f = lastForms.find(x => x.form && x.form === el)
   if (f && captureFrom(f)) return
   // Sin nada detectado todavía (una SPA que acaba de montar el formulario): se mira el
   // propio formulario que se envía, que es síncrono y no depende de la última pasada.
-  const pass = e.target?.querySelector?.('input[type=password]')
-  if (!pass?.value) return
-  captureFrom({ form: e.target, password: pass, username: null })
+  const pass = el?.querySelector?.('input[type=password]')
+  if (pass?.value && captureFrom({ form: el, password: pass, username: null })) return
+  // Y sin contraseña ninguna: un formulario de datos. El freno está en `captureFrom`.
+  if (captureFrom({ form: el, password: null, username: null })) return
+  for (const x of lastForms) if (captureFrom(x)) return
 }, true)
 
 // 2. Y la salida de la página, porque media web entra sin disparar `submit`: un botón
@@ -179,6 +209,10 @@ addEventListener('submit', (e) => {
 //    formularios de siempre, que son cada vez menos.
 addEventListener('pagehide', () => {
   for (const f of lastForms) if (captureFrom(f)) return
+  // Un formulario de datos no aparece en `lastForms` (ahí solo van los accesos), así que
+  // se mira la página entera — pero solo si el usuario escribió: ver una pantalla no es
+  // llenarla.
+  if (touched) captureFrom({ form: null, password: null, username: null })
 }, { capture: true })
 
 /**
@@ -206,10 +240,20 @@ async function offerSave () {
   }
 }
 
-// El aviso se cierra solo: es un iframe de la extensión y no alcanza al DOM de aquí.
+// El aviso se cierra y se dimensiona solo: es un iframe de la extensión y no alcanza al
+// DOM de aquí, así que lo pide por `postMessage`.
+//
+// Y se comprueba de DÓNDE viene: en esta ventana cualquiera puede hacer `postMessage`, y
+// sin el filtro la página podría cerrar el aviso —o estirarlo hasta taparlo todo— con
+// una línea. Vale el origen de la extensión o la ventana del propio iframe.
+const EXT_ORIGIN = new URL(chrome.runtime.getURL('')).origin
 addEventListener('message', async (e) => {
-  if (e.data?._dotrino !== 'close-save-prompt') return
-  ;(await mods).ui.closeSavePrompt()
+  const op = e.data?._dotrino
+  if (op !== 'close-save-prompt' && op !== 'size-save-prompt') return
+  const { ui } = await mods
+  if (e.origin !== EXT_ORIGIN && e.source !== ui.promptWindow()) return
+  if (op === 'close-save-prompt') ui.closeSavePrompt()
+  else ui.sizeSavePrompt(e.data.h)
 })
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

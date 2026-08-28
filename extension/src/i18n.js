@@ -50,11 +50,17 @@ const STRINGS = {
     cancel: 'Cancelar',
     // El aviso de después de entrar (`save-prompt.html`).
     askSave: '¿Guardo esta contraseña?',
+    askSaveData: '¿Guardo estos datos?',
     saveAsNew: 'Guardar como nueva',
     update: 'Actualizar la que hay',
     notNow: 'Ahora no',
     noUser: 'sin usuario',
+    fieldNew: 'nuevo',
+    fieldChanged: 'cambia',
+    hidden: '••••••••',
+    pickNothing: 'Marca al menos un dato.',
     dupNote: (h) => `Ya tienes una cuenta parecida aquí${h ? ' (' + h + ')' : ''}.`,
+    dupNoteData: () => 'Ya tienes datos guardados de este sitio.',
     name: 'Nombre',
     sites: 'Sitios',
     username: 'Usuario',
@@ -114,11 +120,17 @@ const STRINGS = {
     cancel: 'Cancel',
     // The prompt shown after you sign in (`save-prompt.html`).
     askSave: 'Save this password?',
+    askSaveData: 'Save this info?',
     saveAsNew: 'Save as new',
     update: 'Update the one there',
     notNow: 'Not now',
     noUser: 'no username',
+    fieldNew: 'new',
+    fieldChanged: 'changes',
+    hidden: '••••••••',
+    pickNothing: 'Tick at least one.',
     dupNote: (h) => `You already have a similar account here${h ? ' (' + h + ')' : ''}.`,
+    dupNoteData: () => 'You already have info saved for this site.',
     name: 'Name',
     sites: 'Sites',
     username: 'Username',
@@ -139,6 +151,58 @@ export function pickLang () {
 export function t (lang, key, ...args) {
   const v = (STRINGS[lang] || STRINGS.es)[key] ?? (STRINGS.es[key] ?? key)
   return typeof v === 'function' ? v(...args) : v
+}
+
+/**
+ * El NOMBRE de cada clase de dato, para el aviso de guardar y para la etiqueta con la
+ * que el campo queda escrito en la bóveda.
+ *
+ * Las claves son las `KINDS` de `lib/src/fields.js` más `username` y `secret`, que no
+ * son campos libres pero se enseñan en la misma lista. Las claves van en inglés
+ * (CONVENCIONES §8.1); lo que se lee, en los dos idiomas.
+ */
+export const KIND_LABEL = {
+  es: {
+    username: 'Usuario',
+    secret: 'Contraseña',
+    email: 'Correo',
+    tel: 'Teléfono',
+    'given-name': 'Nombre',
+    'family-name': 'Apellidos',
+    'full-name': 'Nombre completo',
+    'street-address': 'Dirección',
+    city: 'Ciudad',
+    region: 'Provincia',
+    'postal-code': 'Código postal',
+    country: 'País',
+    organization: 'Empresa',
+    birthday: 'Fecha de nacimiento',
+    'id-number': 'Documento',
+    other: 'Otro dato',
+  },
+  en: {
+    username: 'Username',
+    secret: 'Password',
+    email: 'Email',
+    tel: 'Phone',
+    'given-name': 'First name',
+    'family-name': 'Last name',
+    'full-name': 'Full name',
+    'street-address': 'Address',
+    city: 'City',
+    region: 'State or region',
+    'postal-code': 'Postal code',
+    country: 'Country',
+    organization: 'Company',
+    birthday: 'Date of birth',
+    'id-number': 'ID number',
+    other: 'Other',
+  },
+}
+
+/** El nombre de una clase de dato en el idioma activo; si no se conoce, la clave. */
+export function kindLabel (lang, key) {
+  return (KIND_LABEL[lang] || KIND_LABEL.es)[key] || KIND_LABEL.es[key] || key
 }
 
 export { STRINGS }

@@ -419,10 +419,11 @@ La bóveda se llena desde donde vive: `dotrino-passmanager` (`ls`, `add`, `edit`
 extra**: un gestor que no genera obliga a inventárselas, y ahí es donde se repite la de
 siempre.
 
-Y desde el navegador hay un solo caso, el que ocurre de verdad: **guardar la contraseña
-que acabas de escribir**. La decisión nunca es de la página: si el sitio pudiera guardar
-por su cuenta, llenaría la bóveda de entradas inventadas. Hay dos formas de decir que sí,
-y las dos se pulsan en UI de la extensión:
+Y desde el navegador hay un solo caso, el que ocurre de verdad: **guardar lo que acabas
+de escribir** — la contraseña de un acceso, o los datos de un formulario que no lo es
+(§4.0.2). La decisión nunca es de la página: si el sitio pudiera guardar por su cuenta,
+llenaría la bóveda de entradas inventadas. Hay dos formas de decir que sí, y las dos se
+pulsan en UI de la extensión:
 
 - **El aviso de después de entrar** (§4.0.1), que es el camino normal.
 - **El popup**, con «Guardar la contraseña de esta página», mientras el formulario sigue
@@ -442,11 +443,11 @@ El recorrido, y dónde está cada pieza:
 
 | | Quién | Qué |
 |---|---|---|
-| al enviar | content script | lee usuario y contraseña del formulario y las manda al service worker (`capture`) |
+| al enviar | content script | lee del formulario lo que se reconoce —usuario, contraseña y los datos sueltos— y lo manda al service worker (`capture`) |
 | entre páginas | service worker | las sostiene en `chrome.storage.session`, **una sola** y con caducidad de 5 min |
 | ya en la página siguiente | content script | pregunta si hay algo pendiente **para este mismo sitio** y monta el aviso |
-| el aviso | **iframe de la extensión** | enseña el sitio y el usuario. La contraseña **no llega hasta aquí** |
-| el «sí» | service worker | lee lo capturado y escribe en la bóveda; después lo borra |
+| el aviso | **iframe de la extensión** | enseña el sitio, el usuario y **qué se va a escribir, campo por campo** (§4.0.2). La contraseña **no llega hasta aquí** |
+| el «sí» | service worker | escribe en la bóveda **lo que quedó marcado**; después borra lo capturado |
 
 **Por qué un iframe y no HTML nuestro dentro de la página.** Porque el botón que acaba
 escribiendo en la bóveda tiene que pulsarse en el origen de la extensión: así el mensaje
@@ -458,6 +459,13 @@ fingirlo — vive además en el Shadow DOM cerrado del §4.1.
 ella misma acaba de recibir) y `pending-save` (preguntar si hay algo suyo pendiente, que
 devuelve el sitio y el usuario, nunca la contraseña). Ninguna escribe en la bóveda ni
 saca nada de ella.
+
+**Y lo que NO puede**, que es la otra mitad de la regla: `save-pending`, que escribe, y
+`pending-detail`, que **lee** la entrada guardada para poder decir qué cambia. Este
+segundo es la razón de que el detalle campo a campo no viaje en `pending-save`: comparar
+con lo que hay dentro es leer la bóveda, y hasta el resultado de la comparación —«esto ya
+lo tenías igual»— cuenta algo. Los dos se piden desde el iframe, o sea desde el origen de
+la extensión.
 
 **El coste, dicho en voz alta:** entre una página y la siguiente hay una contraseña en
 claro en `chrome.storage.session`. Ese almacén nunca toca el disco y muere con el
@@ -476,6 +484,49 @@ hay forma de tener lo uno sin lo otro.
 
 Editar desde el navegador **no está**, y es deliberado por ahora: son formularios
 enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóveda.
+
+### 4.0.2. El aviso enseña QUÉ va a escribir, con una casilla por dato
+
+> Dicho por el dueño el 2026-08-28: *«cuando se guarda un formulario (no necesariamente
+> del login), en el popup de confirmación deben aparecer los campos que se están
+> agregando/cambiando y con una casilla para elegir cuáles»*.
+
+Dos cosas, y la segunda sale de la primera.
+
+**Uno: no hace falta que haya contraseña.** Un formulario de datos —el perfil de una
+tienda, la dirección de envío, el alta de un trámite— es tan guardable como un acceso, y
+es lo que la gente rellena diez veces al año a mano. Se captura igual. El freno para no
+convertir el aviso en algo que se cierra sin leer: **sin contraseña hacen falta al menos
+dos clases de dato reconocidas**; la caja de «suscríbete al boletín» al pie de un blog es
+un solo correo y no dispara nada. Y al salir de una página sin enviar nada, solo se
+captura si el usuario **escribió**: ver una pantalla no es llenarla.
+
+**Dos: guardar deja de ser un sí o un no a todo.** El aviso lista una fila por dato, con
+su casilla marcada, diciendo si es **nuevo** o si **cambia** algo que ya estaba —y en ese
+caso, con el valor anterior tachado debajo—. Casi siempre hay uno que quieres y otro que
+no (el teléfono sí, la cédula no), y antes la única salida era «ahora no» y volver a
+escribirlo todo en la bóveda. Lo que no está marcado **no se escribe**: si la entrada ya
+existía se queda como estaba, y si es nueva simplemente no entra.
+
+Reglas que se derivan, y que valen tanto para datos como para contraseñas:
+
+- **Solo salen las filas que hacen algo.** Un dato idéntico al guardado no se enseña: no
+  hay nada que decidir en él. Si no queda ninguna fila, el aviso ni se muestra.
+- **La contraseña sigue sin viajar al aviso**: su fila se enseña tapada (`••••••••`), la
+  nueva y la que había. Es la misma regla de siempre, ahora también para el «antes».
+- **Actualizar es SUMAR sobre lo que había**, nunca reemplazarlo. Una entrada tiene notas,
+  TOTP y campos que este formulario ni ve; perderlos por guardar un teléfono sería el peor
+  error posible aquí.
+- **Sin cuenta, la entrada que se actualiza es la de datos DE ESTE SITIO.** Una entrada
+  sin sitios vale en cualquier parte (§4.2) y no se toca desde el formulario de un sitio
+  cualquiera: tu dirección «global» la creas tú en la bóveda, no un formulario que
+  rellenaste de paso.
+
+**El coste, dicho en voz alta:** para poder decir «cambia» hay que **abrir** la entrada
+que ya existía, y con una bóveda conectada eso es una aprobación más (con la bóveda propia
+no hay ninguna). Se paga una sola vez por aviso —lo abierto queda en el recuerdo de sesión
+(§3.2)— y compra la única pregunta que importa: qué de esto va a pisar algo que ya
+servía.
 
 ## 4.1. El gestor NO autocompleta
 

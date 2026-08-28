@@ -93,6 +93,26 @@ try {
   ok(!alcanzable, 'la página no alcanza el shadow root del gestor')
   ok(await page.locator('iframe').count() === 0, 'la página no ve ningún iframe del gestor')
 
+  // --- 2b. la lista de lo que se va a escribir, con su casilla ---
+  //
+  // Guardar un formulario no es un sí o un no a todo: se enseña fila por fila lo que se
+  // añade o lo que cambia, y el usuario elige. Aquí es una cuenta nueva, así que las dos
+  // filas son nuevas y van marcadas.
+  const filas = frame.locator('[data-testid=save-prompt-field]')
+  ok(await filas.count() === 2, 'el aviso lista usuario y contraseña (hay ' + (await filas.count()) + ')')
+  ok(await frame.locator('[data-testid=save-prompt-pick-username]').isChecked(), 'el usuario, marcado')
+  ok(await frame.locator('[data-testid=save-prompt-pick-secret]').isChecked(), 'la contraseña, marcada')
+  ok((await filas.nth(1).locator('.v').textContent()).trim() === '••••••••',
+    'la contraseña se enseña TAPADA, no en claro')
+
+  // Sin nada marcado no hay nada que guardar, y el botón lo dice estando apagado.
+  await frame.locator('[data-testid=save-prompt-pick-username]').uncheck()
+  await frame.locator('[data-testid=save-prompt-pick-secret]').uncheck()
+  ok(await guardar.isDisabled(), 'sin nada marcado no se puede guardar')
+  await frame.locator('[data-testid=save-prompt-pick-username]').check()
+  await frame.locator('[data-testid=save-prompt-pick-secret]').check()
+  ok(await guardar.isEnabled(), 'y al volver a marcar, sí')
+
   // --- 3. se guarda al pulsar, y solo entonces ---
   const antes = await pedir('find', { url: `${SITE}/inside.html` })
   ok((antes?.result || []).length === 0, 'antes de pulsar, la bóveda no tiene nada')

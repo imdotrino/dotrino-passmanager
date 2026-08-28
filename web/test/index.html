@@ -23,7 +23,7 @@
   Antes de empezar: carga la extensión en
   <code>chrome://extensions</code> → «Cargar descomprimida» → la carpeta
   <code>extension/</code>, o descomprime
-  <a href="../app/dotrino-passmanager-0.3.6.zip">el .zip</a>.
+  <a href="../app/dotrino-passmanager-0.4.0.zip">el .zip</a>.
 </p>
 
 <h2>Guardar</h2>
@@ -71,7 +71,27 @@
 </div>
 
 <div class="caso">
-  <h3>6 · «Ahora no»</h3>
+  <h3>6 · Un formulario que no es un acceso</h3>
+  <p>Nombre, correo, teléfono, dirección: datos que rellenas una y otra vez y en los que no
+    hay contraseña ninguna.</p>
+  <p><a href="profile.html">Abrir</a></p>
+  <div class="espera">El aviso sale igual, dice <b>«¿Guardo estos datos?»</b> y trae
+    <b>una fila por dato con su casilla</b>: eliges cuáles se guardan. Desmarca la ciudad,
+    guarda, y la ciudad no tiene que entrar.</div>
+</div>
+
+<div class="caso">
+  <h3>7 · Lo mismo, con un dato cambiado</h3>
+  <p>Haz el caso 6, guarda, y rellénalo otra vez con los mismos datos pero con
+    <b>otro teléfono</b> y la <b>ciudad vacía</b>.</p>
+  <p><a href="profile.html">Abrir</a></p>
+  <div class="espera">Ahora el aviso trae <b>una sola fila</b>, la del teléfono, marcada
+    como <b>«cambia»</b> y con el número anterior tachado debajo. Lo que no cambió no
+    aparece: no hay nada que decidir en ello.</div>
+</div>
+
+<div class="caso">
+  <h3>8 · «Ahora no»</h3>
   <p>Cualquiera de los anteriores, descartando el aviso.</p>
   <div class="espera">El aviso se cierra, <b>no vuelve</b> al recargar, y lo capturado se
     borra: no queda una contraseña esperando en la memoria del navegador.</div>
@@ -80,7 +100,7 @@
 <h2>Rellenar</h2>
 
 <div class="caso">
-  <h3>7 · Poner una credencial guardada</h3>
+  <h3>9 · Poner una credencial guardada</h3>
   <p>Con algo ya guardado del caso 1, vuelve al formulario.</p>
   <p><a href="login.html">Abrir</a></p>
   <div class="espera">Cada campo lleva un <b>cuarto de círculo azul</b> en su esquina
@@ -89,7 +109,7 @@
 </div>
 
 <div class="caso">
-  <h3>8 · Campos que no son contraseñas</h3>
+  <h3>10 · Campos que no son contraseñas</h3>
   <p>Correo, teléfono, dirección, cédula: lo que guardaste como campos sueltos.</p>
   <p><a href="fields.html">Abrir</a></p>
   <div class="espera">Se marcan los campos de datos y <b>no</b> el buscador. Se respeta el
@@ -99,7 +119,7 @@
 <h2>Detección</h2>
 
 <div class="caso">
-  <h3>9 · Los casos raros</h3>
+  <h3>11 · Los casos raros</h3>
   <p>Contraseña oculta, registro con confirmación, buscador delante del usuario, campos sin
     <code>name</code>, shadow DOM, y un formulario que se monta tarde.</p>
   <p><a href="forms.html">Abrir</a></p>
