@@ -231,11 +231,10 @@ async function offerSave () {
     const p = r?.result
     if (!p?.has) continue
     const { ui } = await mods
-    ui.mountSavePrompt({
-      host: p.host || '',
-      user: p.username || '',
-      ...(p.dup ? { dup: p.dup, dupHint: p.dupHint || '' } : {}),
-    })
+    // Solo el sitio y el usuario, que es lo que la página ya sabe. Lo que hay guardado
+    // —qué entradas existen, qué cambiaría— se lo pregunta el aviso al service worker
+    // desde el origen de la extensión: por aquí no pasa.
+    ui.mountSavePrompt({ host: p.host || '', user: p.username || '' })
     return
   }
 }

@@ -23,7 +23,7 @@
   Antes de empezar: carga la extensión en
   <code>chrome://extensions</code> → «Cargar descomprimida» → la carpeta
   <code>extension/</code>, o descomprime
-  <a href="../app/dotrino-passmanager-0.4.0.zip">el .zip</a>.
+  <a href="../app/dotrino-passmanager-0.5.0.zip">el .zip</a>.
 </p>
 
 <h2>Guardar</h2>
@@ -56,13 +56,26 @@
   <p>Haz el caso 1, guarda, y vuelve a entrar con <b>el mismo usuario</b> y una contraseña
     distinta.</p>
   <p><a href="login.html">Abrir</a></p>
-  <div class="espera">Ahora el aviso tiene que ofrecer <b>dos</b> salidas: «Guardar como
-    nueva» y «Actualizar la que hay». Elegir es cosa tuya — actualizar la equivocada pisa
-    una contraseña que servía.</div>
+  <div class="espera">Ahora el aviso tiene que enseñar <b>dónde guardar</b>: «Una entrada
+    nueva» o la que ya hay, marcada como «se parece» y <b>preseleccionada</b>. Elegir es
+    cosa tuya — actualizar la equivocada pisa una contraseña que servía.</div>
 </div>
 
 <div class="caso">
-  <h3>5 · Registro con confirmación</h3>
+  <h3>5 · Dos contraseñas del mismo correo</h3>
+  <p>Pasa de verdad: la misma cuenta guardada dos veces, y una de las dos ya no sirve. Una
+    página no tiene un ancla única, así que el gestor no puede saber cuál es cuál.</p>
+  <p>Haz el caso 4 pero elige <b>«Una entrada nueva»</b>. Ahora entra una tercera vez con
+    otra contraseña más.</p>
+  <p><a href="login.html">Abrir</a></p>
+  <div class="espera">El aviso lista <b>las dos</b> entradas, con la fecha de cada una para
+    poder distinguirlas, y la de arriba preseleccionada. Eliges <b>cuál</b> se reemplaza —
+    o creas otra. Solo se ve lo público de cada una: la pista del usuario y cuándo se tocó,
+    nunca la contraseña que guarda.</div>
+</div>
+
+<div class="caso">
+  <h3>6 · Registro con confirmación</h3>
   <p>Dos contraseñas seguidas. No es un acceso, pero sí es una contraseña que acabas de
     estrenar y que querrás guardar.</p>
   <p><a href="signup.html">Abrir</a></p>
@@ -71,7 +84,7 @@
 </div>
 
 <div class="caso">
-  <h3>6 · Un formulario que no es un acceso</h3>
+  <h3>7 · Un formulario que no es un acceso</h3>
   <p>Nombre, correo, teléfono, dirección: datos que rellenas una y otra vez y en los que no
     hay contraseña ninguna.</p>
   <p><a href="profile.html">Abrir</a></p>
@@ -81,7 +94,7 @@
 </div>
 
 <div class="caso">
-  <h3>7 · Lo mismo, con un dato cambiado</h3>
+  <h3>8 · Lo mismo, con un dato cambiado</h3>
   <p>Haz el caso 6, guarda, y rellénalo otra vez con los mismos datos pero con
     <b>otro teléfono</b> y la <b>ciudad vacía</b>.</p>
   <p><a href="profile.html">Abrir</a></p>
@@ -91,7 +104,7 @@
 </div>
 
 <div class="caso">
-  <h3>8 · «Ahora no»</h3>
+  <h3>9 · «Ahora no»</h3>
   <p>Cualquiera de los anteriores, descartando el aviso.</p>
   <div class="espera">El aviso se cierra, <b>no vuelve</b> al recargar, y lo capturado se
     borra: no queda una contraseña esperando en la memoria del navegador.</div>
@@ -100,7 +113,7 @@
 <h2>Rellenar</h2>
 
 <div class="caso">
-  <h3>9 · Poner una credencial guardada</h3>
+  <h3>10 · Poner una credencial guardada</h3>
   <p>Con algo ya guardado del caso 1, vuelve al formulario.</p>
   <p><a href="login.html">Abrir</a></p>
   <div class="espera">Cada campo lleva un <b>cuarto de círculo azul</b> en su esquina
@@ -109,7 +122,7 @@
 </div>
 
 <div class="caso">
-  <h3>10 · Campos que no son contraseñas</h3>
+  <h3>11 · Campos que no son contraseñas</h3>
   <p>Correo, teléfono, dirección, cédula: lo que guardaste como campos sueltos.</p>
   <p><a href="fields.html">Abrir</a></p>
   <div class="espera">Se marcan los campos de datos y <b>no</b> el buscador. Se respeta el
@@ -119,7 +132,7 @@
 <h2>Detección</h2>
 
 <div class="caso">
-  <h3>11 · Los casos raros</h3>
+  <h3>12 · Los casos raros</h3>
   <p>Contraseña oculta, registro con confirmación, buscador delante del usuario, campos sin
     <code>name</code>, shadow DOM, y un formulario que se monta tarde.</p>
   <p><a href="forms.html">Abrir</a></p>

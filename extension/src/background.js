@@ -470,35 +470,80 @@ async function capture ({ username, secret, url, fields }) {
 }
 
 /**
- * La entrada que este formulario ACTUALIZARÍA, si hay una. No se decide por el usuario:
- * si hay UNA que se le parece se le ofrecen las dos salidas, y si hay varias solo la de
- * guardar — actualizar la equivocada le pisa una contraseña que sí servía.
+ * LO QUE YA HAY para este sitio, y solo su mitad PÚBLICA.
  *
- * Con cuenta, «parecerse» es tener el mismo usuario (la bóveda solo devuelve la pista
- * enmascarada, así que se compara pista con pista). Sin cuenta —un formulario de datos—
- * es la entrada de datos DE ESTE SITIO: una entrada sin sitios vale en cualquier parte
- * (§4.2) y no se toca desde el formulario de un sitio cualquiera.
+ * Una página no tiene un ancla única: puedes tener dos contraseñas del mismo correo y
+ * que una ya no sirva (dueño, 2026-08-28). Así que el gestor no elige por el usuario
+ * cuál se pisa — le enseña los candidatos y elige él, o crea una entrada nueva.
+ *
+ * **De cada candidato sale solo lo público**: el título, la pista del usuario
+ * (enmascarada), cuándo se tocó y qué guarda. Es exactamente lo que devuelve `find`
+ * (`publicView`), o sea lo que se puede ver SIN la llave. Los valores de dentro son la
+ * mitad privada y no salen de aquí para pintar una lista.
+ *
+ * «El que más se parece» es el del mismo usuario; sin usuario, la entrada de datos de
+ * este mismo sitio. Va primero, y es el que queda preseleccionado.
  */
-async function findDup (p) {
-  try {
-    const hits = await (await connect()).find(p.url)
-    if (p.secret || p.username) {
-      const mask = maskUsername(p.username)
-      const iguales = hits.filter(h => h.hint && h.hint === mask)
-      return iguales.length === 1 ? { id: iguales[0].id, hint: iguales[0].title || iguales[0].hint } : null
+async function candidatesFor (p, v) {
+  const login = !!p.secret
+  const mask = maskUsername(p.username)
+  const hits = await v.find(p.url)
+  return hits
+    .filter(h => login ? (h.hasSecret || h.type === 'login') : (h.hasFields || h.type === 'data'))
+    .map(h => ({
+      id: h.id,
+      title: h.title || (h.sites || [])[0] || '',
+      hint: h.hint || '',
+      updatedAt: h.updatedAt || 0,
+      // Sin sitios sirve en cualquier parte (§4.2). Se ofrece, pero al final y dicho:
+      // pisar tu dirección de siempre desde el formulario de una tienda cualquiera
+      // tiene que ser una decisión, no un descuido.
+      anywhere: !(h.sites || []).length,
+      similar: login
+        ? (!!mask && h.hint === mask)
+        : (!h.hint && (h.sites || []).includes(p.host)),
+    }))
+    .sort((a, b) =>
+      (b.similar - a.similar) || (a.anywhere - b.anywhere) || (b.updatedAt - a.updatedAt))
+}
+
+/**
+ * Qué le pasaría a UNA entrada concreta: por cada dato capturado, si es nuevo, si
+ * cambia lo que había, o si es lo mismo.
+ *
+ * **Esto SÍ abre la entrada**, o sea saca del vault información privada, y por eso no
+ * se hace para pintar el aviso: solo cuando no cuesta nada (la bóveda es esta
+ * extensión) o cuando el usuario lo pide. Con una bóveda conectada, pedirlo es la
+ * aprobación de siempre.
+ */
+async function diffAgainst (v, id, p) {
+  const base = await getEntry(v, id)
+  const antes = new Map()
+  if (base.username) antes.set('username', base.username)
+  if (base.secret) antes.set('secret', base.secret)
+  for (const f of parseFields(base.fields)) if (f.kind) antes.set(f.kind, f.value)
+
+  const fila = (key, value, secret) => {
+    const viejo = antes.get(key) || ''
+    return {
+      key,
+      status: viejo === value ? 'same' : viejo ? 'changed' : 'new',
+      // De la contraseña no viaja nada, ni la nueva ni la que había.
+      before: secret ? null : viejo,
     }
-    const suyas = hits.filter(h => h.type === 'data' && !h.hint && (h.sites || []).includes(p.host))
-    return suyas.length === 1 ? { id: suyas[0].id, hint: suyas[0].title || p.host } : null
-  } catch (_) {
-    // Sin bóveda a mano: se ofrece guardar de todos modos.
-    return null
   }
+  const out = []
+  if (p.username) out.push(fila('username', p.username, false))
+  if (p.secret) out.push(fila('secret', p.secret, true))
+  for (const f of p.fields || []) out.push(fila(f.kind, f.value, false))
+  return out
 }
 
 /**
  * ¿Hay algo que ofrecer en este sitio? Devuelve el sitio y el usuario, NUNCA la
- * contraseña ni lo que haya en la bóveda: quien pregunta es el content script, o sea la
- * página. El detalle campo a campo es de `pending-detail`, que la página no puede pedir.
+ * contraseña ni nada de la bóveda: quien pregunta es el content script, o sea la
+ * página. Todo lo demás —qué hay guardado, qué cambia— es de `pending-detail`, que la
+ * página no puede pedir.
  *
  * Se ofrece solo en el MISMO sitio donde se escribió. Entrar en un sitio y que el aviso
  * te salga en otro sería enseñarle a ese otro un usuario que no es suyo.
@@ -507,67 +552,49 @@ async function pendingSave ({ host } = {}) {
   const p = await readPending()
   if (!p) return { has: false }
   if (host && p.host && host !== p.host) return { has: false }
-  const dup = await findDup(p)
-  return { has: true, host: p.host, username: p.username, ...(dup ? { dup: dup.id, dupHint: dup.hint } : {}) }
+  return { has: true, host: p.host, username: p.username }
 }
 
 /**
- * QUÉ SE VA A ESCRIBIR, campo por campo: lo que el aviso enseña con una casilla por
- * fila para que el usuario elija (dueño, 2026-08-28). Cada fila dice si el dato es
- * NUEVO o si CAMBIA lo que ya había, porque no es lo mismo añadir el teléfono que
- * pisar el que estaba bien.
+ * QUÉ SE VA A ESCRIBIR y DÓNDE: lo que el aviso enseña con una casilla por dato y la
+ * lista de entradas que podría reemplazar (dueño, 2026-08-28).
  *
- * **Esta operación no la puede pedir la página**, y esa es la razón de que exista
- * aparte de `pending-save`: comparar con lo guardado es leer la bóveda, y el resultado
- * de la comparación —«esto ya lo tenías igual»— cuenta algo de lo que hay dentro. Se
- * responde solo al origen de la extensión, que es donde vive el aviso.
+ * **La página no puede pedir esto**, y esa es la razón de que exista aparte de
+ * `pending-save`: aquí se mira lo que hay en la bóveda. Se responde solo al origen de
+ * la extensión, que es donde vive el aviso.
  *
- * Las filas que no cambian nada no salen: no hay nada que decidir en ellas.
+ * La frontera privado/público la marca `ask`:
+ *
+ *   · **público** — la lista de candidatos, que es lo que `find` devuelve sin llave.
+ *     Sale siempre, porque sin ella el usuario no puede elegir qué reemplaza.
+ *   · **privado** — los valores guardados, o sea poder decir «esto cambia» y enseñar lo
+ *     anterior. Con la bóveda propia no cuesta nada y va de una; con una conectada
+ *     cuesta una confirmación, así que se espera a que el usuario la pida (`reveal`).
  */
-async function pendingDetail () {
+async function pendingDetail ({ id, reveal } = {}) {
   const p = await readPending()
   if (!p) return { has: false }
-  const dup = await findDup(p)
 
-  // Lo que ya hay guardado, para poder decir «nuevo» o «cambia».
-  const antes = new Map()
-  if (dup) {
-    try {
-      const base = await getEntry(await connect(), dup.id)
-      if (base.username) antes.set('username', base.username)
-      if (base.secret) antes.set('secret', base.secret)
-      for (const f of parseFields(base.fields)) if (f.kind) antes.set(f.kind, f.value)
-    } catch (_) { /* si no se puede abrir, todo se ofrece como nuevo */ }
+  let v = null
+  try { v = await connect() } catch (_) { /* sin bóveda a mano: se ofrece guardar igual */ }
+  const candidates = v ? await candidatesFor(p, v).catch(() => []) : []
+  const ask = v ? v.capabilities?.needsApproval !== false : true
+
+  // Lo que se va a escribir es lo que el usuario ACABA de teclear: no sale de la bóveda
+  // y por eso viaja siempre. La contraseña es la excepción de siempre — va en `null` y
+  // el aviso la enseña tapada.
+  const typed = []
+  if (p.username) typed.push({ key: 'username', value: p.username, secret: false })
+  if (p.secret) typed.push({ key: 'secret', value: null, secret: true })
+  for (const f of p.fields || []) typed.push({ key: f.kind, value: f.value, secret: false })
+
+  const diffs = {}
+  const mirar = ask ? (reveal && id ? [id] : []) : candidates.map(c => c.id)
+  for (const t of mirar) {
+    try { diffs[t] = await diffAgainst(v, t, p) } catch (_) { /* si no abre, sin diff */ }
   }
 
-  const rows = []
-  const add = (key, value, secret = false) => {
-    if (!value) return
-    const viejo = antes.get(key) || ''
-    if (viejo === value) return
-    rows.push({
-      key,
-      // La contraseña NO viaja al aviso, ni la nueva ni la que había: se enseña
-      // tapada. Lo demás sí, y tiene que verse — es lo que se está eligiendo.
-      value: secret ? null : value,
-      before: secret ? null : viejo,
-      changed: !!viejo,
-      secret,
-    })
-  }
-
-  add('username', p.username)
-  add('secret', p.secret, true)
-  for (const f of p.fields || []) add(f.kind, f.value)
-
-  return {
-    has: true,
-    host: p.host,
-    username: p.username,
-    login: !!p.secret,
-    ...(dup ? { dup: dup.id, dupHint: dup.hint } : {}),
-    rows,
-  }
+  return { has: true, host: p.host, username: p.username, login: !!p.secret, typed, candidates, ask, diffs }
 }
 
 /**
@@ -606,7 +633,10 @@ async function savePending ({ id, pick } = {}) {
     ...(id ? { id } : {}),
     type: base?.type || (p.secret ? 'login' : 'data'),
     title: base?.title || p.host,
-    sites: base?.sites?.length ? base.sites : [p.host],
+    // Los de la entrada que se actualiza, tal cual: una entrada SIN sitios sirve en
+    // cualquier parte (§4.2), y ponerle el host aquí la convertiría en la de este sitio
+    // sin que nadie lo pidiera.
+    sites: base ? (base.sites || []) : [p.host],
     username: (quiere('username') && p.username) || base?.username || '',
     secret: (quiere('secret') && p.secret) || base?.secret || '',
     totp: base?.totp || '',

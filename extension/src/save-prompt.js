@@ -5,9 +5,12 @@
 // sitio, así que llega al service worker con origen `chrome-extension://` y pasa por la
 // misma puerta que el popup. La página no puede pulsarlo, ni leerlo, ni fingirlo.
 //
+// Tres preguntas, y en este orden: **dónde** se guarda (una entrada nueva o una de las
+// que ya hay), **qué** se escribe (una casilla por dato) y entonces sí, guardar.
+//
 // **La contraseña no pasa por aquí.** Lo capturado vive en el service worker; esta
-// pantalla enseña de qué sitio y de qué usuario se trata, y QUÉ SE VA A ESCRIBIR campo
-// por campo — la contraseña, tapada.
+// pantalla enseña de qué sitio y de qué usuario se trata, y qué se va a escribir — la
+// contraseña, tapada.
 
 import { t, pickLang, kindLabel } from './i18n.js'
 
@@ -15,27 +18,15 @@ const lang = pickLang()
 const p = new URLSearchParams(location.search)
 const host = p.get('host') || ''
 const user = p.get('user') || ''
-const dup = p.get('dup') || ''          // id de la entrada parecida, si la hay
-const dupHint = p.get('dupHint') || ''
 
 const $ = (id) => document.getElementById(id)
 
 $('user').textContent = user || t(lang, 'noUser')
 $('host').textContent = host
 document.querySelector('[data-t="title"]').textContent = t(lang, 'askSave')
-$('save').textContent = dup ? t(lang, 'saveAsNew') : t(lang, 'save')
+$('save').textContent = t(lang, 'save')
 $('no').textContent = t(lang, 'notNow')
 document.documentElement.lang = lang
-
-// Ya hay una cuenta que se le parece en este sitio. No se decide por el usuario cuál
-// es: se le enseñan las dos salidas, porque actualizar la equivocada le pisa una
-// contraseña que sí servía.
-if (dup) {
-  $('note').textContent = t(lang, 'dupNote', dupHint)
-  $('note').hidden = false
-  $('update').textContent = t(lang, 'update')
-  $('update').hidden = false
-}
 
 const ask = (op, payload) => new Promise((resolve, reject) => {
   chrome.runtime.sendMessage({ op, payload }, (r) => {
@@ -52,14 +43,24 @@ const close = () => post({ op: 'close-save-prompt' })
 
 /**
  * Y decirle cuánto ocupa. El iframe lo dibuja la página, así que su alto no puede salir
- * de su propio CSS: sin esto la lista de campos se corta por abajo o deja un hueco.
+ * de su propio CSS: sin esto la lista de campos se corta por abajo.
  */
 const resize = () => requestAnimationFrame(() => {
   // En el fotograma siguiente, con la lista ya colocada: medida antes, sale corta y el
   // aviso aparece con barra de scroll. Los 2 px son el borde del cuerpo.
-  const alto = Math.ceil(document.documentElement.getBoundingClientRect().height) + 2
-  post({ op: 'size-save-prompt', h: alto })
+  post({ op: 'size-save-prompt', h: Math.ceil(document.documentElement.getBoundingClientRect().height) + 2 })
 })
+
+/** «hace 3 días». Para distinguir dos entradas que por fuera se ven iguales. */
+function ago (ts) {
+  if (!ts) return ''
+  const s = Math.round((ts - Date.now()) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' })
+  for (const [unit, secs] of [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]]) {
+    if (Math.abs(s) >= secs) return rtf.format(Math.round(s / secs), unit)
+  }
+  return rtf.format(Math.round(s), 'second')
+}
 
 function fail (e) {
   $('err').textContent = e?.code === 'denied'
@@ -71,24 +72,110 @@ function fail (e) {
   resize()
 }
 
-// --- lo que se va a escribir, campo por campo ---------------------------------
+// --- dónde y qué ---------------------------------------------------------------
 //
-// Con una casilla por fila (dueño, 2026-08-28). Guardar un formulario no es un sí o un
-// no: casi siempre hay un dato que quieres y otro que no —el teléfono sí, la cédula
-// no—, y sin las casillas la única salida era «ahora no» y volver a escribirlo todo en
-// la bóveda.
+// DÓNDE, porque una página no tiene un ancla única: puedes tener dos contraseñas del
+// mismo correo y que una ya no sirva. El gestor no elige por el usuario cuál se pisa —
+// enseña las que hay, con la que más se parece primero, y también la salida de crear
+// una nueva.
 //
-// Solo salen las filas que hacen algo: lo que se AÑADE y lo que CAMBIA. Un dato que ya
-// estaba igual no se enseña, porque no hay nada que decidir en él.
+// QUÉ, con una casilla por dato: casi siempre hay uno que quieres y otro que no, y sin
+// las casillas la única salida era «ahora no» y volver a escribirlo todo en la bóveda.
+//
+// La frontera de lo privado está en el medio: la LISTA de candidatas es pública (es lo
+// que se ve sin la llave), pero saber si un dato *cambia* obliga a abrir lo guardado.
+// Con la bóveda propia eso no cuesta nada; con una conectada cuesta una aprobación, y
+// entonces no se hace solo — se ofrece «Ver qué cambia».
 
-let picked = null      // las claves marcadas; null hasta que llega el detalle
+let detail = null
+let target = ''        // '' = una entrada nueva
+let picked = new Set()
 
-function renderFields (detail) {
+/** Las filas de lo que se escribiría en el destino elegido. */
+function rowsFor (id) {
+  const diff = id ? detail.diffs?.[id] : null
+  return detail.typed
+    .map((f) => {
+      const d = diff?.find((x) => x.key === f.key)
+      // Sin destino, todo es nuevo. Con destino y sin diff (no se ha abierto lo
+      // guardado), no se sabe: no se dice nada en vez de decir algo falso.
+      const status = !id ? 'new' : (d ? d.status : 'unknown')
+      return { ...f, status, before: d?.before || '' }
+    })
+    .filter((r) => r.status !== 'same')
+}
+
+function renderTargets () {
+  const ul = $('targets')
+  ul.textContent = ''
+  if (!detail.candidates.length) { $('where').hidden = true; return }
+  $('where').hidden = false
+  $('whereLabel').textContent = t(lang, 'saveWhere')
+
+  // La etiqueta «se parece» va SOLO en la primera: cuando dos entradas tienen el mismo
+  // usuario se parecen las dos, y marcarlas todas no dice nada. Lo que las distingue es
+  // la fecha, y esa sí va en cada una.
+  let yaMarcada = false
+  const opciones = [
+    { id: '', label: t(lang, 'newEntry'), when: '', tag: '' },
+    ...detail.candidates.map((c) => {
+      const marca = c.similar && !yaMarcada
+      if (marca) yaMarcada = true
+      return {
+        id: c.id,
+        label: c.hint || c.title || t(lang, 'noUser'),
+        // El título solo si dice algo que no esté ya arriba: casi siempre es el propio
+        // sitio, y repetirlo se comía el espacio de la fecha, que es lo que distingue
+        // dos entradas iguales por fuera.
+        when: [c.title && c.title !== host ? c.title : '', ago(c.updatedAt)].filter(Boolean).join(' · '),
+        tag: marca ? t(lang, 'mostSimilar') : (c.anywhere ? t(lang, 'anywhereEntry') : ''),
+      }
+    }),
+  ]
+
+  for (const o of opciones) {
+    const li = document.createElement('li')
+    li.dataset.testid = 'save-prompt-target'
+    li.dataset.id = o.id
+
+    const label = document.createElement('label')
+    label.className = 't'
+
+    const radio = document.createElement('input')
+    radio.type = 'radio'
+    radio.name = 'target'
+    radio.value = o.id
+    radio.checked = o.id === target
+    radio.dataset.testid = o.id ? `save-prompt-target-${o.id}` : 'save-prompt-target-new'
+    radio.addEventListener('change', () => { target = o.id; renderFields() })
+
+    const who = document.createElement('span')
+    who.className = 'who2'
+    who.textContent = o.label
+
+    const when = document.createElement('span')
+    when.className = 'when'
+    when.textContent = o.when
+
+    label.append(radio, who, when)
+    if (o.tag) {
+      const tag = document.createElement('span')
+      tag.className = 'tag'
+      tag.textContent = o.tag
+      label.append(tag)
+    }
+    li.append(label)
+    ul.append(li)
+  }
+}
+
+function renderFields () {
   const ul = $('fields')
   ul.textContent = ''
-  picked = new Set(detail.rows.map(r => r.key))
+  const rows = rowsFor(target)
+  picked = new Set(rows.map((r) => r.key))
 
-  for (const row of detail.rows) {
+  for (const row of rows) {
     const li = document.createElement('li')
     li.dataset.testid = 'save-prompt-field'
     li.dataset.field = row.key
@@ -116,15 +203,17 @@ function renderFields (detail) {
     v.textContent = row.secret ? t(lang, 'hidden') : row.value
     if (!row.secret) v.title = row.value
 
-    const tag = document.createElement('span')
-    tag.className = 'tag' + (row.changed ? ' changed' : '')
-    tag.textContent = t(lang, row.changed ? 'fieldChanged' : 'fieldNew')
-
-    label.append(box, k, v, tag)
+    label.append(box, k, v)
+    if (row.status !== 'unknown') {
+      const tag = document.createElement('span')
+      tag.className = 'tag' + (row.status === 'changed' ? ' changed' : '')
+      tag.textContent = t(lang, row.status === 'changed' ? 'fieldChanged' : 'fieldNew')
+      label.append(tag)
+    }
     li.append(label)
 
     // Qué había antes, para que «cambia» diga QUÉ cambia. De la contraseña, nada.
-    if (row.changed && row.before) {
+    if (row.status === 'changed' && row.before) {
       const old = document.createElement('span')
       old.className = 'old'
       old.textContent = row.before
@@ -133,49 +222,72 @@ function renderFields (detail) {
     }
     ul.append(li)
   }
+
+  // Abrir lo guardado para saber qué cambia es sacar información privada de la bóveda:
+  // se pide, no se hace solo.
+  const puedePedir = detail.ask && target && !detail.diffs[target]
+  $('reveal').hidden = !puedePedir
+  $('reveal').textContent = t(lang, 'seeChanges')
+  $('reveal').title = t(lang, 'seeChangesHint')
+
   syncButtons()
   resize()
 }
 
 function syncButtons () {
-  const nada = picked && picked.size === 0
-  for (const b of [$('save'), $('update')]) {
-    b.disabled = !!nada
-    b.title = nada ? t(lang, 'pickNothing') : ''
-  }
+  $('save').textContent = target
+    ? t(lang, 'updateInto')
+    : (detail?.candidates?.length ? t(lang, 'saveAsNew') : t(lang, 'save'))
+  const nada = picked.size === 0
+  $('save').disabled = nada
+  $('save').title = nada ? t(lang, 'pickNothing') : ''
+}
+
+$('reveal').onclick = async () => {
+  $('reveal').disabled = true
+  try {
+    const d = await ask('pending-detail', { id: target, reveal: true })
+    if (d?.diffs) Object.assign(detail.diffs, d.diffs)
+  } catch (e) { fail(e) } finally { $('reveal').disabled = false }
+  renderFields()
 }
 
 async function load () {
-  const d = await ask('pending-detail')
-  if (!d?.has) return close()
-  // Sin contraseña no se está guardando una cuenta, sino datos: cambia el título y la
-  // nota de «ya tienes algo parecido», que hablaban de una contraseña.
-  if (!d.login) {
+  detail = await ask('pending-detail')
+  if (!detail?.has) return close()
+  if (!detail.login) {
     document.querySelector('[data-t="title"]').textContent = t(lang, 'askSaveData')
-    if (dup) $('note').textContent = t(lang, 'dupNoteData')
     // Un formulario de datos no tiene cuenta: «sin usuario ·» delante del sitio sobra,
     // y además suena a que falta algo.
     if (!user) document.querySelector('.who').textContent = host
   }
-  if (!d.rows.length) {
-    // Nada que añadir ni que cambiar: no se molesta al usuario con un aviso que solo
-    // puede contestar que sí a lo que ya tenía igual.
+
+  // Preseleccionada, la que más se parece — que es la que el usuario querría pisar el
+  // 90 % de las veces. Si ninguna se parece, una entrada nueva: no se pisa por defecto
+  // algo que no se sabe si es lo mismo.
+  target = detail.candidates.find((c) => c.similar)?.id || ''
+
+  // Nada que añadir ni que cambiar: no se molesta al usuario con un aviso que solo
+  // puede contestar que sí a lo que ya tenía igual. Solo se sabe cuando abrir lo
+  // guardado no cuesta una aprobación.
+  if (!detail.ask && !rowsFor(target).length) {
     try { await ask('dismiss-pending') } catch (_) {}
     return close()
   }
-  renderFields(d)
+
+  renderTargets()
+  renderFields()
 }
 
-async function save (id) {
+async function save () {
   for (const b of document.querySelectorAll('button')) b.disabled = true
   try {
-    await ask('save-pending', { ...(id ? { id } : {}), ...(picked ? { pick: [...picked] } : {}) })
+    await ask('save-pending', { ...(target ? { id: target } : {}), pick: [...picked] })
     close()
   } catch (e) { fail(e) }
 }
 
-$('save').onclick = () => save(null)
-$('update').onclick = () => save(dup)
+$('save').onclick = save
 $('no').onclick = async () => {
   // Descartar BORRA lo capturado. Si se quedara ahí, un «ahora no» dejaría una
   // contraseña en claro esperando en la memoria del navegador sin que nadie la pidiera.

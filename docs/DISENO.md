@@ -446,7 +446,7 @@ El recorrido, y dónde está cada pieza:
 | al enviar | content script | lee del formulario lo que se reconoce —usuario, contraseña y los datos sueltos— y lo manda al service worker (`capture`) |
 | entre páginas | service worker | las sostiene en `chrome.storage.session`, **una sola** y con caducidad de 5 min |
 | ya en la página siguiente | content script | pregunta si hay algo pendiente **para este mismo sitio** y monta el aviso |
-| el aviso | **iframe de la extensión** | enseña el sitio, el usuario y **qué se va a escribir, campo por campo** (§4.0.2). La contraseña **no llega hasta aquí** |
+| el aviso | **iframe de la extensión** | enseña el sitio, el usuario, **qué se va a escribir campo por campo y dónde** (§4.0.2). La contraseña **no llega hasta aquí** |
 | el «sí» | service worker | escribe en la bóveda **lo que quedó marcado**; después borra lo capturado |
 
 **Por qué un iframe y no HTML nuestro dentro de la página.** Porque el botón que acaba
@@ -485,13 +485,15 @@ hay forma de tener lo uno sin lo otro.
 Editar desde el navegador **no está**, y es deliberado por ahora: son formularios
 enteros, y hasta que exista la consola web (§6.2) el sitio de editar es la bóveda.
 
-### 4.0.2. El aviso enseña QUÉ va a escribir, con una casilla por dato
+### 4.0.2. El aviso enseña QUÉ va a escribir y DÓNDE, y lo elige el usuario
 
 > Dicho por el dueño el 2026-08-28: *«cuando se guarda un formulario (no necesariamente
 > del login), en el popup de confirmación deben aparecer los campos que se están
-> agregando/cambiando y con una casilla para elegir cuáles»*.
+> agregando/cambiando y con una casilla para elegir cuáles»*. Y el mismo día, sobre el
+> destino: *«se puede tener varios records en una página, y no hay un ancla específica,
+> así que se puede tener dos contraseñas de un mismo email aunque una no funcione»*.
 
-Dos cosas, y la segunda sale de la primera.
+Tres cosas, y cada una sale de la anterior.
 
 **Uno: no hace falta que haya contraseña.** Un formulario de datos —el perfil de una
 tienda, la dirección de envío, el alta de un trámite— es tan guardable como un acceso, y
@@ -508,7 +510,27 @@ no (el teléfono sí, la cédula no), y antes la única salida era «ahora no» 
 escribirlo todo en la bóveda. Lo que no está marcado **no se escribe**: si la entrada ya
 existía se queda como estaba, y si es nueva simplemente no entra.
 
-Reglas que se derivan, y que valen tanto para datos como para contraseñas:
+**Tres: DÓNDE se guarda también se elige.** Una página no tiene un ancla única, así que
+el gestor no puede saber cuál de tus entradas es «la de este formulario»: puedes tener la
+misma cuenta guardada dos veces y que una de las dos ya no sirva. El aviso enseña
+entonces **las entradas que hay para este sitio** y la salida de **crear una nueva**, y
+el usuario elige cuál se reemplaza. Reglas de esa lista:
+
+- **La que más se parece va primera y viene preseleccionada** — la del mismo usuario; en
+  un formulario de datos, la entrada de datos de este mismo sitio. Es lo que se quiere el
+  90 % de las veces, y lo que se pisa se enseña antes de pisarlo (fila «cambia» con el
+  valor anterior). Si ninguna se parece, lo preseleccionado es **una entrada nueva**: no
+  se pisa por defecto algo que no se sabe si es lo mismo.
+- **Dos entradas iguales por fuera se distinguen por la fecha**, que va en cada fila. Es
+  lo único que las diferencia cuando el usuario es el mismo, así que cuando hay que
+  recortar algo se recorta el usuario, nunca la fecha.
+- **Las entradas sin sitios se ofrecen las últimas y dichas** («en cualquier sitio»,
+  §4.2). Se pueden elegir —es una decisión del usuario— pero no se preseleccionan: pisar
+  tu dirección de siempre desde el formulario de una tienda cualquiera tiene que ser un
+  acto, no un descuido. Y al actualizarlas **conservan sus sitios**, o sea ninguno: no se
+  convierten en la entrada de este sitio por haberlas tocado aquí.
+
+Reglas que valen para todo lo anterior:
 
 - **Solo salen las filas que hacen algo.** Un dato idéntico al guardado no se enseña: no
   hay nada que decidir en él. Si no queda ninguna fila, el aviso ni se muestra.
@@ -517,16 +539,32 @@ Reglas que se derivan, y que valen tanto para datos como para contraseñas:
 - **Actualizar es SUMAR sobre lo que había**, nunca reemplazarlo. Una entrada tiene notas,
   TOTP y campos que este formulario ni ve; perderlos por guardar un teléfono sería el peor
   error posible aquí.
-- **Sin cuenta, la entrada que se actualiza es la de datos DE ESTE SITIO.** Una entrada
-  sin sitios vale en cualquier parte (§4.2) y no se toca desde el formulario de un sitio
-  cualquiera: tu dirección «global» la creas tú en la bóveda, no un formulario que
-  rellenaste de paso.
 
-**El coste, dicho en voz alta:** para poder decir «cambia» hay que **abrir** la entrada
-que ya existía, y con una bóveda conectada eso es una aprobación más (con la bóveda propia
-no hay ninguna). Se paga una sola vez por aviso —lo abierto queda en el recuerdo de sesión
-(§3.2)— y compra la única pregunta que importa: qué de esto va a pisar algo que ya
-servía.
+#### La mitad pública y la mitad privada de un registro
+
+> *«sí debería poder traer y leer registros anteriores para el caso, pero solo de
+> INFORMACIÓN no privada; en los records también hay distinción privada o no, y la
+> privada solo sale del vault con confirmación»* (dueño, 2026-08-28).
+
+Es la frontera que ya existía en el modelo de datos (§5) y que aquí se vuelve visible:
+
+| | Qué es | Quién puede verlo |
+|---|---|---|
+| **público** | id, título, sitios, **pista del usuario** (enmascarada), cuándo se tocó, qué guarda (`hasSecret`, `hasFields`…) | cualquiera que pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
+| **privado** | los **valores**: usuario, contraseña, campos, notas, TOTP | solo se abren de a uno (`get`), y con una bóveda conectada **eso es una aprobación** |
+
+De ahí sale cómo se pinta el aviso, que es la parte que importa:
+
+- **La lista de candidatas es pública**, y por eso sale siempre. Sin ella el usuario no
+  podría elegir qué reemplaza, y para elegir no hace falta abrir nada.
+- **Decir «esto cambia» es privado**, porque exige abrir la entrada y comparar. Con la
+  **bóveda propia** (la de la extensión) eso no cuesta nada ni sale de aquí: se hace de
+  una, y por eso el aviso ni aparece cuando nada cambió. Con una **bóveda conectada** sí
+  cuesta, así que **no se hace solo**: el aviso ofrece **«Ver qué cambia»** y es el
+  usuario quien lo pide — la confirmación es la aprobación de siempre.
+- Guardar sin haber comparado está permitido: se escriben las casillas marcadas sobre la
+  entrada elegida. La lectura que hace falta para no perder lo demás es parte de la
+  escritura que el usuario ya confirmó, no un vistazo previo.
 
 ## 4.1. El gestor NO autocompleta
 

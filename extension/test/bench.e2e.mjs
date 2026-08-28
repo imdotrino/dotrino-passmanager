@@ -71,8 +71,8 @@ try {
     'lleva el usuario del PRIMER paso: ' + (f ? await f.locator('#user').textContent() : '—'))
   if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
 
-  // --- caso 5: registro con confirmación ---
-  console.log('\ncaso 5 · registro con confirmación')
+  // --- caso 6: registro con confirmación ---
+  console.log('\ncaso 6 · registro con confirmación')
   await page.goto(`${SITE}/signup.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=email]', 'caro@ejemplo.com')
@@ -96,13 +96,23 @@ try {
   await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'el aviso vuelve a salir')
+  let anaId = null
   if (f) {
-    const actualizar = f.locator('[data-testid=save-prompt-update]')
-    ok(await actualizar.isVisible(), 'ofrece «Actualizar la que hay»')
+    const destinos = f.locator('[data-testid=save-prompt-target]')
+    // Los candidatos son TODAS las cuentas guardadas de este sitio (aquí ya hay varias
+    // de los casos anteriores), con la que se parece la primera y preseleccionada.
+    ok(await destinos.count() >= 2, 'ofrece dónde guardar: nueva + las que hay')
+    ok(!(await f.locator('[data-testid=save-prompt-target-new]').isChecked()),
+      'y NO viene preseleccionada la nueva')
+    anaId = await destinos.nth(1).getAttribute('data-id')
+    ok(await f.locator(`[data-testid=save-prompt-target-${anaId}]`).isChecked(),
+      'sino la que más se parece')
+    ok(/parece|closest/i.test(await destinos.nth(1).locator('.tag').textContent()),
+      'marcada como la que se parece')
     // El Chrome de prueba corre en inglés: se acepta cualquiera de los dos idiomas.
-    const otra = await f.locator('[data-testid=save-prompt-save]').textContent()
-    ok(/nueva|new/i.test(otra), 'y la otra salida dice «Guardar como nueva»: ' + otra)
-    await actualizar.click()
+    const boton = await f.locator('[data-testid=save-prompt-save]').textContent()
+    ok(/actualizar|update/i.test(boton), 'y el botón dice actualizar: ' + boton)
+    await f.locator('[data-testid=save-prompt-save]').click()
     await page.waitForTimeout(1200)
   }
   const tras = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
@@ -111,12 +121,64 @@ try {
   const anaFull = deAna[0] ? (await pedir('get', { id: deAna[0].id }))?.result : null
   ok(anaFull?.secret === 'clave-nueva', 'y se quedó la contraseña nueva')
 
-  // --- caso 6: un formulario que NO es un acceso ---
+  // --- caso 5: dos contraseñas del mismo correo, y elegir cuál se pisa ---
+  //
+  // Una página no tiene un ancla única: la misma cuenta puede estar guardada dos veces y
+  // una de las dos ya no servir. El gestor no puede saber cuál es cuál, así que las
+  // enseña y elige el usuario.
+  console.log('\ncaso 5 · dos contraseñas del mismo correo')
+  await page.goto(`${SITE}/login.html`)
+  await page.waitForTimeout(500)
+  await page.fill('input[name=user]', 'ana@ejemplo.com')
+  await page.fill('input[name=password]', 'clave-segunda')
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'el aviso sale')
+  if (f) {
+    // Esta vez NO se actualiza: se crea otra entrada para la misma cuenta.
+    await f.locator('[data-testid=save-prompt-target-new]').check()
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await page.waitForTimeout(1200)
+  }
+  let deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
+    .filter((e) => e.hint === 'a•••a@ejemplo.com')
+  ok(deAna2.length === 2, 'quedan DOS entradas del mismo correo (hay ' + deAna2.length + ')')
+
+  // Y ahora, con dos iguales por fuera, el aviso deja elegir cuál se reemplaza.
+  const otraId = deAna2.map((e) => e.id).find((x) => x !== anaId)
+  await page.goto(`${SITE}/login.html`)
+  await page.waitForTimeout(500)
+  await page.fill('input[name=user]', 'ana@ejemplo.com')
+  await page.fill('input[name=password]', 'clave-tercera')
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'el aviso vuelve a salir')
+  if (f) {
+    const destinos = f.locator('[data-testid=save-prompt-target]')
+    const ids = await destinos.evaluateAll((li) => li.map((x) => x.dataset.id))
+    ok(ids.includes(anaId) && ids.includes(otraId) && ids.includes(''),
+      'lista las dos entradas del mismo correo y la salida de crear otra')
+    const fecha = await destinos.nth(1).locator('.when').textContent()
+    ok(!!fecha.trim(), 'con la fecha de cada una, que es lo que las distingue: ' + fecha)
+    ok(!/clave-/.test(await destinos.nth(1).textContent()), 'y sin enseñar ninguna contraseña')
+    await f.locator(`[data-testid=save-prompt-target-${otraId}]`).check()
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await page.waitForTimeout(1200)
+  }
+  deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
+    .filter((e) => e.hint === 'a•••a@ejemplo.com')
+  ok(deAna2.length === 2, 'sigue habiendo dos: se reemplazó, no se sumó')
+  const laElegida = (await pedir('get', { id: otraId }))?.result
+  const laOtra = (await pedir('get', { id: anaId }))?.result
+  ok(laElegida?.secret === 'clave-tercera', 'la elegida se actualizó')
+  ok(laOtra?.secret === 'clave-nueva', 'y la otra se quedó como estaba: ' + laOtra?.secret)
+
+  // --- caso 7: un formulario que NO es un acceso ---
   //
   // Sin contraseña por ninguna parte, y con una casilla por dato: se desmarca la ciudad
   // y tiene que quedarse fuera. Es lo que hace que guardar un formulario no sea un sí o
   // un no a todo.
-  console.log('\ncaso 6 · formulario de datos, con casillas')
+  console.log('\ncaso 7 · formulario de datos, con casillas')
   await page.goto(`${SITE}/profile.html`)
   await page.waitForTimeout(500)
   const datos = {
@@ -145,8 +207,8 @@ try {
   ok(!campos.some((c) => c.kind === 'city'), 'la ciudad desmarcada NO entra')
   ok(campos.find((c) => c.kind === 'tel')?.value === '0999111222', 'y el teléfono sí')
 
-  // --- caso 7: lo mismo con un dato cambiado ---
-  console.log('\ncaso 7 · lo mismo, con un dato cambiado')
+  // --- caso 8: lo mismo con un dato cambiado ---
+  console.log('\ncaso 8 · lo mismo, con un dato cambiado')
   await page.goto(`${SITE}/profile.html`)
   await page.waitForTimeout(500)
   for (const [n, v] of Object.entries({ ...datos, tel: '0988000111', city: '' })) {
@@ -161,9 +223,12 @@ try {
     ok(await filas.first().getAttribute('data-field') === 'tel', 'y es el teléfono')
     ok(/cambia|change/i.test(await filas.first().locator('.tag').textContent()), 'marcado como «cambia»')
     ok((await filas.first().locator('.old').textContent()) === '0999111222', 'con el número anterior tachado')
-    const actualizar = f.locator('[data-testid=save-prompt-update]')
-    ok(await actualizar.isVisible(), 'ofrece actualizar los datos que ya había')
-    await actualizar.click()
+    const destinos = f.locator('[data-testid=save-prompt-target]')
+    ok(await destinos.count() === 2, 'ofrece los datos que ya había, y crear otra entrada')
+    const datosId = await destinos.nth(1).getAttribute('data-id')
+    ok(await f.locator(`[data-testid=save-prompt-target-${datosId}]`).isChecked(),
+      'con los de este sitio preseleccionados')
+    await f.locator('[data-testid=save-prompt-save]').click()
     await page.waitForTimeout(1200)
   }
   const tras7 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
@@ -175,8 +240,8 @@ try {
   ok(campos7.find((c) => c.kind === 'email')?.value === 'ana@datos.com', 'y lo que no cambió sigue ahí')
   ok(campos7.length === 5, 'sin sumar campos de la nada: ' + campos7.length)
 
-  // --- caso 8: «ahora no» ---
-  console.log('\ncaso 8 · ahora no')
+  // --- caso 9: «ahora no» ---
+  console.log('\ncaso 9 · ahora no')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(500)
   await page.fill('input[name=user]', 'dani@ejemplo.com')
@@ -191,8 +256,8 @@ try {
     .some((e) => e.hint === 'd•••i@ejemplo.com')
   ok(!nada, 'y no guarda nada')
 
-  // --- caso 9: los marcadores para rellenar ---
-  console.log('\ncaso 9 · marcadores en los campos')
+  // --- caso 10: los marcadores para rellenar ---
+  console.log('\ncaso 10 · marcadores en los campos')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(1200)
   const marcadores = await page.evaluate(() => {
