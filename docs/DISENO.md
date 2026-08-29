@@ -494,7 +494,16 @@ daemon es enlazar de nuevo y nada más. Vive en `dotrino-vault/web/src/Vault.vue
 | Empezar | abrir una página | instalar y levantar un proceso |
 | Disponible | mientras la pestaña esté abierta | siempre, también con el navegador cerrado |
 | Aprobación | en la propia página | en la consola, o en el teléfono |
+| Cuándo se pide | **el mismo criterio** (§3.3.2) | **el mismo criterio** |
 | Protocolo | **el mismo** | **el mismo** |
+
+**Y son CUATRO responders, no tres.** El del daemon de este repo, el de la pestaña
+(`dotrino-vault/web/src/Vault.vue`), el del vault del ecosistema
+(`dotrino-vault/src/passwords.js`) y la puerta de la extensión. Ninguno decide por su
+cuenta qué es privado: los tres primeros lo toman de `VaultResponder.wantsPrivate` y el
+cuarto de `GuardedVault`, que usan la misma `privateKeysOf`. El vault del ecosistema
+**compone** —aprueba por aparato *y* solo si lo pedido es privado— en vez de reescribirlo,
+que es como se acaba con tres ideas distintas de la misma palabra.
 
 Que el protocolo sea el mismo es lo que hace que esto no sea un modo aparte: los mismos
 aparatos, el mismo emparejamiento y el mismo sellado. Pasar de la pestaña al daemon es
