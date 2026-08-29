@@ -61,8 +61,12 @@
   #q:focus { outline: 2px solid #00658c; outline-offset: -1px; }
   li { border-radius: 7px; }
   li:hover { background: rgba(255,255,255,.05); }
+  /* Casilla · nombre · con qué se rellena · botón. Las dos de en medio tienen su parte
+     y truncan por su cuenta: con `auto` un correo largo se comía el nombre entero y
+     «Correo» quedaba en «C». El nombre manda —es lo que se lee para elegir—, y el valor
+     es la pista que lo distingue de otra fila igual. */
   .row {
-    display: grid; grid-template-columns: auto minmax(0,1fr) auto;
+    display: grid; grid-template-columns: auto minmax(0,1.3fr) minmax(0,1fr) auto;
     align-items: center; gap: 8px; padding: 4px 5px;
   }
   .row input[type=checkbox] { margin: 0; accent-color: #00658c; }
@@ -70,7 +74,12 @@
      botón —que dice guardar o reemplazar según lo que vaya a hacer. */
   .row.save { grid-template-columns: minmax(0,1fr) auto auto; }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .val { font-size: .74rem; opacity: .5; }
+  /* Con qué se va a rellenar: pequeño, tenue y truncado (dueño, 2026-08-29). Está para
+     distinguir dos filas que se llaman igual, no para leerlo entero. */
+  .val {
+    font-size: .7rem; opacity: .5; text-align: right;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 
   button { font: inherit; cursor: pointer; border-radius: 7px; }
   .mini {

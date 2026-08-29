@@ -202,6 +202,26 @@ try {
     ok(await page.inputValue('input[name=tel]') === '0999111222', 'y el teléfono entra')
   }
 
+  console.log('\ny en la lista se ve CON QUÉ se va a rellenar')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1200)
+  await pulsar('tel')
+  m = await modal()
+  if (m) {
+    await m.locator(`[data-testid=field-modal-target-${entryId}]`).check()
+    await page.waitForTimeout(700)
+    const vTel = m.locator('[data-testid=field-modal-value-tel]')
+    ok(await vTel.textContent() === '0999111222', 'el valor público sale al lado del nombre')
+    // Lo privado NO se enseña: verlo sería sacarlo de la bóveda sin que nadie lo pidiera.
+    const vSocio = m.locator('[data-testid="field-modal-value-label:Número de socio"]')
+    if (await vSocio.count()) {
+      const tapado = await vSocio.textContent()
+      ok(/^•+$/.test(tapado), 'y el privado sale tapado: ' + tapado)
+    }
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+
   console.log('\nrellenar un dato PRIVADO')
   await page.goto(`${SITE}/profile.html`)
   await page.waitForTimeout(1200)

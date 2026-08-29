@@ -221,6 +221,9 @@ async function loadRecords (elegir) {
       // vista pública (§4.0.2), así que la lista es exacta sin abrir nada ni pedir
       // autorización — también para la que se trae de otro dominio.
       keys: Array.isArray(e.fieldKeys) ? e.fieldKeys : null,
+      // Y cuáles de ellos son PRIVADOS, para poder pedir los públicos —y solo esos— sin
+      // disparar una autorización (§4.2).
+      privadas: Array.isArray(e.privateKeys) ? e.privateKeys : null,
       // De fuera: la que se trae BUSCANDO y no es de este sitio — la del dominio que
       // cambió. Sin nombres no hay forma de saber qué lleva, así que con ella se ofrece
       // rellenar todo; es el respaldo para una bóveda que aún no los manda.
@@ -246,7 +249,67 @@ async function loadRecords (elegir) {
 
 function actual () { return records[at] || { id: '' } }
 
+/**
+ * CON QUÉ se va a rellenar cada casilla: el valor, al lado de su nombre y en pequeño.
+ *
+ * Pedido por el dueño el 2026-08-29. Sin esto, «Correo» y «Correo» son dos filas iguales
+ * cuando tienes dos cuentas, y elegir es adivinar.
+ *
+ * **Solo los PÚBLICOS.** La bóveda dice cuáles lo son (`privateKeys`), así que se piden
+ * esos y nada más: enseñar una contraseña en una lista sería sacarla de la bóveda sin que
+ * nadie lo pidiera, y además dispararía la autorización al abrir el modal. Los privados se
+ * enseñan tapados y solo salen al pulsar «Completar», que es donde se autoriza.
+ */
+let valores = new Map()      // key → valor público, de la entrada elegida
+let valoresDe = null         // de qué entrada son
+
+async function loadValues () {
+  const r = actual()
+  if (!r.id || valoresDe === r.id) return
+  valores = new Map()
+  valoresDe = r.id
+  // Sin la lista de privados no se pide nada: pedir a ciegas podría sacar un secreto.
+  if (!r.keys || !r.privadas) return
+  const privadas = new Set(r.privadas)
+  const publicas = ctx.page
+    .map(f => f.key)
+    .filter(k => r.keys.includes(k) && !privadas.has(k))
+  if (!publicas.length) return
+  try {
+    const entry = await ask('get', { id: r.id, keys: publicas })
+    const campos = (() => {
+      if (Array.isArray(entry.fields)) return entry.fields
+      try { return JSON.parse(entry.fields || '[]') } catch { return [] }
+    })()
+    if (entry.username) valores.set('username', entry.username)
+    for (const c of campos) {
+      if (c?.value) valores.set(c.kind || (c.label ? `label:${c.label}` : 'other'), c.value)
+    }
+  } catch (_) { /* si no se puede, la lista se queda sin valores y no pasa nada */ }
+}
+
+/** Lo que se enseña de un valor: corto, porque va al lado del nombre y no en su lugar. */
+const MAX_VISTA = 28
+function vistaDe (key) {
+  const r = actual()
+  if (r.privadas && r.privadas.includes(key)) return '••••••'
+  const v = valores.get(key)
+  if (!v) return ''
+  return v.length > MAX_VISTA ? v.slice(0, MAX_VISTA - 1) + '…' : v
+}
+
+/**
+ * Pinta, y de paso pide los valores públicos de la entrada elegida para volver a pintar
+ * con ellos. Va en dos tiempos porque pedirlos es una vuelta al service worker y el modal
+ * no puede quedarse en blanco esperándola: sale con los nombres y los valores entran
+ * detrás. Cuando ya están, `loadValues` no hace nada y esto es un solo repintado.
+ */
 function render () {
+  loadValues().then(() => { if (valoresDe === actual().id) paint() })
+  paint()
+}
+
+function paint () {
   renderTargets()
 
   // Rellenar: los campos de la página que ESTA entrada puede poner.
@@ -267,13 +330,20 @@ function render () {
     const n = document.createElement('span')
     n.className = 'name'
     n.textContent = f.name || kindLabel(lang, f.key)
+    // Y con qué se va a rellenar, al lado y en pequeño: dos filas «Correo» no se
+    // distinguen por el nombre.
+    const v = document.createElement('span')
+    v.className = 'val'
+    v.dataset.testid = `field-modal-value-${f.key}`
+    v.textContent = vistaDe(f.key)
+    v.title = v.textContent
     const b = document.createElement('button')
     b.className = 'mini'
     b.type = 'button'
     b.dataset.testid = `field-modal-fill-${f.key}`
     b.textContent = t(lang, 'fillOne')
     b.addEventListener('click', () => fill([f.key]))
-    row.append(box, n, b)
+    row.append(box, n, v, b)
     li.append(row)
     ul.append(li)
   }

@@ -682,7 +682,7 @@ Es la frontera que ya existía en el modelo de datos (§5) y que aquí se vuelve
 
 | | Qué es | Quién puede verlo |
 |---|---|---|
-| **público** | id, título, sitios, **nombre visible**, cuándo se tocó, **qué campos lleva por su nombre** (`fieldKeys`) y **un resumen de cada uno** (`fieldHashes` + `nonce`) | quien pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
+| **público** | id, título, sitios, **nombre visible**, cuándo se tocó, **qué campos lleva por su nombre** (`fieldKeys`), **cuáles de ellos son privados** (`privateKeys`) y **un resumen de cada uno** (`fieldHashes` + `nonce`) | quien pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
 | **privado** | los **valores**: usuario, contraseña, campos, notas, TOTP | solo se abren de a uno (`get`), y eso es **una aprobación en cualquier bóveda** (§3.3.2) |
 
 **Los NOMBRES de los campos son públicos; sus valores no.** Es de la misma familia que
@@ -723,6 +723,26 @@ Tres decisiones que lo hacen seguro, y el porqué de cada una:
 **Lo que el resumen NO da: qué había antes.** Dice si es igual, no qué era. Enseñar el
 valor anterior sigue exigiendo abrir la entrada, y eso sigue siendo «Ver qué cambia» con su
 autorización.
+
+#### En la lista se ve CON QUÉ se va a rellenar
+
+> Pedido por el dueño el 2026-08-29: *«en FILL, al lado del label debe poner el valor por
+> el que quiere reemplazar, truncado y en font-size más pequeño para que no ocupe mucho
+> espacio»*.
+
+Dos filas que dicen «Correo» son dos filas iguales cuando tienes dos cuentas, y elegir
+entre ellas es adivinar. Al lado del nombre va el valor: pequeño, tenue, truncado y
+alineado a la derecha. El **nombre manda** y cede el último — con `auto` un correo largo se
+comía la etiqueta entera y «Correo» quedaba en «C».
+
+**Solo los valores PÚBLICOS.** La vista pública dice cuáles lo son (`privateKeys`), así que
+el modal pide esos y nada más: enseñar una contraseña en una lista sería sacarla de la
+bóveda sin que nadie lo pidiera, y además dispararía la autorización con solo abrir el
+modal. Los privados salen **tapados** (`••••••`) y su valor solo aparece al pulsar
+«Completar», que es donde se autoriza (§3.3.2).
+
+Se pide en dos tiempos: el modal sale con los nombres y los valores entran detrás, porque
+pedirlos es una vuelta al service worker y la lista no puede quedarse en blanco esperándola.
 
 #### Guardar es un `patch`: la bóveda fusiona lo suyo
 
