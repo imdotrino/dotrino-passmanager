@@ -91,14 +91,57 @@ function ago (ts) {
 }
 
 async function start () {
-  let hay = []
-  try { hay = await ask('find', { url: ctx.url }) } catch (_) { hay = [] }
-  // Lo apuntado por guardar: TODOS los campos escritos del formulario, no solo el que se
-  // pulsó. El que se pulsó viene marcado y los demás no, que es lo mismo que hace el
-  // aviso de después de entrar.
+  await loadRecords()
   if (ctx.canSave) {
     try { detail = await ask('pending-detail') } catch (_) { detail = null }
   }
+  // Si no había ninguna recordada, se abre en una entrada donde haya algo que hacer: con
+  // varias, la primera puede ser justo la que ya tiene ese dato igual y el modal saldría
+  // en blanco.
+  if (memoria.get() === null) {
+    for (let i = 0; i < records.length; i++) {
+      at = i
+      if (rowsToSave().length || puedeRellenar().length) break
+    }
+  }
+  render()
+}
+
+/** Los campos de la página que la entrada elegida puede rellenar. */
+function puedeRellenar () {
+  const r = actual()
+  return r.id ? ctx.page.filter(f => (f.ids || []).includes(r.id)) : []
+}
+
+/**
+ * La última entrada elegida en este sitio.
+ *
+ * Se recuerda porque abrir el modal cinco veces en la misma página y tener que volver a
+ * buscar la entrada con las flechas es trabajo que el gestor puede ahorrar. Vive en el
+ * almacén de la EXTENSIÓN (este marco es suyo), no en el del sitio, y es una comodidad:
+ * si el valor guardado ya no existe, se ignora sin más.
+ */
+const memoria = {
+  // La clave se calcula al usarla: el sitio llega con el contexto, después de cargar.
+  clave () {
+    let host = ''
+    try { host = new URL(ctx.url || '').host } catch (_) { host = '' }
+    return host ? `passmanager/last-record/${host}` : ''
+  },
+  get () {
+    const k = this.clave()
+    try { return k ? localStorage.getItem(k) : null } catch (_) { return null }
+  },
+  set (id) {
+    const k = this.clave()
+    try { if (k) localStorage.setItem(k, id || '') } catch (_) {}
+  },
+}
+
+/** Las entradas del sitio, y la nueva al final. */
+async function loadRecords (elegir) {
+  let hay = []
+  try { hay = await ask('find', { url: ctx.url }) } catch (_) { hay = [] }
 
   // Solo las entradas que pintan algo aquí: las que pueden rellenar alguno de los campos
   // de esta página, o —si se va a guardar— cualquiera del sitio.
@@ -109,8 +152,9 @@ async function start () {
   // La entrada nueva es una opción más, y va al final: guardar es lo de abajo.
   if (ctx.canSave) records.push({ id: '', name: t(lang, 'newEntry'), when: '' })
   if (!records.length) records = [{ id: '', name: t(lang, 'newEntry'), when: '' }]
-
-  render()
+  const quiero = elegir !== undefined ? elegir : memoria.get()
+  const i = quiero !== null && quiero !== undefined ? records.findIndex(r => r.id === quiero) : -1
+  at = i >= 0 ? i : Math.min(at, records.length - 1)
 }
 
 function actual () { return records[at] || { id: '' } }
@@ -128,7 +172,7 @@ function render () {
   $('next').disabled = at >= records.length - 1
 
   // Rellenar: los campos de la página que ESTA entrada puede poner.
-  const puede = r.id ? ctx.page.filter(f => (f.ids || []).includes(r.id)) : []
+  const puede = puedeRellenar()
   $('fillBox').hidden = !puede.length
   const ul = $('fillList')
   ul.textContent = ''
@@ -158,6 +202,9 @@ function render () {
 
   // Guardar: todos los campos escritos que hagan algo en ESTA entrada. El que se pulsó
   // viene marcado; los demás, a un clic.
+  // Guardar: cada campo escrito con su botón. Dice **guardar** si ese dato es nuevo en la
+  // entrada elegida y **reemplazar** si ya estaba con otro valor — que no es lo mismo, y
+  // el usuario tiene que saber cuál de las dos está pulsando.
   const filas = rowsToSave()
   $('saveBox').hidden = !filas.length
   $('save').hidden = !filas.length
@@ -168,13 +215,7 @@ function render () {
     li.dataset.testid = 'field-modal-save-row'
     li.dataset.field = row.key
     const d = document.createElement('div')
-    d.className = 'row'
-
-    const box = document.createElement('input')
-    box.type = 'checkbox'
-    box.checked = row.key === key ? true : row.pick !== false
-    box.dataset.testid = `field-modal-pick-${row.key}`
-    box.addEventListener('change', () => { $('save').disabled = !marcadas().length })
+    d.className = 'row save'
 
     const n = document.createElement('span')
     n.className = 'name'
@@ -192,36 +233,56 @@ function render () {
     pt.textContent = t(lang, 'private')
     priv.append(pb, pt)
 
-    d.append(box, n, priv)
+    const b = document.createElement('button')
+    b.className = 'mini'
+    b.type = 'button'
+    b.dataset.testid = `field-modal-save-${row.key}`
+    b.textContent = t(lang, row.status === 'changed' ? 'replace' : 'save')
+    b.addEventListener('click', () => guardar([row.key]))
+
+    d.append(n, priv, b)
     li.append(d)
     sl.append(li)
   }
-  $('save').disabled = !marcadas().length
+  // Y el de abajo, los de todas las filas de una vez.
+  $('save').textContent = t(lang, filas.some(r => r.status === 'changed') ? 'replaceAll' : 'saveAll')
+  $('save').disabled = false
   resize()
 }
 
-/** Lo que se escribiría en la entrada elegida: lo apuntado, menos lo que ya está igual. */
+/**
+ * Lo que se escribiría en la entrada elegida: lo apuntado, menos lo que ya está igual.
+ * Cada fila sabe si **añade** o si **reemplaza**, que es lo que dice su botón.
+ */
 function rowsToSave () {
   if (!detail?.has) return []
   const target = actual().id
   const diff = target ? detail.diffs?.[target] : null
-  return (detail.typed || []).filter((f) => {
-    if (!target) return true          // entrada nueva: todo es nuevo
+  const out = []
+  for (const f of detail.typed || []) {
+    if (!target) { out.push({ ...f, status: 'new' }); continue }
     const d = diff?.find(x => x.key === f.key)
-    return !d || d.status !== 'same'
-  })
+    if (d?.status === 'same') continue
+    // Sin diff (bóveda conectada, sin abrir nada) no se sabe: se dice «guardar», que es
+    // lo prudente — prometer «reemplazar» lo que quizá no existe es peor.
+    out.push({ ...f, status: d?.status === 'changed' ? 'changed' : 'new' })
+  }
+  return out
 }
 
-const marcadas = () => [...document.querySelectorAll('#saveList input[type=checkbox]')]
-  .filter(b => b.checked && b.dataset.testid.startsWith('field-modal-pick-'))
-  .map(b => b.dataset.testid.replace('field-modal-pick-', ''))
-
 const privadas = () => [...document.querySelectorAll('#saveList input[type=checkbox]')]
-  .filter(b => b.checked && b.dataset.testid.startsWith('field-modal-private-'))
+  .filter(b => b.checked)
   .map(b => b.dataset.testid.replace('field-modal-private-', ''))
 
-$('prev').onclick = () => { if (at > 0) { at--; render() } }
-$('next').onclick = () => { if (at < records.length - 1) { at++; render() } }
+const mover = (paso) => {
+  const i = at + paso
+  if (i < 0 || i >= records.length) return
+  at = i
+  memoria.set(actual().id)
+  render()
+}
+$('prev').onclick = () => mover(-1)
+$('next').onclick = () => mover(1)
 
 $('fillAll').onclick = () => {
   const marcados = [...document.querySelectorAll('#fillList input[type=checkbox]')]
@@ -261,19 +322,36 @@ async function fill (keys) {
   } catch (e) { fail(e) }
 }
 
-$('save').onclick = async () => {
-  const pick = marcadas()
+/**
+ * Guardar unos campos en la entrada elegida.
+ *
+ * Lo que NO se guarda **sigue apuntado** (`keepRest`): aquí se guarda de a uno, y tirar
+ * lo demás dejaría media lista de botones muertos. Al terminar se vuelve a mirar qué
+ * queda, y si ya no queda nada que hacer el modal se va.
+ */
+async function guardar (pick) {
   if (!pick.length) return
   const priv = privadas().filter(k => pick.includes(k))
-  for (const b of document.querySelectorAll('button')) b.disabled = true
+  for (const b of document.querySelectorAll('button')) b.disabled = false
+  for (const b of document.querySelectorAll('#saveList button, #save')) b.disabled = true
   try {
     const r = actual()
-    await ask('save-pending', {
+    const res = await ask('save-pending', {
       ...(r.id ? { id: r.id } : {}),
       pick,
+      keepRest: true,
       ...(priv.length ? { privateKeys: priv } : {}),
     })
+    // Los marcadores de la página tienen que enterarse: lo guardado ya no se ofrece.
     post({ op: 'saved-field-modal' })
-    close()
+    // Si la entrada acaba de nacer, el siguiente campo va A ESA, no a otra nueva.
+    const destino = r.id || res?.id || ''
+    memoria.set(destino)
+    await loadRecords(destino)
+    try { detail = await ask('pending-detail') } catch (_) { detail = null }
+    if (!rowsToSave().length && !ctx.page.some(f => (f.ids || []).includes(actual().id))) return close()
+    render()
   } catch (e) { fail(e) }
 }
+
+$('save').onclick = () => guardar(rowsToSave().map(r => r.key))

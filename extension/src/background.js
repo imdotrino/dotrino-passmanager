@@ -29,7 +29,7 @@ import {
   createCredential, signAssertion, credentialMatches, b64urlDecode,
 } from './vendor/passmanager/webauthn.js'
 import { parseInvite } from './vendor/vault/invite.js'
-import { maskUsername } from './vendor/passmanager/model.js'
+import { entryWho } from './vendor/passmanager/model.js'
 import { KINDS } from './vendor/passmanager/fields.js'
 // La misma regla de identidad que usa la página: la clase si se reconoce, y si no la
 // etiqueta. Dos ideas distintas de qué es «el mismo campo» sería un campo duplicado.
@@ -469,7 +469,7 @@ async function readPending () {
  * Lo capturado ya no es solo usuario+contraseña: un formulario de datos (el perfil, la
  * dirección de envío) es igual de guardable, y llega sin contraseña ninguna.
  */
-async function capture ({ username, secret, url, fields, focus }) {
+async function capture ({ username, secret, url, fields, focus, from }) {
   const limpios = cleanFields(fields)
   // Un usuario suelto también se guarda: es media credencial, y la otra media se suma
   // luego a la misma entrada. Lo que no se guarda es nada.
@@ -483,6 +483,10 @@ async function capture ({ username, secret, url, fields, focus }) {
       // nada pulsado y va todo marcado; al pulsar el botón de un campo, ese campo — que
       // es lo que el usuario pidió guardar, ni más ni menos.
       focus: Array.isArray(focus) ? focus.slice(0, MAX_FIELDS + 2).map(String) : [],
+      // DE DÓNDE viene. Lo que se apunta al pulsar el botón de un campo es para el modal
+      // que se está abriendo, no para el aviso de la página siguiente: sin esto, la
+      // pasada de «¿quedó algo pendiente?» del arranque lo pescaba y salían los dos.
+      from: from === 'field' ? 'field' : 'submit',
       url: url || '',
       host: hostOf(url),
       ts: Date.now(),
@@ -510,7 +514,6 @@ async function candidatesFor (p, v) {
   // Con usuario pero sin contraseña también se está guardando una cuenta: los candidatos
   // son las cuentas del sitio, no las entradas de datos.
   const login = !!p.secret || !!p.username
-  const mask = maskUsername(p.username)
   const hits = await v.find(p.url)
   return hits
     .filter(h => login ? (h.hasSecret || h.type === 'login') : (h.hasFields || h.type === 'data'))
@@ -524,8 +527,13 @@ async function candidatesFor (p, v) {
       // tiene que ser una decisión, no un descuido.
       anywhere: !(h.sites || []).length,
       similar: login
-        ? (!!mask && h.hint === mask)
-        : (!h.hint && (h.sites || []).includes(p.host)),
+        // Ahora el nombre visible es el usuario tal cual (§5), así que «parecerse» es
+        // tenerlo igual, sin comparar máscaras contra máscaras.
+        ? (!!p.username && h.hint === p.username)
+        // Ojo: el nombre visible de una entrada de datos ya NO es vacío —lleva su correo
+        // o su primer campo público (§5)—, así que «es la de datos de este sitio» se
+        // pregunta por el tipo, no por si tiene nombre.
+        : (h.type === 'data' && (h.sites || []).includes(p.host)),
     }))
     .sort((a, b) =>
       (b.similar - a.similar) || (a.anywhere - b.anywhere) || (b.updatedAt - a.updatedAt))
@@ -575,6 +583,7 @@ async function diffAgainst (v, id, p) {
 async function pendingSave ({ host } = {}) {
   const p = await readPending()
   if (!p) return { has: false }
+  if (p.from === 'field') return { has: false }
   if (host && p.host && host !== p.host) return { has: false }
   return { has: true, host: p.host, username: p.username }
 }
@@ -647,7 +656,7 @@ async function pendingDetail ({ id, reveal } = {}) {
  * ya existía se queda como estaba, y si es nueva simplemente no entra. Sin lista se
  * guarda todo, que es lo que hacía el aviso antes de tener casillas.
  */
-async function savePending ({ id, pick, privateKeys } = {}) {
+async function savePending ({ id, pick, privateKeys, keepRest } = {}) {
   const p = await readPending()
   if (!p) throw new VaultError(CODES.NOT_FOUND, 'ya no hay nada que guardar')
   const v = await connect()
@@ -687,7 +696,7 @@ async function savePending ({ id, pick, privateKeys } = {}) {
     else fields.push(fila)
   }
 
-  await v.put({
+  const escrita = await v.put({
     ...(id ? { id } : {}),
     type: base?.type || ((p.secret || p.username) ? 'login' : 'data'),
     title: base?.title || p.host,
@@ -707,8 +716,26 @@ async function savePending ({ id, pick, privateKeys } = {}) {
   // sitio tampoco, que es de donde salen los marcadores.
   if (id) { try { await cache.forget(id) } catch (_) {} }
   forgetFinds()
-  await chrome.storage.session.remove(PENDING)
-  return { ok: true }
+
+  // Con `keepRest`, lo que NO se guardó sigue apuntado: en el modal de un campo se
+  // guarda de a uno, y tirar lo demás dejaría media pantalla de botones muertos. Sin él
+  // —el aviso de después de entrar— se borra todo: lo que se dejó sin marcar allí es un
+  // «esto no», no un «todavía no».
+  const quedan = keepRest ? (p.fields || []).filter(f => !quiere(fieldKey(f))) : []
+  const quedaUser = keepRest && p.username && !quiere('username')
+  const quedaClave = keepRest && p.secret && !quiere('secret')
+  if (quedan.length || quedaUser || quedaClave) {
+    await chrome.storage.session.set({
+      // El `ts` es el de la captura, no el de ahora: guardar de a uno no puede alargar
+      // para siempre lo que hay en claro en la memoria de sesión.
+      [PENDING]: { ...p, fields: quedan, username: quedaUser ? p.username : '', secret: quedaClave ? p.secret : '' },
+    })
+  } else {
+    await chrome.storage.session.remove(PENDING)
+  }
+  // El id de la entrada escrita: guardando de a uno, el segundo campo tiene que ir a la
+  // MISMA entrada que acaba de nacer, no a otra nueva.
+  return { ok: true, id: escrita?.id || id || null }
 }
 
 async function dismissPending () {
@@ -817,10 +844,15 @@ async function offersFor ({ url, fields } = {}) {
     if (abiertas) {
       const suyas = abiertas.filter(e => acceso ? !!e.secret || !!e.username : e.keys.has(f.key))
       ids = suyas.map(e => e.id)
-      same = acceso
+      // «Ya está guardado igual» solo cuenta si lo está en TODAS las entradas que tienen
+      // ese campo (dueño, 2026-08-28): con dos entradas, coincidir con una y diferir de
+      // la otra deja algo que hacer —reemplazar el de la otra—, y el botón no puede
+      // desaparecer cuando queda una opción posible.
+      const igual = acceso
         // La credencial es una cosa: es la misma si coinciden las dos mitades que haya.
-        ? suyas.some(e => e.secret === (f.secret || '') && e.username === (f.username || ''))
-        : suyas.some(e => e.keys.get(f.key) === (f.value || ''))
+        ? (e) => e.secret === (f.secret || '') && e.username === (f.username || '')
+        : (e) => e.keys.get(f.key) === (f.value || '')
+      same = suyas.length > 0 && suyas.every(igual)
     } else if (!libre) {
       // Sin abrir solo se puede ir por lo grueso, y un campo que no se reconoce no tiene
       // ni eso: su identidad es la etiqueta, y las etiquetas están dentro.

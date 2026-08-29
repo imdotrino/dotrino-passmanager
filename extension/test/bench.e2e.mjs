@@ -93,7 +93,7 @@ try {
   ok(!!f, 'el aviso sale al registrarse')
   if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
   const reg = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
-  const suya = reg.find((e) => e.hint === 'c•••o@ejemplo.com')
+  const suya = reg.find((e) => e.hint === 'caro@ejemplo.com')
   const full = suya ? (await pedir('get', { id: suya.id }))?.result : null
   ok(full?.secret === 'la-buena', 'guarda la PRIMERA contraseña, no la de confirmar')
 
@@ -126,7 +126,7 @@ try {
     await page.waitForTimeout(1200)
   }
   const tras = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
-  const deAna = tras.filter((e) => e.hint === 'a•••a@ejemplo.com')
+  const deAna = tras.filter((e) => e.hint === 'ana@ejemplo.com')
   ok(deAna.length === 1, 'actualizar NO duplica la cuenta (hay ' + deAna.length + ')')
   const anaFull = deAna[0] ? (await pedir('get', { id: deAna[0].id }))?.result : null
   ok(anaFull?.secret === 'clave-nueva', 'y se quedó la contraseña nueva')
@@ -155,7 +155,7 @@ try {
     await page.waitForTimeout(1200)
   }
   let deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
-    .filter((e) => e.hint === 'a•••a@ejemplo.com')
+    .filter((e) => e.hint === 'ana@ejemplo.com')
   ok(deAna2.length === 2, 'quedan DOS entradas del mismo correo (hay ' + deAna2.length + ')')
 
   // Y ahora, con dos iguales por fuera, el aviso deja elegir cuál se reemplaza.
@@ -181,7 +181,7 @@ try {
     await page.waitForTimeout(1200)
   }
   deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
-    .filter((e) => e.hint === 'a•••a@ejemplo.com')
+    .filter((e) => e.hint === 'ana@ejemplo.com')
   ok(deAna2.length === 2, 'sigue habiendo dos: se reemplazó, no se sumó')
   const laElegida = (await pedir('get', { id: otraId }))?.result
   const laOtra = (await pedir('get', { id: anaId }))?.result
@@ -305,7 +305,7 @@ try {
   const pend = await sw.evaluate(() => chrome.storage.session.get('passmanager/pending-save'))
   ok(!pend['passmanager/pending-save'], 'descartar BORRA lo capturado')
   const nada = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
-    .some((e) => e.hint === 'd•••i@ejemplo.com')
+    .some((e) => e.hint === 'dani@ejemplo.com')
   ok(!nada, 'y no guarda nada')
 
   // --- caso 11: los marcadores para rellenar ---

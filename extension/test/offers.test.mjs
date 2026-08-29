@@ -32,6 +32,19 @@ test('los espacios no son contenido', () => {
   assert.deepEqual(fieldOffers({ value: '   ', stored: true }), { fill: true, save: false })
 })
 
+// El «ya está guardado igual» lo decide el service worker mirando TODAS las entradas que
+// tienen ese campo: con dos, coincidir con una y diferir de la otra deja algo que hacer.
+test('con dos entradas, coincidir con una no apaga el botón', () => {
+  const conEsteCampo = [{ valor: 'x' }, { valor: 'y' }]
+  const igualEnTodas = (v) => conEsteCampo.length > 0 && conEsteCampo.every(e => e.valor === v)
+  assert.equal(fieldOffers({ value: 'x', stored: true, same: igualEnTodas('x') }).save, true)
+  assert.equal(fieldOffers({ value: 'z', stored: true, same: igualEnTodas('z') }).save, true)
+  // Y si las dos tienen lo mismo que hay escrito, ahí sí no queda nada que hacer.
+  const iguales = [{ valor: 'x' }, { valor: 'x' }]
+  const todasX = iguales.every(e => e.valor === 'x')
+  assert.equal(fieldOffers({ value: 'x', stored: true, same: todasX }).save, false)
+})
+
 test('sin decirle nada, no ofrece nada', () => {
   assert.deepEqual(fieldOffers(), { fill: false, save: false })
   assert.deepEqual(fieldOffers({}), { fill: false, save: false })

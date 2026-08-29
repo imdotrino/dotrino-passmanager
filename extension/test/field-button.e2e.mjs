@@ -184,11 +184,59 @@ try {
     const fila = m2.locator('[data-testid=field-modal-save-row][data-field=city]')
     const nombre = await fila.locator('.name').textContent()
     ok(nombre === 'City' || nombre === 'Ciudad', 'con la etiqueta con la que se guardará: ' + nombre)
-    ok(await m2.locator('[data-testid=field-modal-pick-city]').isChecked(), 'y ese campo marcado')
+    const boton = await m2.locator('[data-testid=field-modal-save-city]').textContent()
+    ok(/guardar|save/i.test(boton), 'y su botón dice guardar, que es un dato nuevo: ' + boton)
+    const abajo = await m2.locator('[data-testid=field-modal-save]').textContent()
+    ok(/todos|all/i.test(abajo), 'y el de abajo, todos: ' + abajo)
     await m2.locator('[data-testid=field-modal-private-city]').check()
-    await m2.locator('[data-testid=field-modal-save]').click()
+    await m2.locator('[data-testid=field-modal-save-city]').click()
     await page.waitForTimeout(1500)
   }
+  console.log('\ny cuando ya existe, el botón dice reemplazar')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1200)
+  await page.fill('input[name=city]', 'Cuenca')
+  await page.waitForTimeout(800)
+  const cajaCity2 = await page.locator('input[name=city]').boundingBox()
+  await page.mouse.click(cajaCity2.x + cajaCity2.width - 10, cajaCity2.y + 8)
+  const mr = await modal()
+  if (mr) {
+    const b = await mr.locator('[data-testid=field-modal-save-city]').textContent()
+    ok(/reemplazar|replace/i.test(b), 'la fila dice reemplazar: ' + b)
+    const ba = await mr.locator('[data-testid=field-modal-save]').textContent()
+    ok(/reemplazar|replace/i.test(ba), 'y el de abajo también: ' + ba)
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+  await page.fill('input[name=city]', '')
+  await page.waitForTimeout(500)
+
+  console.log('\ncon dos entradas, coincidir con una no apaga el botón')
+  // Se guarda la ciudad en una entrada NUEVA, para tener dos con ese campo distinto.
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1200)
+  await page.fill('input[name=city]', 'Cuenca')
+  await page.waitForTimeout(800)
+  const cajaCity3 = await page.locator('input[name=city]').boundingBox()
+  await page.mouse.click(cajaCity3.x + cajaCity3.width - 10, cajaCity3.y + 8)
+  const mn = await modal()
+  if (mn) {
+    const next2 = mn.locator('[data-testid=field-modal-next]')
+    for (let i = 0; i < 8 && !(await next2.isDisabled()); i++) await next2.click()
+    await mn.locator('[data-testid=field-modal-save-city]').click()
+    await page.waitForTimeout(1500)
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+  // Ahora una entrada tiene «Quito» y otra «Cuenca». Escribir cualquiera de las dos deja
+  // algo que hacer con la otra, así que el botón se queda.
+  r = await que([{ id: 0, key: 'city', value: 'Quito' }])
+  ok(r[0].save, 'con «Quito» sigue habiendo qué hacer (reemplazar el de la otra)')
+  r = await que([{ id: 0, key: 'city', value: 'Cuenca' }])
+  ok(r[0].save, 'y con «Cuenca», lo mismo')
+  await page.fill('input[name=city]', '')
+  await page.waitForTimeout(500)
+
   console.log('\ny se cierra al pulsar fuera')
   await page.fill('input[name=member]', 'SOC-1')
   await page.waitForTimeout(700)
@@ -202,14 +250,17 @@ try {
   await page.waitForTimeout(500)
   ok(!page.frames().find((x) => x.url().includes('field-modal.html')), 'y se cierra al pulsar fuera')
 
+  // Hay varias entradas de datos a estas alturas: se busca la ciudad en todas.
   const guardadas = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
     .filter((e) => e.type === 'data')
-  const abierta = guardadas[0] ? (await pedir('get', { id: guardadas[0].id }))?.result : null
-  const ciudad = JSON.parse(abierta?.fields || '[]').find((c) => c.kind === 'city')
-  ok(ciudad?.value === 'Quito', 'el campo queda guardado')
-  ok(ciudad?.private === true, 'y marcado como privado')
-  r = await que([{ id: 0, key: 'city', value: 'Quito' }])
-  ok(!r[0].save, 'y su botón desaparece, que ya está guardado igual')
+  const ciudades = []
+  for (const g of guardadas) {
+    const abierta = (await pedir('get', { id: g.id }))?.result
+    const c = JSON.parse(abierta?.fields || '[]').find((x) => x.kind === 'city')
+    if (c) ciudades.push(c)
+  }
+  ok(ciudades.some((c) => c.value === 'Quito'), 'el campo queda guardado')
+  ok(ciudades.find((c) => c.value === 'Quito')?.private === true, 'y marcado como privado')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

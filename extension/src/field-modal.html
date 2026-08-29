@@ -40,6 +40,9 @@
     align-items: center; gap: 8px; padding: 4px 5px;
   }
   .row input[type=checkbox] { margin: 0; accent-color: #00658c; }
+  /* La fila de guardar no lleva casilla de elegir: es el nombre, si es privado, y su
+     botón —que dice guardar o reemplazar según lo que vaya a hacer. */
+  .row.save { grid-template-columns: minmax(0,1fr) auto auto; }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .val { font-size: .74rem; opacity: .5; }
 
@@ -55,7 +58,8 @@
   /* No hay botón de cerrar: el modal se cierra al pulsar fuera, como cualquier menú.
      Un botón que solo cierra ocupa el sitio de lo que sí hace algo. */
   .buttons { display: flex; gap: 8px; margin-top: 10px; }
-  .buttons > button { flex: 1; }
+  /* Más delgado que un botón normal: es el remate de la lista, no su protagonista. */
+  .buttons > button { flex: 1; padding: 6px; font-size: .82rem; }
   .primary { border: 0; padding: 8px; background: #00658c; color: #fff; font-weight: 600; }
   .ghost { border: 1px solid rgba(255,255,255,.22); background: none; color: inherit; padding: 8px 12px; }
   button:disabled { opacity: .45; cursor: default; }

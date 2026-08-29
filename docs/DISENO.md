@@ -426,8 +426,12 @@ llenaría la bóveda de entradas inventadas. Hay dos formas de decir que sí, y 
 pulsan en UI de la extensión:
 
 - **El aviso de después de entrar** (§4.0.1), que es el camino normal.
-- **El popup**, con «Guardar la contraseña de esta página», mientras el formulario sigue
-  escrito. Sigue estando para lo que el aviso no cubre.
+- **El botón del propio campo** (§4.1), que guarda lo que hay escrito sin esperar a
+  enviar nada.
+
+⚠️ **Derogado el 2026-08-28 por el dueño** (*«no le encuentro sentido»*): el popup tenía
+un tercer camino, «Guardar la contraseña de esta página», con su propio formulario. Era
+lo mismo que los otros dos, más escondido y con más pasos. **No lo reintroduzcas.**
 
 ### 4.0.1. El aviso sale DESPUÉS de entrar, no antes
 
@@ -524,6 +528,12 @@ el usuario elige cuál se reemplaza. Reglas de esa lista:
 - **Dos entradas iguales por fuera se distinguen por la fecha**, que va en cada fila. Es
   lo único que las diferencia cuando el usuario es el mismo, así que cuando hay que
   recortar algo se recorta el usuario, nunca la fecha.
+- **El nombre de cada entrada va entero, sin esconder caracteres** (dueño, 2026-08-28):
+  *«d•••g, no entiendo esta nomenclatura»*. Se enseña su dato público más claro —el
+  usuario; sin usuario, el correo; y si tampoco, el primer campo que lleve—, y **los
+  campos privados no entran nunca** en esa elección: para eso está la marca (§4.2). El
+  enmascarado anterior (`s•••e@…`) protegía de poco y costaba lo que más importa aquí,
+  que es reconocer la cuenta de un vistazo.
 - **Las entradas sin sitios se ofrecen las últimas y dichas** («en cualquier sitio»,
   §4.2). Se pueden elegir —es una decisión del usuario— pero no se preseleccionan: pisar
   tu dirección de siempre desde el formulario de una tienda cualquiera tiene que ser un
@@ -550,7 +560,7 @@ Es la frontera que ya existía en el modelo de datos (§5) y que aquí se vuelve
 
 | | Qué es | Quién puede verlo |
 |---|---|---|
-| **público** | id, título, sitios, **pista del usuario** (enmascarada), cuándo se tocó, qué guarda (`hasSecret`, `hasFields`…) | cualquiera que pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
+| **público** | id, título, sitios, **nombre visible** (el usuario, o el correo, o el primer campo NO privado), cuándo se tocó, qué guarda (`hasSecret`, `hasFields`…) | cualquiera que pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
 | **privado** | los **valores**: usuario, contraseña, campos, notas, TOTP | solo se abren de a uno (`get`), y con una bóveda conectada **eso es una aprobación** |
 
 De ahí sale cómo se pinta el aviso, que es la parte que importa:
@@ -595,7 +605,11 @@ Lo que hay que leer ahí, dicho en palabras:
 - **Rellenar solo en un campo vacío.** Escribir encima de lo que puso el usuario sería
   decidir por él; lo que quiere ahí es guardar lo suyo.
 - **Lo que ya está guardado igual no se ofrece.** Es el caso de justo después de
-  rellenar: el campo tiene el valor de la bóveda y el botón desaparece solo.
+  rellenar: el campo tiene el valor de la bóveda y el botón desaparece solo. Pero «igual»
+  quiere decir **igual en TODAS las entradas que tienen ese campo** (dueño, 2026-08-28):
+  con dos entradas, coincidir con una y diferir de la otra deja algo que hacer
+  —reemplazar el de la otra—, y **el botón solo desaparece cuando no queda ninguna opción
+  posible**.
 - **Nada se rellena solo, tampoco aquí.** Rellenar es siempre un botón que se pulsa, y
   hay dos: **«Rellenar este valor»** (eliges de qué entrada) y **«Rellenar todos los
   valores»**, que pone en la página todo lo que esa entrada tenga. El segundo existe para
@@ -649,6 +663,17 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
   está aceptando algo distinto de lo que ve.
 - **No hay botón de cerrar**: se cierra al pulsar fuera —como cualquier menú— y con
   Escape. Un botón que solo cierra ocupa el sitio del que sí hace algo.
+- **Cada fila de guardar tiene su propio botón**, y dice **guardar** si el dato es nuevo
+  en esa entrada o **reemplazar** si ya estaba con otro valor: no es lo mismo, y hay que
+  saber cuál de las dos se está pulsando. El de abajo hace lo mismo con todas —«guardar
+  todos» o «reemplazar todos»— y va más delgado, que es el remate de la lista y no su
+  protagonista.
+- **Guardar de a uno no tira lo demás.** Lo que queda sin guardar sigue apuntado, y la
+  entrada recién creada pasa a ser la elegida: el segundo campo va A ESA, no a otra nueva.
+- **Recuerda la última entrada elegida** en ese sitio (dueño, 2026-08-28): abrir el modal
+  cinco veces en la misma página y volver a buscarla con las flechas es trabajo que el
+  gestor puede ahorrar. Se guarda en el almacén de la extensión —no en el del sitio— y si
+  esa entrada ya no existe, se ignora.
 - **Cada sección aparece solo si tiene sentido**: sin nada guardado no hay «rellenar»,
   y sin nada escrito que añadir no hay «guardar».
 - **Es un iframe de la extensión**, como el aviso: el botón que escribe en la bóveda tiene

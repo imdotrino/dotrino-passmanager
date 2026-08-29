@@ -127,7 +127,7 @@ try {
   const items = despues?.result || []
   ok(items.length === 1, 'después de pulsar, la entrada está guardada')
   ok(items[0]?.title === 'localhost', 'con el sitio como título')
-  ok(items[0]?.hint === 's•••t@dotrino.com', 'y el usuario enmascarado: ' + items[0]?.hint)
+  ok(items[0]?.hint === 'seyacat@dotrino.com', 'y el usuario, sin esconder nada: ' + items[0]?.hint)
 
   // Y la credencial completa se recupera.
   const full = items[0] ? await pedir('get', { id: items[0].id }) : null

@@ -220,6 +220,7 @@ async function captureField (field) {
     if (!username && !secret) return false
     const esPass = field.el === f?.password
     payload = {
+      from: 'field',
       username,
       secret,
       fields: detect.readDataFields(f?.form || document, { skip: [f?.username, f?.password] }),
@@ -233,7 +234,7 @@ async function captureField (field) {
     const fields = detect.readDataFields(scope)
     const key = detect.fieldKey({ kind: field.kind, label: field.label })
     if (!fields.some(x => detect.fieldKey(x) === key)) return false
-    payload = { username: '', secret: '', fields, focus: [key], url: location.href }
+    payload = { from: 'field', username: '', secret: '', fields, focus: [key], url: location.href }
   }
 
   const r = await capture(payload)
@@ -311,17 +312,6 @@ async function fillLogin ({ username, secret }) {
   return done
 }
 
-/** Lo que hay escrito en el formulario, para poder guardarlo en la bóveda. */
-async function readForm () {
-  if (!lastForms.length) await scan()
-  for (const f of lastForms) {
-    const secret = f.password?.value || ''
-    if (!secret) continue
-    return { username: f.username?.value || '', secret, url: location.href }
-  }
-  return null
-}
-
 // --- guardar lo que acabas de escribir --------------------------------------
 //
 // Los gestores que la gente ya usa preguntan DESPUÉS de entrar, en la página siguiente,
@@ -368,6 +358,7 @@ function captureFrom (form, { force = false } = {}) {
   const fields = detect.readDataFields(scope, { skip: [form?.username, form?.password] })
   if (!secret && !(force ? fields.length : enoughData(fields))) return false
   return capture({
+    from: 'submit',
     username: secret ? detect.readUsername(form) : '',
     secret,
     fields,
@@ -487,10 +478,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg?.op === 'page-fill') {
     fillLogin(msg.payload || {}).then(filled => sendResponse({ result: { filled } }))
-    return true
-  }
-  if (msg?.op === 'page-credentials') {
-    readForm().then(r => sendResponse({ result: r }))
     return true
   }
   return false

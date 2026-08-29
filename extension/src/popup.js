@@ -231,45 +231,10 @@ async function renderSite (estado0) {
   // Cada credencial sale de una petición aparte: la lista de arriba nunca las llevó.
   const askForOne = async (e) => ask('get', { id: e.id })
 
-  /**
-   * Guardar lo que hay escrito en la página. La acción nace AQUÍ, en la UI de la
-   * extensión y con el usuario delante — nunca en la página, que si pudiera saveHere
-   * por su cuenta llenaría la bóveda de entradas inventadas.
-   */
-  const saveHere = el('button', { className: 'ghost file', textContent: t(lang, 'saveHere'), hidden: true })
-  saveHere.onclick = async () => {
-    const cred = await tellPage('page-credentials')
-    if (!cred?.secret) return toast(t(lang, 'nothingToSave'), 'error')
-
-    const host = (() => { try { return new URL(url).hostname } catch { return '' } })()
-    const nameInput = el('input', { type: 'text', value: host, placeholder: t(lang, 'saveName') })
-    const ok = el('button', { className: 'primary', textContent: t(lang, 'save') })
-    const cancelBtn = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
-
-    ok.onclick = async () => {
-      try {
-        await ask('put', {
-          entry: {
-            type: 'login',
-            title: nameInput.value.trim() || host,
-            sites: host ? [host] : [],
-            username: cred.username,
-            secret: cred.secret,
-          },
-        })
-        toast(t(lang, 'saved'))
-        render()
-      } catch (e) { toast(humanError(e), 'error') }
-    }
-    cancelBtn.onclick = render
-
-    view.replaceChildren(
-      el('h2', { textContent: t(lang, 'saveHere') }),
-      el('p', { className: 'hint', textContent: cred.username || host }),
-      nameInput, ok, cancelBtn,
-    )
-    nameInput.focus()
-  }
+  // Aquí había un «guardar la contraseña de esta página». Se quitó el 2026-08-28, dicho
+  // por el dueño: *«no le encuentro sentido»*. Y no lo tiene desde que el botón del propio
+  // campo guarda lo que hay escrito (§4.1) y el aviso pregunta solo al entrar (§4.0.1):
+  // era un tercer camino para lo mismo, más escondido y con su propio formulario.
 
   const onFill = async (e) => {
     try {
@@ -293,16 +258,12 @@ async function renderSite (estado0) {
   // suya, y se le dice así.
   const pie = el('p', { className: 'hint foot', textContent: propia ? t(lang, 'ownVault') : t(lang, 'linkedVault') })
 
-  view.replaceChildren(profileBar(estado0), el('h2', { textContent: t(lang, 'onThisSite') }), list, estado, saveHere, pie)
+  view.replaceChildren(profileBar(estado0), el('h2', { textContent: t(lang, 'onThisSite') }), list, estado, pie)
 
   try {
     const items = await ask('find', { url })
     list.replaceChildren(...items.map(e => entryRow(e, { onFill, onCopy })))
     estado.textContent = items.length ? '' : t(lang, 'noneHere')
-
-    // El botón de saveHere solo aparece si hay algo escrito que saveHere.
-    const cred = await tellPage('page-credentials')
-    saveHere.hidden = !cred?.secret
   } catch (e) {
     estado.className = 'error'
     estado.textContent = humanError(e)
