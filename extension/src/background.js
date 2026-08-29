@@ -877,7 +877,7 @@ async function pendingDetail ({ id, reveal } = {}) {
  * ya existía se queda como estaba, y si es nueva simplemente no entra. Sin lista se
  * guarda todo, que es lo que hacía el aviso antes de tener casillas.
  */
-async function savePending ({ id, pick, privateKeys, keepRest } = {}) {
+async function savePending ({ id, pick, privateKeys, keepRest, name } = {}) {
   const p = await readPending()
   if (!p) throw new VaultError(CODES.NOT_FOUND, 'ya no hay nada que guardar')
   const v = await connect()
@@ -925,6 +925,9 @@ async function savePending ({ id, pick, privateKeys, keepRest } = {}) {
     escrita = await v.put({
       type: (p.secret || p.username) ? 'login' : 'data',
       title: p.host,
+      // El nombre que el usuario escribió al elegir «una entrada nueva». Sin él, la
+      // entrada se llama como su contenido y ya se podrá cambiar después.
+      ...(name ? { name: String(name).trim().slice(0, 80) } : {}),
       sites: [p.host],
       username: (quiere('username') && p.username) || '',
       secret: (quiere('secret') && p.secret) || '',
@@ -1136,6 +1139,25 @@ async function searchEntries ({ q, limit } = {}) {
   return v.search(texto, { limit: Math.min(Number(limit) || 20, 50) })
 }
 
+/**
+ * PONERLE NOMBRE a una entrada. Solo desde la UI de la extensión.
+ *
+ * Hasta el 2026-08-29 el nombre de una entrada se calculaba de su contenido —el usuario,
+ * el correo, el primer campo— y no se podía tocar. Está bien para no dejar filas en
+ * blanco, pero es una suposición, y con dos cuentas del mismo sitio la suposición dice lo
+ * mismo de las dos. Con un nombre escrito, el usuario las distingue como quiera.
+ *
+ * Vacío lo quita, y vuelve el calculado: nunca se queda una fila sin nombre.
+ */
+async function renameEntry ({ id, name } = {}) {
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  const v = await connect()
+  await v.patch(id, { name: String(name || '').trim().slice(0, 80) })
+  try { await cache.forget(id) } catch (_) {}
+  forgetFinds()
+  return { ok: true }
+}
+
 /** Quitar una entrada de la bóveda. Solo desde la UI de la extensión, y con aviso. */
 async function removeEntry ({ id, url }) {
   if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
@@ -1172,6 +1194,7 @@ const OPS = {
   offers: p => offersFor(p),
   search: async p => stripDigest(await searchEntries(p)),
   remove: p => removeEntry(p),
+  rename: p => renameEntry(p),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),
   get: async p => getEntry(await connect(), p.id, p.keys),

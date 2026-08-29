@@ -690,6 +690,37 @@ Es la frontera que ya existía en el modelo de datos (§5) y que aquí se vuelve
 tienes cuenta (§5): saber que guardaste algo llamado «Número de socio» es bastante menos
 que el número. Y es lo que permite ofrecer rellenarlo **sin abrir nada**.
 
+#### El nombre de una entrada lo pone el usuario
+
+> Pedido por el dueño el 2026-08-29: *«el nombre del record debe poder ser editable; agrega
+> un lapicito al lado del nombre en todos los modales»*.
+
+Hasta aquí el nombre de una entrada se **calculaba** de su contenido —el usuario, si no el
+correo, si no el primer campo público (§5)—. Sirve para no dejar filas en blanco, pero es
+una suposición: con dos cuentas del mismo sitio dice lo mismo de las dos, y quien mira la
+lista no tiene con qué elegir.
+
+Ahora hay un campo `name` y **manda sobre el calculado**. Un lápiz al lado del nombre, en
+las dos pantallas que listan entradas, lo convierte en un campo de texto: Enter guarda,
+Escape deja como estaba, y **vacío quita el nombre puesto y vuelve el calculado** — una
+fila nunca se queda sin nombre.
+
+- **Va SELLADO**, no en claro como `title`: *«la cuenta de mi mamá»* dice bastante más de
+  una persona que el dominio donde la usa. Viaja en la vista pública como `hint`, que ya
+  lo calculaba quien tiene la llave.
+- **Al crear una entrada nueva se escribe ahí mismo**, con un nombre de partida (el
+  usuario, o el sitio). Ponérselo después es un paso más que casi nadie da.
+- **Dos entradas pueden llamarse igual** y siguen siendo dos: la identidad es el id
+  (arriba), no el nombre.
+
+Y la fila de **«una entrada nueva» va la primera** en las dos pantallas (dueño,
+2026-08-29). Iba la última en el modal del campo, con la idea de que «guardar es lo de
+abajo»; que cada pantalla ordenara lo mismo a su manera se paga en cada salto de una a la
+otra. Ojo con lo que eso destapó: el modal elegía sola *«la primera fila donde haya algo
+que hacer»*, y en la entrada nueva **siempre** lo hay —todo es nuevo—, así que al ponerla
+primera ganaba siempre y el modal se abría creando en vez de usando lo que ya está. La
+entrada nueva no entra en ese concurso.
+
 #### El resumen: comparar sin abrir, y con UN solo método
 
 > *«para que se pueda validar si un valor privado está cambiando, el vault debería enviar

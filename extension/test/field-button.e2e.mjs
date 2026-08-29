@@ -220,8 +220,11 @@ try {
     // las flechas están a la vista.
     const destinos = m2.locator('[data-testid=field-modal-target]')
     ok(await destinos.count() >= 2, 'con la lista de a dónde va (' + (await destinos.count()) + ')')
-    ok((await destinos.last().textContent()).match(/nueva|new/i),
-      'y la entrada nueva es la última: ' + (await destinos.last().textContent()))
+    // La entrada nueva es la PRIMERA, como en el aviso (dueño, 2026-08-29): las dos
+    // pantallas hacían lo mismo en dos órdenes distintos.
+    ok(await destinos.first().locator('[data-testid=field-modal-new-name]').count() === 1 ||
+       (await destinos.first().textContent()).match(/nueva|new/i),
+      'y la entrada nueva es la primera')
     ok(!(await m2.locator('#saveBox').isHidden()), 'con su sección de guardar')
     const fila = m2.locator('[data-testid=field-modal-save-row][data-field=city]')
     const nombre = await fila.locator('.name').textContent()
@@ -386,8 +389,12 @@ try {
     await page.waitForTimeout(900)
     const traidos = mo.locator('[data-testid=field-modal-target]')
     ok(await traidos.count() >= 2, 'y encuentra la cuenta del otro dominio')
-    // La primera es la encontrada; se elige y se rellena desde ella.
-    const idTraido = await traidos.first().getAttribute('data-id')
+    // La primera con id es la encontrada —la fila de arriba es «una entrada nueva», que
+    // desde el 2026-08-29 va primera—; se elige y se rellena desde ella.
+    let idTraido = null
+    for (let i = 0; i < await traidos.count() && !idTraido; i++) {
+      idTraido = await traidos.nth(i).getAttribute('data-id')
+    }
     await mo.locator(`[data-testid=field-modal-target-${idTraido}]`).check()
     await page.waitForTimeout(400)
     ok(await mo.locator('[data-testid=field-modal-fill-row]').count() >= 1,

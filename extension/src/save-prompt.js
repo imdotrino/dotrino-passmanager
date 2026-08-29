@@ -100,6 +100,10 @@ function fail (e) {
 let detail = null
 let target = ''        // '' = una entrada nueva
 let picked = new Set()
+/** El nombre que llevará la entrada nueva. `null` = todavía no se ha decidido. */
+let nuevoNombre = null
+/** Qué entrada se está renombrando ahora mismo. */
+let editando = ''
 
 /** Las filas de lo que se escribiría en el destino elegido. */
 function rowsFor (id) {
@@ -123,6 +127,27 @@ function rowsFor (id) {
     .filter((r) => r.status !== 'same')
 }
 
+/**
+ * EL NOMBRE DE PARTIDA de la entrada nueva: el mismo que se calcularía del contenido
+ * (§5), para que lo que se ve en el campo sea lo que va a quedar si no se toca.
+ *
+ * Y por eso **solo se guarda si se cambia**: dejar la sugerencia escrita congelaría un
+ * nombre que hasta ahora se calculaba solo. El nombre puesto es una decisión; esto es la
+ * suposición de siempre, enseñada por adelantado para poder corregirla.
+ */
+function sugerido () {
+  if (user) return user
+  const publicos = (detail?.typed || []).filter((f) => !f.secret && f.value)
+  const correo = publicos.find((f) => f.key === 'email')
+  return String((correo || publicos[0])?.value || host || '')
+}
+
+/** El nombre que se guardará, o nada si es la sugerencia sin tocar. */
+function nombreElegido () {
+  const puesto = (nuevoNombre ?? '').trim()
+  return puesto && puesto !== sugerido().trim() ? puesto : ''
+}
+
 /** Cómo se llama esta fila: los campos libres, como los llama el sitio. */
 const labelOf = (row) => row.label || kindLabel(lang, row.key)
 
@@ -137,6 +162,67 @@ function renderWho () {
   const r = detail?.candidates?.find(c => c.id === target)
   const quien = r ? (r.hint || r.title) : (user || t(lang, 'noUser'))
   $('who').textContent = [quien, host].filter(Boolean).join(' · ')
+}
+
+/**
+ * EL LÁPIZ que deja renombrar una entrada, al lado de su nombre (dueño, 2026-08-29).
+ *
+ * El nombre de una entrada se calculaba de su contenido —el usuario, el correo, el primer
+ * campo—, que sirve para no dejar filas en blanco pero es una suposición: con dos cuentas
+ * del mismo sitio dice lo mismo de las dos.
+ */
+function pencil (id) {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'pencil'
+  b.dataset.testid = `save-prompt-rename-${id}`
+  b.title = t(lang, 'renameEntry')
+  b.setAttribute('aria-label', t(lang, 'renameEntry'))
+  b.textContent = '✎'
+  b.addEventListener('click', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    editando = id
+    renderTargets()
+    resize()
+  })
+  return b
+}
+
+/** El campo donde se escribe el nombre. Enter guarda, Escape deja como estaba. */
+function nameInput (id, valor) {
+  const caja = document.createElement('input')
+  caja.type = 'text'
+  caja.className = 'newname'
+  caja.value = valor || ''
+  caja.placeholder = t(lang, 'entryName')
+  caja.dataset.testid = id ? `save-prompt-name-${id}` : 'save-prompt-new-name'
+  if (!id) {
+    caja.addEventListener('input', () => { nuevoNombre = caja.value })
+    caja.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.preventDefault() })
+    return caja
+  }
+  let cerrado = false
+  const guardar = async (aplicar) => {
+    if (cerrado) return
+    cerrado = true
+    editando = ''
+    if (aplicar) {
+      try {
+        await ask('rename', { id, name: caja.value })
+        detail = await ask('pending-detail')
+      } catch (e) { fail(e) }
+    }
+    renderTargets()
+    renderWho()
+    resize()
+  }
+  caja.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); guardar(true) }
+    if (ev.key === 'Escape') { ev.preventDefault(); guardar(false) }
+  })
+  caja.addEventListener('blur', () => guardar(true))
+  return caja
 }
 
 function renderTargets () {
@@ -182,17 +268,38 @@ function renderTargets () {
     radio.value = o.id
     radio.checked = o.id === target
     radio.dataset.testid = o.id ? `save-prompt-target-${o.id}` : 'save-prompt-target-new'
-    radio.addEventListener('change', () => { target = o.id; renderWho(); renderFields() })
+    radio.addEventListener('change', () => {
+      target = o.id
+      // La lista se repinta también: al elegir «una entrada nueva» su fila pasa a ser el
+      // campo donde se le escribe el nombre.
+      renderTargets()
+      renderWho()
+      renderFields()
+    })
+
+    // Escribiendo el nombre: de la entrada nueva cuando está elegida, o de la que se está
+    // renombrando. En los dos casos el campo se lleva la fila.
+    const escribiendo = (!o.id && o.id === target) || (o.id && o.id === editando)
+    if (escribiendo) {
+      const caja = nameInput(o.id, o.id ? o.label : (nuevoNombre ?? sugerido()))
+      label.append(radio, caja)
+      li.append(label)
+      ul.append(li)
+      if (o.id) requestAnimationFrame(() => { caja.focus(); caja.select() })
+      continue
+    }
 
     const who = document.createElement('span')
     who.className = 'who2'
     who.textContent = o.label
 
+    const lapiz = o.id ? pencil(o.id) : null
+
     const when = document.createElement('span')
     when.className = 'when'
     when.textContent = o.when
 
-    label.append(radio, who, when)
+    label.append(radio, who, ...(lapiz ? [lapiz] : []), when)
     if (o.tag) {
       const tag = document.createElement('span')
       tag.className = 'tag'
@@ -326,7 +433,13 @@ async function load () {
 async function save () {
   for (const b of document.querySelectorAll('button')) b.disabled = true
   try {
-    await ask('save-pending', { ...(target ? { id: target } : {}), pick: [...picked] })
+    await ask('save-pending', {
+      ...(target ? { id: target } : {}),
+      pick: [...picked],
+      // El nombre escrito en la fila de «una entrada nueva», si es ahí donde va y si de
+      // verdad se escribió: la sugerencia sin tocar no se guarda (ver `sugerido`).
+      ...(!target && nombreElegido() ? { name: nombreElegido() } : {}),
+    })
     close()
   } catch (e) { fail(e) }
 }

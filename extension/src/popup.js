@@ -226,6 +226,12 @@ function renderAdd (s) {
  * diferencia entre elegir siempre o no elegir nunca. Solo puede haber una por sitio, así
  * que marcar una desmarca la anterior.
  */
+/** El sitio de una entrada, y nada si es lo mismo que ya dice el nombre de arriba. */
+function sitioDe (e) {
+  const sitio = e.title || e.sites?.[0] || ''
+  return sitio && sitio !== (e.hint || '') ? sitio : ''
+}
+
 function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
   const fill = el('button', { className: 'ghost', textContent: t(lang, 'fill') })
   const copy = el('button', { className: 'ghost', textContent: t(lang, 'copy') })
@@ -251,9 +257,12 @@ function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
   si.onclick = () => onDelete(e)
 
   return el('li', { className: 'entry' }, [
+    // ARRIBA el nombre de la entrada, ABAJO el sitio (dueño, 2026-08-29: «debería ser al
+    // revés»). Y tiene razón: en una lista de un solo sitio, el sitio es lo que todas
+    // tienen en común y el nombre es lo único que las distingue.
     el('div', { className: 'who' }, [
-      el('div', { className: 'name', textContent: e.title || e.sites?.[0] || '—' }),
-      el('div', { className: 'hint', textContent: e.hint || e.sites?.[0] || '' }),
+      el('div', { className: 'name', textContent: e.hint || e.title || e.sites?.[0] || '—' }),
+      el('div', { className: 'hint', textContent: sitioDe(e) }),
     ]),
     el('div', { className: 'acts' }, [
       el('label', { className: 'def' }, [marca, el('span', { textContent: t(lang, 'byDefault') })]),

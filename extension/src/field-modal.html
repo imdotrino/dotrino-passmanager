@@ -24,10 +24,25 @@
      seleccionar con las flechas»). Una entrada por fila, con su fecha para distinguir
      dos que se llamen igual, y la nueva al final. */
   .t {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: baseline; gap: 8px; padding: 4px 5px; cursor: pointer;
   }
-  .t input { margin: 0; accent-color: #00658c; }
+  .t input[type=radio] { margin: 0; accent-color: #00658c; }
+  /* El lápiz: al lado del nombre, tenue hasta que lo buscas. El nombre de una entrada lo
+     pone el usuario; lo que se calcula del contenido es solo el punto de partida. */
+  .pencil {
+    background: none; border: 0; color: inherit; opacity: .35;
+    padding: 0 2px; font-size: .82rem; line-height: 1;
+  }
+  .pencil:hover, .pencil:focus-visible { opacity: 1; }
+  /* Escribiendo el nombre: ocupa la fila entera, que es lo que se está haciendo. */
+  .newname {
+    grid-column: 2 / -1; width: 100%; box-sizing: border-box;
+    padding: 3px 6px; font: inherit; font-size: .82rem;
+    background: rgba(255,255,255,.06); color: inherit;
+    border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
+  }
+  .newname:focus { outline: 2px solid #00658c; outline-offset: -1px; }
   .t .who2 { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .t .when { font-size: .7rem; opacity: .55; white-space: nowrap; }
 

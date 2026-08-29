@@ -108,11 +108,20 @@ async function start () {
   }
   // Sin predeterminada, se abre en una entrada donde haya algo que hacer: la primera
   // puede ser justo la que ya tiene ese dato igual, y el modal saldría en blanco.
+  //
+  // **La entrada nueva no entra en ese concurso**, y desde que va primera (2026-08-29) hay
+  // que decirlo: en ella siempre «hay algo que hacer» —todo es nuevo—, así que ganaba
+  // siempre y el modal se abría creando una entrada en vez de usando la que ya está. Solo
+  // se cae en ella si ninguna de las que hay sirve para nada aquí.
   if (!(await porDefecto())) {
+    const nueva = records.findIndex(r => !r.id)
+    let elegida = -1
     for (let i = 0; i < records.length; i++) {
+      if (!records[i].id) continue
       at = i
-      if (rowsToSave().length || puedeRellenar().length) break
+      if (rowsToSave().length || puedeRellenar().length) { elegida = i; break }
     }
+    at = elegida >= 0 ? elegida : Math.max(0, nueva)
   }
   render()
 }
@@ -123,6 +132,60 @@ async function start () {
  * Con una sola opción —«una entrada nueva», porque el sitio no tiene nada— no se enseña:
  * elegir entre una cosa no es elegir. Igual que en el aviso de después de entrar.
  */
+/**
+ * EL LÁPIZ que deja renombrar una entrada, al lado de su nombre.
+ *
+ * Al pulsarlo la fila se convierte en un campo de texto con el nombre actual. Se guarda
+ * al salir del campo o con Enter; con Escape se deja como estaba. Vacío quita el nombre
+ * puesto y vuelve el que se calcula del contenido — una fila nunca se queda en blanco.
+ */
+function pencil (o) {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'pencil'
+  b.dataset.testid = `field-modal-rename-${o.id}`
+  b.title = t(lang, 'renameEntry')
+  b.setAttribute('aria-label', t(lang, 'renameEntry'))
+  b.textContent = '✎'
+  b.addEventListener('click', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    editando = o.id
+    paint()
+  })
+  return b
+}
+
+/** Qué entrada se está renombrando ahora mismo. */
+let editando = ''
+
+function nameInput (o) {
+  const caja = document.createElement('input')
+  caja.type = 'text'
+  caja.className = 'newname'
+  caja.value = o.name === t(lang, 'noUser') ? '' : o.name
+  caja.placeholder = t(lang, 'entryName')
+  caja.dataset.testid = `field-modal-name-${o.id}`
+  let cerrado = false
+  const guardar = async (aplicar) => {
+    if (cerrado) return
+    cerrado = true
+    editando = ''
+    if (aplicar) {
+      try { await ask('rename', { id: o.id, name: caja.value }) } catch (e) { fail(e) }
+      await loadRecords(o.id)
+      valoresDe = null
+    }
+    paint()
+  }
+  caja.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); guardar(true) }
+    if (ev.key === 'Escape') { ev.preventDefault(); guardar(false) }
+  })
+  caja.addEventListener('blur', () => guardar(true))
+  return caja
+}
+
 function renderTargets () {
   const ul = $('targets')
   ul.textContent = ''
@@ -150,16 +213,46 @@ function renderTargets () {
     radio.dataset.testid = o.id ? `field-modal-target-${o.id}` : 'field-modal-target-new'
     radio.addEventListener('change', () => { at = i; render() })
 
+    // LA ENTRADA NUEVA, elegida: su nombre se escribe aquí, antes de crearla.
+    if (!o.id && i === at) {
+      const caja = document.createElement('input')
+      caja.type = 'text'
+      caja.className = 'newname'
+      caja.value = nuevoNombre ?? sugerido()
+      caja.placeholder = t(lang, 'entryName')
+      caja.dataset.testid = 'field-modal-new-name'
+      caja.addEventListener('input', () => { nuevoNombre = caja.value })
+      // No se cierra el modal con Enter: aquí Enter es «ya está», nada más.
+      caja.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.preventDefault() })
+      label.append(radio, caja)
+      li.append(label)
+      ul.append(li)
+      continue
+    }
+
+    // Renombrando ESTA: el nombre se cambia por un campo de texto.
+    if (o.id && o.id === editando) {
+      const caja = nameInput(o)
+      label.append(radio, caja)
+      li.append(label)
+      ul.append(li)
+      requestAnimationFrame(() => { caja.focus(); caja.select() })
+      continue
+    }
+
     const who = document.createElement('span')
     who.className = 'who2'
     who.textContent = o.name
     who.title = o.name
 
+    // El lápiz: el nombre de una entrada lo pone el usuario, no el contenido (§5).
+    const lapiz = o.id ? pencil(o) : null
+
     const when = document.createElement('span')
     when.className = 'when'
     when.textContent = o.when || ''
 
-    label.append(radio, who, when)
+    label.append(radio, who, ...(lapiz ? [lapiz] : []), when)
     li.append(label)
     ul.append(li)
   }
@@ -233,21 +326,56 @@ async function loadRecords (elegir) {
       // no sirve para eso. Marcarla así ofrecía rellenar cinco campos que no tiene.
       fuera: !!buscando && !utiles.has(e.id),
     }))
-  // La entrada nueva es una opción más, y va al final: guardar es lo de abajo.
-  if (ctx.canSave) records.push({ id: '', name: t(lang, 'newEntry'), when: '' })
-  if (!records.length) records = [{ id: '', name: t(lang, 'newEntry'), when: '' }]
-  // La predeterminada va PRIMERA, y elegida. Es lo que el usuario pidió que pasara al
-  // abrir un campo, y ponerla arriba es la mitad de eso.
+  // LA ENTRADA NUEVA VA PRIMERA, como en el aviso de guardar (dueño, 2026-08-29). Antes
+  // iba al final, con la idea de que «guardar es lo de abajo»; las dos pantallas hacían lo
+  // mismo en dos órdenes distintos, y eso se paga cada vez que se pasa de una a la otra.
+  //
+  // Se llama por lo que se está guardando y ese nombre es editable ahí mismo: ponérselo
+  // después es un paso más que casi nadie da. El nombre de partida NO se congela aquí —
+  // esto corre antes de saber qué se está guardando, y saldría el sitio en vez del dato.
+  const nueva = { id: '', name: t(lang, 'newEntry'), when: '' }
+  if (ctx.canSave || !records.length) records.unshift(nueva)
+
+  // La predeterminada va justo detrás, y ELEGIDA: es lo que el usuario pidió que pasara
+  // al abrir un campo. Primera del todo no puede ir ya, y tampoco hace falta — lo que
+  // importaba era que saliera marcada.
   if (marcada) {
     const j = records.findIndex(r => r.id === marcada)
-    if (j > 0) records.unshift(records.splice(j, 1)[0])
+    if (j > 1) records.splice(1, 0, records.splice(j, 1)[0])
   }
   const quiero = elegir !== undefined ? elegir : marcada
   const i = quiero ? records.findIndex(r => r.id === quiero) : -1
-  at = i >= 0 ? i : Math.min(at, records.length - 1)
+  // Sin nada marcado, la elegida es la primera entrada QUE YA EXISTE: abrir un campo es
+  // casi siempre para usar lo que hay, y crear otra es una decisión que se toma.
+  at = i >= 0 ? i : Math.max(0, records.findIndex(r => r.id))
 }
 
 function actual () { return records[at] || { id: '' } }
+
+/** El nombre que llevará la entrada nueva. `null` = todavía no se ha decidido. */
+let nuevoNombre = null
+
+/**
+ * EL NOMBRE DE PARTIDA de la entrada nueva: el mismo que se calcularía del contenido
+ * (§5), para que lo que se ve en el campo sea lo que va a quedar si no se toca.
+ *
+ * Y por eso **solo se guarda si se cambia**: dejar la sugerencia escrita congelaría un
+ * nombre que hasta ahora se calculaba solo. El nombre puesto es una decisión; esto es la
+ * suposición de siempre, enseñada por adelantado para poder corregirla.
+ */
+function sugerido () {
+  if (detail?.username) return detail.username
+  const publicos = (detail?.typed || []).filter(f => !f.secret && f.value)
+  const correo = publicos.find(f => f.key === 'email')
+  if (correo || publicos[0]) return String((correo || publicos[0]).value)
+  try { return new URL(ctx.url).hostname } catch (_) { return '' }
+}
+
+/** El nombre que se guardará, o nada si es la sugerencia sin tocar. */
+function nombreElegido () {
+  const puesto = (nuevoNombre ?? '').trim()
+  return puesto && puesto !== sugerido().trim() ? puesto : ''
+}
 
 /**
  * CON QUÉ se va a rellenar cada casilla: el valor, al lado de su nombre y en pequeño.
@@ -521,6 +649,9 @@ async function guardar (pick) {
       pick,
       keepRest: true,
       ...(priv.length ? { privateKeys: priv } : {}),
+      // El nombre escrito en la fila de «una entrada nueva», si es ahí donde va y si de
+      // verdad se escribió: la sugerencia sin tocar no se guarda (ver `sugerido`).
+      ...(!r.id && nombreElegido() ? { name: nombreElegido() } : {}),
     })
     // Los marcadores de la página tienen que enterarse: lo guardado ya no se ofrece.
     post({ op: 'saved-field-modal' })
