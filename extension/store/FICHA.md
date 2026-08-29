@@ -164,6 +164,49 @@ y esa lista no se sabe de antemano. La justificación que se envió lo dice así
 
 ## Capturas (1280×800)
 
+> **Rehechas el 2026-08-28** para la 0.16.0: las anteriores eran de la 0.1.x y enseñaban
+> una interfaz que ya no existe. Se generan con `extension/store/tienda.mjs` —Chrome de
+> verdad, extensión cargada, en español— sobre una página de demo servida interceptando
+> `https://tienda.ejemplo`, para que el sitio que sale en la UI se lea y no sea un
+> `localhost:8099`.
+>
+### Qué archivo va en qué campo
+
+Los nombres dicen **la sección del panel y su tamaño**, para no tener que adivinar al
+subirlas. Todas en `extension/store/capturas/`, PNG de 24 bits (sin canal alfa: la tienda
+lo rechaza y Chromium captura con él).
+
+| Campo del panel | Archivo |
+|---|---|
+| **Store icon** (128×128) | `store-icon-128x128.png` |
+| **Screenshots** (1280×800, hasta 5) | `screenshot-1-save-prompt-1280x800.png` — el aviso de después de entrar |
+| | `screenshot-2-fill-field-1280x800.png` — el botón de un campo, con su modal |
+| | `screenshot-3-data-fields-1280x800.png` — un formulario de datos, con lo privado |
+| | `screenshot-4-popup-list-1280x800.png` — la lista de la extensión |
+| **Small promo tile** (440×280) | `small-promo-tile-440x280.png` |
+| **Marquee promo tile** (1400×560) | `marquee-promo-tile-1400x560.png` |
+
+Las capturas valen para los dos idiomas: van en **Global screenshots** (la UI sale en
+español, que es el idioma por defecto de la ficha). Antes de subirlas hay que **quitar las
+que haya**, y cada «Remove image» pide confirmación.
+
+### Subirlas: el panel NO acepta `setInputFiles`
+
+Los campos de imagen son **zonas de arrastre**: el `input[type=file]` que hay al lado
+solo lo usa el diálogo nativo, y al escribirle archivos se queda a cero (por eso la nota
+anterior decía que había que subirlas a mano). Lo que sí funciona es **soltar el archivo**
+como lo haría una persona:
+
+1. Los bytes no se pueden leer desde la página (otro origen, y sin `fs`): se sirven
+   interceptando una URL del propio dominio con `page.route` + `route.fulfill({ path })`,
+   y la página los pide con `fetch`.
+2. Con el blob se arma un `File`, se mete en un `DataTransfer` y se disparan
+   `dragenter`/`dragover`/`drop` sobre el `[jsname=DagSrd]` de esa sección.
+
+Y **cada «Remove image» abre un diálogo de confirmación** que hay que contestar: sin eso,
+su capa se traga los clics siguientes y parece que la página no responde.
+
+
 Hechas con la **extensión cargada de verdad** en Chromium, no simuladas:
 
 - [x] `1-popup.jpg` — el popup real pidiendo enlazar, con su código de aparato

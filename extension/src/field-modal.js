@@ -208,10 +208,14 @@ async function loadRecords (elegir) {
       id: e.id,
       name: e.hint || e.title || t(lang, 'noUser'),
       when: ago(e.updatedAt),
-      // De fuera: no puede rellenar ningún campo de esta página *que sepamos*. Es la que
-      // se trae buscando, del dominio que cambió — y con ella se ofrece todo, porque
-      // averiguar qué lleva dentro exigiría abrirla solo para pintar la lista.
-      fuera: !utiles.has(e.id),
+      // De fuera: la que se trae BUSCANDO y no es de este sitio — la del dominio que
+      // cambió. Con ella se ofrece rellenar todo, porque averiguar qué lleva dentro
+      // exigiría abrirla solo para pintar la lista.
+      //
+      // Ojo con lo que NO es: una entrada de este sitio que no puede rellenar nada (una
+      // credencial en un formulario de datos, por ejemplo) no es «de fuera», es una que
+      // no sirve para eso. Marcarla así ofrecía rellenar cinco campos que no tiene.
+      fuera: !!buscando && !utiles.has(e.id),
     }))
   // La entrada nueva es una opción más, y va al final: guardar es lo de abajo.
   if (ctx.canSave) records.push({ id: '', name: t(lang, 'newEntry'), when: '' })
