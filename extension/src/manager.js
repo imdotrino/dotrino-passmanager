@@ -32,7 +32,6 @@ hostApprovals()
 let lang = pickLang()
 const view = document.getElementById('view')
 const toastEl = document.getElementById('toast')
-const sectionEl = document.getElementById('section')
 
 // Los cuatro de siempre. No son campos libres: no se pueden borrar de la entrada, se
 // vacían; y tres de ellos son privados por lo que son, no por una marca (§4.2).
@@ -138,7 +137,6 @@ function ir ({ site, id, only }) {
  */
 async function renderList () {
   const { site, only } = ruta()
-  sectionEl.textContent = t(lang, 'managerTitle')
 
   const ctx = () => ({ lang, ask, toast, humanError, pre: 'manager', onChanged: render })
 
@@ -354,7 +352,6 @@ async function renderRecord (id) {
     return
   }
 
-  sectionEl.textContent = vista.hint || vista.title || t(lang, 'managerTitle')
 
   const filas = filasDe(vista)
   // Los sitios donde vale este registro. Sin ninguno vale en cualquiera, que es lo que
@@ -707,21 +704,10 @@ function render () {
 
 window.addEventListener('hashchange', render)
 
-for (const b of document.querySelectorAll('#lang button')) {
-  b.onclick = () => {
-    lang = b.dataset.lang
-    try { localStorage.setItem('dotrino-lang', lang) } catch {}
-    paintLang()
-    render()
-  }
-}
+// El idioma lo lleva la barra del ecosistema (§9).
+document.addEventListener('dotrino-lang', (ev) => {
+  lang = ev.detail?.lang || lang
+  render()
+})
 
-function paintLang () {
-  for (const b of document.querySelectorAll('#lang button')) {
-    b.setAttribute('aria-pressed', String(b.dataset.lang === lang))
-  }
-  document.documentElement.lang = lang
-}
-
-paintLang()
 render()

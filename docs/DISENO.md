@@ -1392,6 +1392,41 @@ Dos cosas de `patch` que se ganaron con el gestor (§4.3), y valen para las tres
 - **un campo `{ label, private }` sin `value`** cambia solo la marca y **deja el valor como
   estaba**. Es lo que permite quitarle lo privado a un dato sin traérselo.
 
+### 6.1.1. La barra del ecosistema, vendorizada y sin código remoto
+
+> Puesta el 2026-08-29. La landing (`pass.dotrino.com`) ya llevaba `<dotrino-topbar>`; las
+> pantallas de la extensión tenían una barra a mano, y el dueño pidió la de la convención.
+
+La barra es la misma pieza que en cualquier app (CONVENCIONES §5), copiada dentro de la
+extensión como el resto de los pilares —MV3 solo importa de su propia carpeta—. Trae la
+marca, el toggle de idioma (§9) y la moneda de soporte (§6).
+
+**Y al copiarla se le quita una cosa.** `@dotrino/support` cuenta las aperturas de la app
+contra `store.dotrino.com`, y para llegar al store cae a un `import()` de jsDelivr cuando
+el especificador desnudo no resuelve — que en una extensión es SIEMPRE. Eso importa por
+dos razones distintas, y las dos bastarían solas:
+
+- **Es código remoto.** MV3 lo bloquea por CSP (`script-src 'self'`), así que ni siquiera
+  correría, y la Chrome Web Store rechaza por ello. No es lo mismo que el WebSocket al
+  proxio: eso son **datos**, y va sellado.
+- **Un gestor de contraseñas no avisa a un servidor de que lo abriste.** Contradice lo que
+  promete su propia página de privacidad, aunque solo mande el nombre del host.
+
+`extension/build.mjs` lo sustituye por un no-op **y falla el build si el bloque cambia de
+forma**, para que un cambio en el pilar no lo reintroduzca en silencio. Además se pasa
+`support-no-count`, que es el interruptor honesto: así el recorte no es lo que sostiene la
+promesa. Lo que se publica no lleva ni la URL ni el `import()`.
+
+**Dos cosas NO se ponen**, y es a propósito:
+
+- **el botón de perfil del §6.1**: ahí «perfil» es la identidad del ecosistema, y en esta
+  extensión «perfil» ya significa otra cosa — una bóveda (§3.3). Dos perfiles distintos en
+  la misma barra serían el mismo nombre para dos cosas.
+- **la burbuja de la moneda**: sale sola la primera vez, lo cual está bien en una página y
+  tapa el contenido en una ventana que se abre veinte veces al día. Se apaga con
+  `support-no-bubble`, que se añadió al pilar para esto (`@dotrino/topbar` 0.8.4) en vez
+  de trabajarlo por fuera.
+
 ### 6.2. Web: informativa ≠ administrativa (§5.1)
 
 `pass.dotrino.com/` es la **landing**: qué es, cómo se instala la extensión, enlace

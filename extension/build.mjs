@@ -35,6 +35,57 @@ await mkdir(join(vendor, 'vault'), { recursive: true })
 await cp(join(here, '../../dotrino-vault/lib/src/invite.js'), join(vendor, 'vault/invite.js'))
 console.log('vendor: dotrino-vault/lib/src/invite.js → extension/src/vendor/vault/invite.js')
 
+// LA BARRA SUPERIOR del ecosistema (CONVENCIONES §5). Viaja con la extensión, como todo
+// lo demás: MV3 solo importa de su propia carpeta.
+//
+// Y se le quita UNA cosa al vendorizarla. `@dotrino/support` cuenta las aperturas de la
+// app contra `store.dotrino.com`, y para llegar al store cae a un `import()` de jsDelivr
+// cuando el especificador desnudo no resuelve — que en una extensión es SIEMPRE. Eso es
+// código remoto: MV3 lo bloquea por CSP (`script-src 'self'`), así que ni siquiera
+// correría, y la Chrome Web Store rechaza por ello. Aparte, un gestor de contraseñas que
+// avisa a un servidor cada vez que lo abres contradice lo que promete su propia página.
+//
+// Se sustituye por un no-op. Lo que se publica no lleva ni la URL ni el `import()`.
+await mkdir(join(vendor, 'topbar'), { recursive: true })
+await cp(join(here, '../../dotrino-topbar/src/index.js'), join(vendor, 'topbar/index.js'))
+await cp(join(here, '../../dotrino-nav/src'), join(vendor, 'nav'), { recursive: true })
+await cp(join(here, '../../dotrino-support/src'), join(vendor, 'support'), { recursive: true })
+console.log('vendor: dotrino-{topbar,nav,support}/src → extension/src/vendor/')
+
+// Los imports desnudos del topbar pasan a ser las copias que viajan al lado.
+const topbarPath = join(vendor, 'topbar/index.js')
+await writeFile(topbarPath, (await readFile(topbarPath, 'utf8'))
+  .replace("from '@dotrino/nav'", "from '../nav/index.js'")
+  .replace("import '@dotrino/support'", "import '../support/index.js'")
+  .replace("from '@dotrino/identity/avatar'", "from '../identity/avatar.js'"))
+
+// Y fuera el contador de aperturas, con su import remoto.
+const supportPath = join(vendor, 'support/index.js')
+const support = await readFile(supportPath, 'utf8')
+const remoto = `const _STORE_CDN = 'https://cdn.jsdelivr.net/npm/@dotrino/store@0.4/src/index.js'
+async function _loadStore() {
+  try { return await import('@dotrino/store') }
+  catch { return await import(/* @vite-ignore */ _STORE_CDN) }
+}
+function recordAppOpen(appId) {
+  if (!appId || _openRecorded.has(appId)) return
+  _openRecorded.add(appId)
+  _loadStore()
+    .then((mod) => mod.Store.connect())
+    .then((store) => store.recordOpen(appId))
+    .catch(() => { /* store no disponible (offline, bloqueado…): best-effort */ })
+}`
+if (!support.includes(remoto)) {
+  throw new Error('support: el contador de aperturas cambió de forma; revisa el recorte del vendor')
+}
+await writeFile(supportPath, support.replace(remoto,
+  `// RECORTADO AL VENDORIZAR (extension/build.mjs): aquí no hay contador de aperturas.
+// Llegaba al store por un import() de jsDelivr, que es código remoto — MV3 lo bloquea y
+// la tienda lo rechaza —, y de paso avisaba a un servidor cada vez que se abre un gestor
+// de contraseñas. Lo que se publica no lleva ni la URL ni el import.
+function recordAppOpen() {}`))
+console.log('vendor: support sin el contador de aperturas (nada de código remoto)')
+
 // El sellado extremo a extremo es de @dotrino/identity (la misma cripto que usa el
 // vault para los secretos sellados). No se reescribe: viaja.
 await mkdir(join(vendor, 'identity'), { recursive: true })

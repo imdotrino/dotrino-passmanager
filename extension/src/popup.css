@@ -8,6 +8,19 @@
   --danger: #ff6b6b;
   --ok: #46c98b;
 }
+
+/* La barra del ecosistema, con la paleta de la app: el componente está pensado para
+   tematizarse por variables, así que no se toca su interior. */
+dotrino-topbar {
+  --dotrino-topbar-bg: var(--bg);
+  --dotrino-topbar-border: var(--line);
+  --dotrino-topbar-text: var(--fg);
+  --dotrino-topbar-muted: var(--dim);
+  --dotrino-topbar-accent: var(--accent);
+  --dotrino-topbar-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+dotrino-topbar { --dotrino-topbar-pad: 8px 12px; --dotrino-topbar-gap: 8px; }
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -18,18 +31,6 @@ body {
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
-.bar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line);
-}
-.brand { font-weight: 650; letter-spacing: .2px; }
-.bar-end { display: flex; align-items: center; gap: 8px; }
-.lang { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
-.lang button {
-  background: none; border: 0; color: var(--dim);
-  padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer;
-}
-.lang button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 main { padding: 12px; display: grid; gap: 10px; }
 h2 { margin: 0; font-size: 12px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .6px; }
 input, button, textarea { font: inherit; }

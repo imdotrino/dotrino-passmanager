@@ -21,7 +21,6 @@ hostApprovals()
 let lang = pickLang()
 const view = document.getElementById('view')
 const toastEl = document.getElementById('toast')
-const lockBtn = document.getElementById('lock')
 
 function ask (op, payload) {
   return new Promise((resolve, reject) => {
@@ -214,9 +213,6 @@ const cardCtx = () => ({ lang, ask, toast, humanError, pre: 'popup', onChanged: 
 
 async function renderSite (estado0) {
   const propia = estado0.profile.kind === 'own'
-  // El perfil propio no se «desconecta»: es la bóveda de esta extensión.
-  lockBtn.hidden = propia
-  lockBtn.textContent = t(lang, 'unlink')
 
   const url = await currentUrl()
   const list = el('ul', { className: 'entries' })
@@ -269,7 +265,18 @@ async function renderSite (estado0) {
   const abrirGestor = el('button', { className: 'ghost wide', textContent: t(lang, 'openManager') })
   abrirGestor.dataset.testid = 'popup-manager'
   abrirGestor.onclick = () => openManager({ url })
-  const pie = el('p', { className: 'hint foot', textContent: propia ? t(lang, 'ownVault') : t(lang, 'linkedVault') })
+  // El perfil propio no se «desconecta»: es la bóveda de esta extensión. El de una
+  // conectada sí, y el botón vive junto a la frase que dice dónde están guardadas — antes
+  // estaba en la barra, que ahora es la del ecosistema y no admite piezas de una app.
+  const pie = el('p', { className: 'hint foot' }, [
+    el('span', { textContent: (propia ? t(lang, 'ownVault') : t(lang, 'linkedVault')) + ' ' }),
+  ])
+  if (!propia) {
+    const soltar = el('button', { className: 'link', textContent: t(lang, 'unlink') })
+    soltar.dataset.testid = 'popup-unlink'
+    soltar.onclick = async () => { await ask('unlink'); render() }
+    pie.append(soltar)
+  }
 
   // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es
   // de la bóveda entera, como los perfiles, y no una acción más de la última tarjeta.
@@ -308,24 +315,12 @@ async function render () {
   }
 }
 
-// Toggle de idioma: SIEMPRE las dos opciones a la vista (CONVENCIONES §9).
-for (const b of document.querySelectorAll('#lang button')) {
-  b.onclick = () => {
-    lang = b.dataset.lang
-    try { localStorage.setItem('dotrino-lang', lang) } catch {}
-    paintLang()
-    render()
-  }
-}
+// El idioma lo lleva la barra del ecosistema (§9): las dos opciones a la vista, la
+// preferencia persistida y el `lang` del documento puestos por ella. Aquí solo se escucha
+// para volver a pintar lo nuestro.
+document.addEventListener('dotrino-lang', (ev) => {
+  lang = ev.detail?.lang || lang
+  render()
+})
 
-function paintLang () {
-  for (const b of document.querySelectorAll('#lang button')) {
-    b.setAttribute('aria-pressed', String(b.dataset.lang === lang))
-  }
-  document.documentElement.lang = lang
-}
-
-lockBtn.onclick = async () => { await ask('unlink'); render() }
-
-paintLang()
 render()

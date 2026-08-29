@@ -12,6 +12,18 @@
   --danger: #ff6b6b;
   --ok: #46c98b;
 }
+
+/* La barra del ecosistema, con la paleta de la app: el componente está pensado para
+   tematizarse por variables, así que no se toca su interior. */
+dotrino-topbar {
+  --dotrino-topbar-bg: var(--bg);
+  --dotrino-topbar-border: var(--line);
+  --dotrino-topbar-text: var(--fg);
+  --dotrino-topbar-muted: var(--dim);
+  --dotrino-topbar-accent: var(--accent);
+  --dotrino-topbar-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
@@ -21,23 +33,6 @@ body {
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   min-height: 100vh;
 }
-.bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 20px; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--bg); z-index: 5;
-}
-.bar-start { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.mark { width: 20px; height: 20px; display: block; }
-.brand { font-weight: 650; letter-spacing: .2px; }
-.sep { color: var(--dim); }
-.section { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lang { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex: none; }
-.lang button {
-  background: none; border: 0; color: var(--dim);
-  padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
-}
-.lang button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-
 /* Una columna, y no toda la pantalla: una ficha de ocho valores no se lee mejor por
    estirarse a 1900 px. */
 main { max-width: 760px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
@@ -94,11 +89,7 @@ ul.values { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
 }
 .value .k { font-size: 13px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.value .mark, .newrow .mark {
-  display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim);
-  cursor: pointer; white-space: nowrap; width: auto; height: auto; min-width: max-content;
-}
-.value .mark input, .newrow .mark input { accent-color: var(--accent); margin: 0; width: auto; }
+.value .mark, .newrow .value .mark input, .newrow .mark input { accent-color: var(--accent); margin: 0; width: auto; }
 .value .x, .newrow .x {
   flex: none; background: none; border: 0; color: var(--dim); cursor: pointer;
   padding: 2px 6px; border-radius: 6px; line-height: 1;

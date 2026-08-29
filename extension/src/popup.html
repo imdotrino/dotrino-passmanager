@@ -8,19 +8,30 @@
 <link rel="stylesheet" href="profiles.css">
 </head>
 <body>
-  <header class="bar">
-    <span class="brand">Dotrino</span>
-    <div class="bar-end">
-      <div class="lang" id="lang">
-        <button data-lang="es">ES</button><button data-lang="en">EN</button>
-      </div>
-      <button id="lock" class="ghost" hidden></button>
-    </div>
-  </header>
+  <!-- La barra estándar del ecosistema (CONVENCIONES §5), vendorizada: MV3 solo importa
+       de su propia carpeta, y al copiarla se le quita el contador de aperturas, que
+       llegaba a un servidor por un import() remoto (ver extension/build.mjs).
+       · `no-back`: no se viene de ninguna parte.
+       · sin `profile`: el botón de perfil del §6.1 es la IDENTIDAD del ecosistema, y aquí
+         «perfil» ya significa otra cosa —una bóveda (§3.3)—. Dos perfiles distintos en la
+         misma barra serían el mismo nombre para dos cosas.
+       · `support-no-bubble`: en una ventana que se abre veinte veces al día, una burbuja
+         que sale sola tapa el contenido en cada apertura.
+       · `support-no-count`: un gestor de contraseñas no avisa a un servidor de que lo
+         abriste. (El vendor además le quita el código que lo haría.) -->
+  <dotrino-topbar
+    brand="Dotrino"
+    icon="../icons/icon-32.png"
+    no-back
+    support-no-bubble
+    support-no-count
+    support-repo="imdotrino/dotrino-passmanager"
+    support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
 
   <main id="view"></main>
   <p id="toast" class="toast" hidden></p>
 
+  <script type="module" src="vendor/topbar/index.js"></script>
   <script type="module" src="popup.js"></script>
 </body>
 </html>
