@@ -753,7 +753,9 @@ function stripDigest (list) {
 }
 
 async function diffAgainst (v, id, p) {
-  const base = await getEntry(v, id)
+  // Solo los campos que se escribieron: para decir qué había antes en el teléfono no hace
+  // falta sacar también la contraseña. Si alguno de ellos es privado, ahí sí se pregunta.
+  const base = await getEntry(v, id, typedPairs(p).map(x => x.key))
   const antes = new Map()
   if (base.username) antes.set('username', base.username)
   if (base.secret) antes.set('secret', base.secret)
@@ -884,62 +886,52 @@ async function savePending ({ id, pick, privateKeys, keepRest } = {}) {
   // Lo PRIVADO de una entrada: lo que solo sale de la bóveda con confirmación. Se marca
   // al guardar, campo a campo (§4.2).
   const privadas = new Set(Array.isArray(privateKeys) ? privateKeys : [])
-
-  // Actualizar es SUMAR sobre lo que ya había, no reemplazarlo: una entrada tiene notas,
-  // TOTP y campos que este formulario ni ve, y perderlos por guardar un teléfono sería
-  // el peor error posible aquí.
-  let base = null
-  if (id) { try { base = await getEntry(v, id) } catch (_) { base = null } }
   const lang = pickLang()
 
-  const fields = parseFields(base?.fields)
+  const fields = []
   for (const f of p.fields || []) {
     const key = fieldKey(f)
     if (!quiere(key)) continue
-    const i = fields.findIndex(x => fieldKey(x) === key)
-    // La etiqueta que ya tenía manda: es la identidad del campo libre, y cambiarla sería
-    // crear otro. Si no había, la del sitio; y si el campo tiene clase, su nombre.
-    // La misma que enseña el modal: la que ya tenía, la del sitio, o el nombre de su
-    // clase. Nunca vacía — un campo sin nombre no se puede volver a encontrar.
-    const label = (i >= 0 && fields[i].label) || f.label ||
-      KIND_LABEL[lang]?.[f.kind || key] || f.kind || key
-    const fila = {
-      label,
+    fields.push({
+      // La etiqueta con la que se guarda: la del sitio, o el nombre de su clase. Si la
+      // entrada ya tenía una para ese campo, manda la suya y esto se ignora — eso lo
+      // resuelve la bóveda, que es quien sabe lo que hay dentro.
+      label: f.label || KIND_LABEL[lang]?.[f.kind || key] || f.kind || key,
       value: f.value,
       ...(f.kind ? { kind: f.kind } : {}),
-      // Si ya era privado, sigue siéndolo: quitarlo tiene que ser un acto, no un
-      // descuido de haber guardado encima desde un formulario.
-      ...((privadas.has(key) || (i >= 0 && fields[i].private)) ? { private: true } : {}),
-    }
-    if (i >= 0) fields[i] = fila
-    else fields.push(fila)
+      ...(privadas.has(key) ? { private: true } : {}),
+    })
   }
 
-  const escrita = await v.put({
-    ...(id ? { id } : {}),
-    type: base?.type || ((p.secret || p.username) ? 'login' : 'data'),
-    title: base?.title || p.host,
-    // Los de la entrada que se actualiza, tal cual: una entrada SIN sitios sirve en
-    // cualquier parte (§4.2), y ponerle el host aquí la convertiría en la de este sitio
-    // sin que nadie lo pidiera.
-    //
-    // La excepción es guardar en una entrada de OTRO dominio, que ahora se puede elegir
-    // buscándola: ahí sí se suma este sitio, porque es justo lo que se está diciendo —el
-    // subdominio cambió y la cuenta es la misma—, y si no, la entrada no volvería a
-    // aparecer aquí nunca.
-    sites: base
-      ? ((base.sites || []).length && p.host && !(base.sites || []).includes(p.host)
-          ? [...base.sites, p.host]
-          : (base.sites || []))
-      : [p.host],
-    username: (quiere('username') && p.username) || base?.username || '',
-    secret: (quiere('secret') && p.secret) || base?.secret || '',
-    totp: base?.totp || '',
-    notes: base?.notes || '',
-    webauthn: base?.webauthn || null,
-    fields,
-    ...(base?.createdAt ? { createdAt: base.createdAt } : {}),
-  })
+  // ACTUALIZAR es un `patch`: la bóveda fusiona sobre lo que ya había y no sale de ahí ni
+  // un valor. Antes esto era leer la entrada entera, fusionar aquí y volver a escribirla,
+  // y tenía dos costes que no se veían: sacaba la contraseña de la bóveda para guardar un
+  // teléfono —lo que además obligaba a pedir autorización para reemplazar un nombre— y,
+  // si esa lectura fallaba, el `put` de detrás escribía la entrada SIN lo que no pudo
+  // leer. Perder la mitad de una entrada por una autorización denegada no es un fallo
+  // raro: es lo que pasaba (dueño, 2026-08-29).
+  let escrita = null
+  if (id) {
+    escrita = await v.patch(id, {
+      ...(quiere('username') && p.username ? { username: p.username } : {}),
+      ...(quiere('secret') && p.secret ? { secret: p.secret } : {}),
+      fields,
+      // Guardar en una entrada de OTRO dominio —la que se trae buscando, porque el
+      // subdominio cambió— suma este sitio; una entrada SIN sitios sirve en cualquier
+      // parte (§4.2) y se queda como está.
+      ...(p.host ? { addSite: p.host } : {}),
+    })
+  } else {
+    escrita = await v.put({
+      type: (p.secret || p.username) ? 'login' : 'data',
+      title: p.host,
+      sites: [p.host],
+      username: (quiere('username') && p.username) || '',
+      secret: (quiere('secret') && p.secret) || '',
+      fields,
+    })
+  }
+
   // Lo recordado de esa entrada ya no vale: acaba de cambiar. Y la lista pública del
   // sitio tampoco, que es de donde salen los marcadores.
   if (id) { try { await cache.forget(id) } catch (_) {} }
@@ -972,18 +964,24 @@ async function dismissPending () {
 }
 
 /**
- * UNA credencial abierta, pasando por lo ya entregado en esta sesión.
+ * UNA credencial abierta, y **solo los campos que se piden**.
+ *
+ * `keys` es lo que hace que rellenar un nombre no saque de la bóveda la contraseña, y por
+ * tanto lo que hace que rellenar un nombre no pida autorización (§4.2). Sin `keys` se pide
+ * todo, y eso sí se autoriza: es lo que necesita copiar una contraseña o firmar una
+ * passkey.
  *
  * La caché existe para no repetir aprobaciones en el TELÉFONO, que es donde repetirlas
- * cuesta de verdad. Con la bóveda propia se pregunta aquí mismo, así que no se guarda
- * nada: cachearlo sería dejar un secreto en claro en la memoria de sesión para ahorrar
- * un clic, y además apagaría la pregunta que el dueño pidió que se viera (§3.3.1).
+ * cuesta de verdad, y solo guarda lo que se pidió ENTERO: una entrada recortada no puede
+ * responder por la siguiente petición, que quizá pida otra cosa.
  */
-async function getEntry (v, id) {
-  if ((await activeProfile()).kind === 'own') return v.get(id)
+async function getEntry (v, id, keys) {
+  const opts = Array.isArray(keys) ? { keys } : {}
+  if (Array.isArray(keys)) return v.get(id, opts)
+  if ((await activeProfile()).kind === 'own') return v.get(id, opts)
   const recordada = await cache.get(id)
   if (recordada) return recordada
-  const entry = await v.get(id)
+  const entry = await v.get(id, opts)
   await cache.put(id, entry)
   return entry
 }
@@ -1176,7 +1174,7 @@ const OPS = {
   remove: p => removeEntry(p),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),
-  get: async p => getEntry(await connect(), p.id),
+  get: async p => getEntry(await connect(), p.id, p.keys),
   put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
 }
 

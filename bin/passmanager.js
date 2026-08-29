@@ -352,9 +352,12 @@ async function serve (...args) {
     // que se vea por qué — los dos valores parecen iguales al mirarlos.
     isAllowed: pub => known.some(d => samePubkey(d.pub, pub)),
     encPubOf: pub => known.find(d => samePubkey(d.pub, pub))?.encPub || null,
-    // La aprobación es del APARATO: se pide una vez y vale mientras esta bóveda siga
-    // encendida.
-    needsApproval: op => op === 'get',
+    // Qué exige un dedo encima lo decide el responder por defecto: **solo `get`, y solo
+    // si lo pedido incluye algo privado** (dueño, 2026-08-29). Rellenar un nombre no es
+    // sacar un secreto, y pedir permiso para eso enseña a decir que sí sin mirar.
+    // La aprobación, cuando toca, es del APARATO: se pide una vez y vale mientras esta
+    // bóveda siga encendida.
+
     approve: async ({ pubkey }) => {
       const who = known.find(d => samePubkey(d.pub, pubkey))
       const name = who?.label || who?.id || 'un aparato'

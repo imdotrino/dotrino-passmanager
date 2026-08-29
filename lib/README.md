@@ -54,9 +54,17 @@ import { LocalVault, GuardedVault, ApprovalGate } from '@dotrino/passmanager'
 const gate = new ApprovalGate({ ask: ({ payload }) => preguntarleAlUsuario(payload) })
 const vault = new GuardedVault(new LocalVault(store), { gate })
 
-await vault.find(url)      // público: no pregunta
-await vault.get(id)        // pide autorización, o lanza `not-approved`
+await vault.find(url)                        // público: no pregunta
+await vault.get(id, { keys: ['email'] })     // un dato público: tampoco
+await vault.get(id, { keys: ['secret'] })    // privado: pide autorización
+await vault.patch(id, { fields: [...] })     // escribir no saca nada: no pregunta
 ```
+
+`get` devuelve **solo los campos que se piden**, y solo pregunta si alguno es privado: la
+contraseña, el código de dos pasos, las notas, una passkey, o un campo que el usuario marcó.
+`patch` fusiona **dentro** de la bóveda, así que actualizar una entrada ya no exige leerla
+entera —que era lo que obligaba a autorizar para reemplazar un nombre, y lo que la dejaba a
+medias si esa lectura no salía—.
 
 La puerta es **la misma pieza** que usa `VaultResponder`, y por eso las tres bóvedas del
 gestor se comportan igual: el sí se recuerda (o no, según con qué llave), el no nunca se
@@ -88,6 +96,7 @@ un documento), tenerlo delante es poder adivinarlo.
 | `normalizeFields` | campos libres `{ label, value, kind }` |
 | `SessionCache` | recuerdo en memoria de lo ya entregado |
 | `GuardedVault` / `ApprovalGate` | la puerta de autorización, delante de cualquier bóveda |
+| `privateKeysOf` | qué campos de una entrada son privados: los marcados y los que lo son siempre |
 | `entryFieldKeys` / `entryFieldValues` | qué campos lleva una entrada, por su nombre |
 | `makeNonce` / `fieldHasher` | los **resúmenes** con los que se compara sin abrir la entrada |
 

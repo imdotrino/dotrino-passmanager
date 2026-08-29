@@ -1,6 +1,6 @@
 {
   "name": "dotrino-passmanager",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "Gestor de contraseñas de Dotrino: la bóveda que responde y las piezas que piden",
@@ -16,6 +16,7 @@
     "test:save-prompt": "node extension/test/save-prompt.e2e.mjs",
     "test:offers": "node --test extension/test/offers.test.mjs",
     "test:field-button": "node extension/test/field-button.e2e.mjs",
+    "test:reemplazos": "node extension/test/reemplazos.e2e.mjs",
     "store:shots": "node extension/store/tienda.mjs"
   },
   "dependencies": {

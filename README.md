@@ -57,10 +57,11 @@ y guardas lo que escribiste — marcándolo **privado** si quieres. Ahí sí se 
 en cada entrada, sin abrir ninguna: la bóveda manda un **resumen** de cada campo y se
 comparan resúmenes.
 
-**Y la bóveda pregunta antes de soltar nada.** También la que la extensión lleva dentro:
-sacar una contraseña de ahí abre una confirmación en la pantalla de la extensión, igual que
-con la bóveda del equipo o la del teléfono. Es a propósito que se vea mientras el proceso
-se asienta ([`docs/DISENO.md`](./docs/DISENO.md) §3.3.2).
+**Y la bóveda pregunta antes de soltar lo privado.** También la que la extensión lleva
+dentro: sacar de ahí una contraseña, un código de dos pasos o un campo que marcaste privado
+abre una confirmación en la pantalla de la extensión, igual que con la bóveda del equipo o
+la del teléfono. Rellenar un dato público no pregunta, y guardar tampoco: al guardar no
+sale nada de la bóveda, entra ([`docs/DISENO.md`](./docs/DISENO.md) §3.3.2).
 
 Vale para **cualquier** campo, lo reconozca o no: el número de socio o el código del
 portal se guardan por el nombre que les pone la página, y eliges si van a una entrada que

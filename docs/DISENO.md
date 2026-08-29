@@ -392,9 +392,20 @@ sino porque no hay transporte de por medio y por tanto no pasaba por `VaultRespo
 es donde vive la política.
 
 Ahora pasa. La bóveda propia va envuelta en un **`GuardedVault`** con la misma
-`ApprovalGate` (§2.0) y el mismo criterio que el daemon: **`get` pide autorización; buscar
-y guardar, no.** Es la frontera de siempre —lo que saca de la bóveda algo privado— puesta
-donde faltaba.
+`ApprovalGate` (§2.0), y el criterio es **una frase del dueño** (2026-08-29): *«se pide
+autorización únicamente para intentar llenar un dato privado»*.
+
+| | ¿pregunta? | por qué |
+|---|---|---|
+| `find`, `search` | no | es la mitad pública (§4.0.2) |
+| `get` de un dato **público** | **no** | rellenar tu nombre en el formulario donde lo acabas de teclear no saca ningún secreto |
+| `get` de un dato **privado** | **sí** | la contraseña, el código de dos pasos, las notas, una passkey y lo que marcaste tú (§4.2) |
+| `get` sin decir qué | sí | pedir todo es pedir también lo privado |
+| `put`, `patch` | no | escribir no saca nada de la bóveda |
+
+Para que esa distinción sea posible, **`get` recibe qué campos se quieren** y devuelve solo
+esos. Sin eso, rellenar un nombre sacaba la entrada entera —contraseña incluida— y por eso
+tenía que preguntar: la pregunta era correcta, lo que estaba mal era pedir de más.
 
 | | daemon | pestaña del vault | dentro de la extensión |
 |---|---|---|---|
@@ -433,11 +444,16 @@ es lo que el dueño pidió — *«seguramente automatizaremos para que no se vea
 el proceso sea sólido»*. Cuando se automatice, será **en los permisos del aparato**, donde
 ya viven (`pair --approval`, `caps +aprueba`), y no en una regla nueva de aquí.
 
-Se paga en dos sitios, y conviene saberlo: **reemplazar** un dato en una entrada que ya
-existe la lee antes para no perderle lo que el formulario no toca, así que también
-pregunta; y **ver lo que había antes** en el aviso de guardar, igual. Las dos cosas ya
-costaban una aprobación con una bóveda conectada: lo que ha desaparecido es la excepción,
-no se ha añadido un peaje.
+**Reemplazar no pregunta, y eso costó un fallo.** La primera versión de esto leía la
+entrada entera antes de escribir —para no perderle lo que el formulario no toca— y por eso
+reemplazar un nombre pedía autorización. Peor: si esa lectura fallaba, el `put` de detrás
+escribía la entrada **sin lo que no pudo leer**. Perder media entrada por una autorización
+denegada no es un caso raro: es lo que le pasó al dueño. La respuesta es `patch` (§4.0.2),
+que fusiona dentro de la bóveda: no sale ni un valor, no hay nada que autorizar y no hay
+lectura que pueda fallar.
+
+Lo que sí sigue costando una autorización es **ver lo que había antes** en el aviso de
+guardar: eso es abrir la entrada, y para eso está el botón que lo pide.
 
 ### Lo que esto arregla de paso
 
@@ -698,6 +714,34 @@ Tres decisiones que lo hacen seguro, y el porqué de cada una:
 **Lo que el resumen NO da: qué había antes.** Dice si es igual, no qué era. Enseñar el
 valor anterior sigue exigiendo abrir la entrada, y eso sigue siendo «Ver qué cambia» con su
 autorización.
+
+#### Guardar es un `patch`: la bóveda fusiona lo suyo
+
+Actualizar una entrada es **sumar** sobre lo que ya había: tiene notas, TOTP y campos que
+este formulario ni ve, y perderlos por guardar un teléfono sería el peor error posible
+aquí. La primera versión lo hacía como cualquiera lo haría —`get`, fusionar, `put`— y eso
+tenía dos costes que no se veían hasta que aparecieron juntos:
+
+- **sacaba la entrada entera de la bóveda** para escribir un campo, así que reemplazar un
+  nombre pedía autorización (dentro iba una contraseña);
+- y si esa lectura **fallaba** —una autorización denegada, por ejemplo—, el `put` de detrás
+  escribía la entrada con lo poco que se había podido leer. Pérdida de datos por decir que
+  no.
+
+`patch(id, changes)` mueve la fusión adentro: lo que no venga en `changes` no se toca, la
+etiqueta que un campo ya tenía manda —es su identidad, cambiarla sería crear otro—, lo que
+era privado sigue siéndolo, y si la entrada no existe no se crea nada. Está en las tres
+bóvedas porque está en `LocalVault`, y viaja por el proxio como una operación más.
+
+#### Qué es privado, exactamente
+
+- **Siempre, sin que nadie lo marque:** la contraseña, el código de dos pasos, las notas y
+  la llave de una passkey. Nadie los guarda para enseñarlos.
+- **Si el usuario lo marca:** cualquier campo libre, con la casilla *privado* al guardarlo
+  (§4.2).
+- **El usuario NO es privado**, y es a propósito: es el nombre visible de la entrada (§5),
+  ya viaja en la vista pública, y pedir permiso para escribirlo donde lo acabas de teclear
+  no protege nada — solo enseña a decir que sí sin mirar.
 
 #### Y quién compara: solo las pantallas de la extensión
 

@@ -35,8 +35,8 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('   [error de página]', e.message))
 
 /**
- * DECIR QUE SÍ en el aviso. Guardar sobre una entrada que ya existe la lee antes para no
- * perderle lo que el formulario no toca, y leerla pasa por la puerta (DISENO §3.3.2).
+ * DECIR QUE SÍ. Guardar ya no lo pide —la bóveda fusiona sobre lo suyo (`patch`) y no sale
+ * ni un valor—, pero ver QUÉ HABÍA ANTES sí, porque eso es abrir la entrada.
  */
 async function autorizar (f, ms = 3000) {
   const si = f.locator('[data-testid=approval-yes]')
@@ -96,7 +96,6 @@ try {
   if (f) ok((await f.locator('#who').textContent()).startsWith('ana@ejemplo.com'), 'con el usuario correcto')
   if (f) {
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1000)
   }
 
@@ -115,7 +114,6 @@ try {
     'lleva el usuario del PRIMER paso: ' + (f ? await f.locator('#who').textContent() : '—'))
   if (f) {
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1000)
   }
 
@@ -131,7 +129,6 @@ try {
   ok(!!f, 'el aviso sale al registrarse')
   if (f) {
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1000)
   }
   const reg = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
@@ -165,7 +162,6 @@ try {
     const boton = await f.locator('[data-testid=save-prompt-save]').textContent()
     ok(/actualizar|update/i.test(boton), 'y el botón dice actualizar: ' + boton)
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const tras = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
@@ -195,7 +191,6 @@ try {
     // no ve ese movimiento, así que sin esta pausa el clic puede caer en otro botón.
     await page.waitForTimeout(400)
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   let deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
@@ -222,7 +217,6 @@ try {
     await f.locator(`[data-testid=save-prompt-target-${otraId}]`).check()
     await page.waitForTimeout(400)
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
@@ -258,7 +252,6 @@ try {
     await f.locator('[data-testid=save-prompt-pick-city]').uncheck()
     await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const guardados = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
@@ -287,12 +280,14 @@ try {
     ok(await filas.first().getAttribute('data-field') === 'tel', 'y es el teléfono')
     ok(/cambia|change/i.test(await filas.first().locator('.tag').textContent()), 'marcado como «cambia»')
 
-    // Lo que sigue costando una autorización es ver QUÉ HABÍA ANTES (§3.3.2).
-    ok(!(await filas.first().locator('.old').count()), 'sin abrirla, lo de antes no se enseña')
+    // Ver QUÉ HABÍA ANTES es abrir la entrada, así que se pide aparte y no se hace solo.
+    ok(!(await filas.first().locator('.old').count()), 'sin pedirlo, lo de antes no se enseña')
     ok(await f.locator('[data-testid=save-prompt-reveal]').isVisible(), 'y se ofrece verlo')
     await f.locator('[data-testid=save-prompt-reveal]').click()
-    ok(await autorizar(f), 'que sí pide autorización')
-    await page.waitForTimeout(600)
+    // Son datos PÚBLICOS —un teléfono, un correo—, así que no pide autorización: solo se
+    // pregunta por lo privado (§3.3.2). Lo comprueba de cerca `reemplazos.e2e.mjs`.
+    ok(!(await autorizar(f, 2000)), 'y siendo públicos, no pide autorización')
+    await page.waitForTimeout(700)
     ok((await filas.first().locator('.old').textContent()) === '0999111222', 'con el número anterior tachado')
     const destinos = f.locator('[data-testid=save-prompt-target]')
     ok(await destinos.count() === 2, 'ofrece los datos que ya había, y crear otra entrada')
@@ -300,7 +295,6 @@ try {
     ok(await f.locator(`[data-testid=save-prompt-target-${datosId}]`).isChecked(),
       'con los de este sitio preseleccionados')
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const tras7 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
@@ -338,7 +332,6 @@ try {
     await libre.locator('input[type=checkbox]').check()
     await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const conSocio = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])

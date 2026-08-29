@@ -378,7 +378,10 @@ async function fill (keys) {
   if (!r.id) return
   for (const b of document.querySelectorAll('button')) b.disabled = true
   try {
-    const entry = await ask('get', { id: r.id })
+    // SOLO los campos que se van a rellenar: pedir la entrada entera para poner un
+    // nombre sacaba también la contraseña, y era lo que hacía que rellenar un dato
+    // público pidiera autorización (§4.2).
+    const entry = await ask('get', { id: r.id, keys })
     const campos = (() => {
       if (Array.isArray(entry.fields)) return entry.fields
       try { return JSON.parse(entry.fields || '[]') } catch { return [] }

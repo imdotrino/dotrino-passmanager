@@ -125,7 +125,6 @@ try {
   let f = await aviso()
   if (f) {
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f, 2500)
     await page.waitForTimeout(1200)
   }
 
@@ -171,7 +170,6 @@ try {
     for (const c of await f.locator('[data-testid=save-prompt-field] input[type=checkbox]').all()) await c.check()
     await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
-    await autorizar(f, 2500)
     await page.waitForTimeout(1500)
   }
 
@@ -190,7 +188,9 @@ try {
   ok(await filas.count() >= 2, 'y la lista de lo que puede rellenar (' + (await filas.count()) + ')')
   ok(await m.locator('[data-testid=field-modal-check-email]').isChecked(), 'con las casillas marcadas')
   await m.locator('[data-testid=field-modal-fill-all]').click()
-  ok(await autorizar(m), 'y la bóveda pide permiso antes de soltar nada')
+  // Son datos PÚBLICOS: no se pide permiso para escribir tu nombre en el formulario donde
+  // lo acabas de teclear (dueño, 2026-08-29). Lo privado sí — ver `reemplazos.e2e.mjs`.
+  ok(!(await autorizar(m, 2000)), 'rellenar datos públicos no pide autorización')
   await page.waitForTimeout(1200)
   const puesto = await page.evaluate(() =>
     Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
@@ -243,9 +243,8 @@ try {
     ok(/todos|all/i.test(abajo), 'y el de abajo, todos: ' + abajo)
     await m2.locator('[data-testid=field-modal-private-city]').check()
     await m2.locator('[data-testid=field-modal-save-city]').click()
-    // Guardar en una entrada que ya existe la lee para no perderle lo que no se toca, y
-    // leerla también pasa por la puerta.
-    await autorizar(m2)
+    // Guardar NO pide autorización: la bóveda fusiona sobre lo suyo (`patch`) y no sale
+    // ni un valor. Lo comprueba de cerca `reemplazos.e2e.mjs`.
     await page.waitForTimeout(1500)
   }
   console.log('\ny cuando ya existe, el botón dice reemplazar')
@@ -280,7 +279,6 @@ try {
     await mn.locator('[data-testid=field-modal-target-new]').check()
     await page.waitForTimeout(300)
     await mn.locator('[data-testid=field-modal-save-city]').click()
-    await autorizar(mn)
     await page.waitForTimeout(1500)
     await page.mouse.click(200, 120)
     await page.waitForTimeout(400)
@@ -338,7 +336,6 @@ try {
       const nueva = p2.locator('[data-testid=save-prompt-target-new]')
       if (await nueva.count()) { await nueva.check(); await page.waitForTimeout(300) }
       await p2.locator('[data-testid=save-prompt-save]').click()
-      await autorizar(p2, 2500)
       await page.waitForTimeout(1000)
     }
   }
@@ -360,7 +357,7 @@ try {
     ok(nombres.some(n => /contraseña|password/i.test(n)), 'y la de la contraseña, aparte')
     // Y cada una rellena lo suyo.
     await mm.locator('[data-testid=field-modal-fill-secret]').click()
-    await autorizar(mm)
+    ok(await autorizar(mm), 'y la contraseña sí pide autorización, siempre')
     await page.waitForTimeout(900)
     const soloClave = await page.evaluate(() =>
       Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
@@ -396,7 +393,7 @@ try {
     ok(await mo.locator('[data-testid=field-modal-fill-row]').count() >= 1,
       'ofrece rellenar con ella aunque sea de otro sitio')
     await mo.locator('[data-testid=field-modal-fill-all]').click()
-    await autorizar(mo)
+    await autorizar(mo)   // lleva la contraseña dentro: eso sí se autoriza
     await page.waitForTimeout(1200)
   }
   const puesto2 = await page.evaluate(() =>
