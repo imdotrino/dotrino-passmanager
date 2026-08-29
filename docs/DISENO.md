@@ -672,10 +672,12 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
   ninguna, esa es la única. Empezó con flechas `‹ ›` y el dueño lo cambió el 2026-08-28:
   *«la propuesta de "Save into" es mucho mejor»* — se ven todas de un vistazo en vez de
   desfilar de una en una.
-- **Con más de cinco entradas aparece un buscador**, porque a partir de ahí la lista tapa
-  el modal. Y no solo filtra: **busca en toda la bóveda**, también fuera de este sitio.
-  Por eso sale también cuando el sitio **no tiene ninguna** — que es justo cuando hace
-  falta (ver abajo).
+- **El buscador está siempre a mano, detrás de una lupa** (dueño, 2026-08-28). Y se
+  despliega solo cuando de verdad hace falta: con **más de cinco** entradas, porque a
+  partir de ahí la lista tapa el modal, y cuando el sitio **no tiene ninguna**, porque
+  entonces es la única salida. En cuanto se toca la lupa manda el usuario — si no,
+  recogerlo en esos casos no serviría de nada. No solo filtra: **busca en toda la
+  bóveda**, también fuera de este sitio (ver abajo).
 - **La entrada predeterminada del sitio va primera y elegida.** Se marca en el popup, con
   su casilla. Sustituye a «recuerda la última elegida», que se probó el mismo día y se
   quitó: recordar adivina, y con tres cuentas del mismo sitio adivina mal la mitad de las

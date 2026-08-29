@@ -295,6 +295,7 @@ async function sendModalContext () {
 }
 
 function messageFor (code) {
+  if (code === 'unknown-op') return t('staleWorker')
   if (code === 'no-link' || code === 'unreachable') return t('noVault')
   if (code === 'denied') return t('denied')
   if (code === 'approval-timeout') return t('noAnswer')

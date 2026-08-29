@@ -35,6 +35,10 @@ function toast (text, kind) {
 
 /** Los errores se comparan por código: el texto está traducido (memoria del proyecto). */
 function humanError (e) {
+  // Pasa al actualizar la extensión sin recargarla: el popup ya es el nuevo y el service
+  // worker que le contesta sigue siendo el de antes, sin las operaciones que le pide. El
+  // código a secas («unknown-op») no le dice nada a nadie.
+  if (e.code === 'unknown-op') return t(lang, 'staleWorker')
   if (e.code === 'denied') return t(lang, 'denied')
   if (e.code === 'approval-timeout') return t(lang, 'noAnswer')
   if (e.code === 'unreachable' || e.code === 'no-link') return t(lang, 'noLink')

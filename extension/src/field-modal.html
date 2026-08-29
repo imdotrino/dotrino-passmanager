@@ -35,6 +35,15 @@
     font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
     opacity: .5; margin: 10px 0 4px; font-weight: 600;
   }
+  /* El título de la sección y, a su derecha, la lupa. Sutil a propósito: está siempre,
+     así que no puede pesar más que lo que hay debajo. */
+  .h2row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .icon {
+    background: none; border: 0; padding: 2px; margin: 10px 0 4px;
+    color: inherit; opacity: .4; cursor: pointer; line-height: 0;
+  }
+  .icon:hover, .icon[aria-expanded="true"] { opacity: 1; }
+  .icon svg { width: 13px; height: 13px; display: block; }
   hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 12px 0 0; }
 
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -91,7 +100,16 @@
   </div>
 
   <div id="whereBox" hidden>
-    <h2 id="whereTitle"></h2>
+    <div class="h2row">
+      <h2 id="whereTitle"></h2>
+      <button class="icon" id="qBtn" type="button" data-testid="field-modal-search-toggle"
+              aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round">
+          <circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2 14 14"></path>
+        </svg>
+      </button>
+    </div>
     <input type="search" id="q" data-testid="field-modal-search" hidden>
     <ul id="targets"></ul>
   </div>

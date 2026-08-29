@@ -62,10 +62,12 @@ function ago (ts) {
 }
 
 function fail (e) {
-  $('err').textContent = e?.code === 'denied'
-    ? t(lang, 'denied')
-    : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink')
-        : (e?.message || String(e))
+  $('err').textContent = e?.code === 'unknown-op'
+    ? t(lang, 'staleWorker')
+    : e?.code === 'denied'
+      ? t(lang, 'denied')
+      : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink')
+          : (e?.message || String(e))
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
   resize()

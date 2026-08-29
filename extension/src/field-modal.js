@@ -49,9 +49,11 @@ $('fillAll').textContent = t(lang, 'fillAllChecked')
 
 
 function fail (e) {
-  $('err').textContent = e?.code === 'denied'
-    ? t(lang, 'denied')
-    : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink') : (e?.message || String(e))
+  $('err').textContent = e?.code === 'unknown-op'
+    ? t(lang, 'staleWorker')
+    : e?.code === 'denied'
+      ? t(lang, 'denied')
+      : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink') : (e?.message || String(e))
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
   resize()
@@ -116,14 +118,13 @@ async function start () {
 function renderTargets () {
   const ul = $('targets')
   ul.textContent = ''
-  // Con más de cinco, la lista tapa el modal: aparece el buscador. Y el buscador vale
-  // para algo más que filtrar —busca en TODA la bóveda—, así que también sale cuando el
-  // sitio no tiene nada: es el caso del subdominio que cambió (dueño, 2026-08-28).
-  const conviene = records.length > 5 || records.length <= 1
-  $('q').hidden = !conviene && !buscando
+  // El buscador está SIEMPRE a mano, detrás de su lupa (dueño, 2026-08-28).
+  const abierto = buscadorAbierto()
+  $('q').hidden = !abierto
   $('q').placeholder = t(lang, 'searchRecords')
-  $('whereBox').hidden = records.length <= 1 && !conviene
-  if ($('whereBox').hidden) return
+  $('qBtn').setAttribute('aria-expanded', String(abierto))
+  $('qBtn').title = t(lang, 'searchRecords')
+  $('whereBox').hidden = false
 
   for (const [i, o] of records.entries()) {
     const li = document.createElement('li')
@@ -175,6 +176,16 @@ async function porDefecto () {
 
 /** Lo que hay escrito en el buscador. Con texto, la lista es el resultado. */
 let buscando = ''
+/**
+ * ¿Está desplegado el buscador?
+ *
+ * `null` = lo decide la situación: con más de cinco entradas la lista tapa el modal, y
+ * sin ninguna es la única forma de traerse la del subdominio que cambió. En cuanto el
+ * usuario toca la lupa, manda él — si no, cerrarlo en esos casos no serviría de nada.
+ */
+let forzado = null
+const conviene = () => records.length > 5 || records.length <= 1
+const buscadorAbierto = () => forzado !== null ? forzado : (conviene() || !!buscando)
 
 /** Las entradas del sitio —o las que casen con la búsqueda—, y la nueva al final. */
 async function loadRecords (elegir) {
@@ -381,6 +392,19 @@ async function fill (keys) {
  * lo demás dejaría media lista de botones muertos. Al terminar se vuelve a mirar qué
  * queda, y si ya no queda nada que hacer el modal se va.
  */
+$('qBtn').onclick = async () => {
+  forzado = !buscadorAbierto()
+  if (!forzado && buscando) {
+    // Cerrarlo con algo escrito vuelve a lo de este sitio: dejar el resultado de una
+    // búsqueda con la caja escondida sería enseñar una lista que no se sabe de dónde sale.
+    buscando = ''
+    $('q').value = ''
+    await loadRecords('')
+  }
+  render()
+  if (forzado) $('q').focus()
+}
+
 // El buscador, con freno: cada tecla no puede ser un viaje a la bóveda.
 let tecleando = null
 $('q').addEventListener('input', () => {

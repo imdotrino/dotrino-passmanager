@@ -181,6 +181,17 @@ try {
     const fila = m2.locator('[data-testid=field-modal-save-row][data-field=city]')
     const nombre = await fila.locator('.name').textContent()
     ok(nombre === 'City' || nombre === 'Ciudad', 'con la etiqueta con la que se guardará: ' + nombre)
+    // La lupa está siempre, aunque el buscador esté recogido.
+    const lupa = m2.locator('[data-testid=field-modal-search-toggle]')
+    ok(await lupa.isVisible(), 'la lupa está siempre a mano')
+    const antes = await m2.locator('[data-testid=field-modal-search]').isVisible()
+    await lupa.click()
+    await page.waitForTimeout(300)
+    ok(await m2.locator('[data-testid=field-modal-search]').isVisible() !== antes,
+      'y al pulsarla se abre o se recoge')
+    await lupa.click()
+    await page.waitForTimeout(300)
+
     const boton = await m2.locator('[data-testid=field-modal-save-city]').textContent()
     ok(/guardar|save/i.test(boton), 'y su botón dice guardar, que es un dato nuevo: ' + boton)
     const abajo = await m2.locator('[data-testid=field-modal-save]').textContent()
