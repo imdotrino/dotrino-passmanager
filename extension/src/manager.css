@@ -1,0 +1,163 @@
+/* El gestor de registros: la misma paleta del popup, pero en una pestaña entera. Ahí
+   está la razón de que sea un archivo aparte y no el `popup.css` con un ancho más: el
+   popup son 360 px fijos y esto es una página, con su columna centrada y sus filas de
+   tres piezas. Compartir la hoja habría sido arrastrar cada media query del uno al otro. */
+:root {
+  --bg: #12141a;
+  --panel: #1b1e26;
+  --line: #2b303c;
+  --fg: #e8eaf0;
+  --dim: #9aa3b5;
+  --accent: #00658c;
+  --danger: #ff6b6b;
+  --ok: #46c98b;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+.bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 20px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--bg); z-index: 5;
+}
+.bar-start { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mark { width: 20px; height: 20px; display: block; }
+.brand { font-weight: 650; letter-spacing: .2px; }
+.sep { color: var(--dim); }
+.section { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lang { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex: none; }
+.lang button {
+  background: none; border: 0; color: var(--dim);
+  padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.lang button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+/* Una columna, y no toda la pantalla: una ficha de ocho valores no se lee mejor por
+   estirarse a 1900 px. */
+main { max-width: 760px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+h2 {
+  margin: 0; font-size: 12px; font-weight: 600; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .6px;
+}
+.hint { margin: 0; color: var(--dim); font-size: 13px; }
+.error { margin: 0; color: var(--danger); font-size: 13px; }
+input, button, select, textarea { font: inherit; }
+input[type="text"], input[type="search"], input[type="password"], select, textarea {
+  width: 100%; padding: 9px 11px; border-radius: 8px; min-width: 0;
+  border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input::placeholder { color: var(--dim); opacity: .8; }
+button.primary {
+  padding: 10px 18px; border: 0; border-radius: 8px;
+  background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+}
+button.primary:disabled { opacity: .4; cursor: default; }
+button.ghost {
+  padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px;
+  background: none; color: var(--dim); cursor: pointer;
+}
+button.ghost:hover { color: var(--fg); border-color: var(--dim); }
+button.danger { color: var(--danger); border-color: rgba(255,107,107,.4); }
+
+/* LA LISTA. Una fila por registro: su nombre y de qué sitio es. */
+ul.records { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.record {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--fg);
+}
+.record:hover { border-color: var(--dim); }
+.record .who { min-width: 0; }
+.record .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record .site { color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record .go { color: var(--dim); flex: none; }
+
+/* LOS DOMINIOS: dónde hay algo guardado. Pulsar uno abre ese sitio como si se viniera
+   de su página. Con el número al lado, que es lo que dice si vale la pena entrar. */
+.domains { display: flex; flex-wrap: wrap; gap: 6px; }
+.domain {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 6px 12px; font: inherit; font-size: 13px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg);
+}
+.domain:hover { border-color: var(--dim); }
+.domain.on { border-color: var(--accent); }
+.domain .n { color: var(--dim); font-size: 12px; }
+
+/* LA FICHA de un registro. */
+.crumbs { display: flex; align-items: center; gap: 8px; }
+.crumbs button { padding: 4px 0; border: 0; background: none; color: var(--accent); cursor: pointer; }
+.field-name label { display: block; margin-bottom: 5px; font-size: 12px; color: var(--dim); }
+
+/* Cada valor, en una fila: qué es · con qué se llena · si es privado · quitarlo.
+   La etiqueta se recorta y el valor manda, que es lo que se viene a leer. */
+ul.values { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+/* Cinco piezas, cinco columnas: qué es · con qué se llena · si cambia · si es privado ·
+   quitarlo. Con cuatro, la ✕ se caía a una segunda línea en TODAS las filas. */
+.value {
+  display: grid; grid-template-columns: minmax(90px, 150px) minmax(0, 1fr) auto auto auto;
+  align-items: center; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+}
+.value .k { font-size: 13px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value .mark, .newrow .mark {
+  display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim);
+  cursor: pointer; white-space: nowrap; width: auto; height: auto; min-width: max-content;
+}
+.value .mark input, .newrow .mark input { accent-color: var(--accent); margin: 0; width: auto; }
+.value .x, .newrow .x {
+  flex: none; background: none; border: 0; color: var(--dim); cursor: pointer;
+  padding: 2px 6px; border-radius: 6px; line-height: 1;
+}
+.value .x:hover, .newrow .x:hover { color: var(--danger); background: rgba(255,107,107,.1); }
+/* Quitado: se queda a la vista, tachado y con la vuelta atrás. Que un valor desaparezca
+   antes de guardar deja al usuario sin saber qué está a punto de perder. */
+.value.gone { opacity: .5; }
+.value.gone .k { text-decoration: line-through; }
+.value .tag {
+  font-size: 11px; text-transform: lowercase; letter-spacing: .02em;
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+  background: rgba(0,101,140,.55); color: #dff1fa;
+}
+.value .tag.changed { background: rgba(190,140,0,.35); color: #ffe6a8; }
+.value .tag.same { background: transparent; color: var(--dim); }
+/* La fila de un valor nuevo: tipo, etiqueta y valor, en su propia caja. */
+.newrow {
+  display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: center; gap: 10px;
+  padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px;
+}
+.sites { display: flex; flex-wrap: wrap; gap: 6px; }
+.sites span {
+  font-size: 12px; color: var(--dim);
+  padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px;
+}
+/* Los botones se quedan a la vista al bajar por una ficha larga: guardar es de la ficha
+   entera, no del trozo que se está mirando. */
+.actions {
+  display: flex; gap: 10px; align-items: center;
+  position: sticky; bottom: 0; background: var(--bg);
+  padding: 12px 0; border-top: 1px solid var(--line);
+}
+.actions .sp { flex: 1; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; margin: 0;
+  padding: 9px 16px; border-radius: 8px; background: var(--ok); color: #07281a;
+  font-size: 13px; font-weight: 600;
+}
+.toast[data-kind="error"] { background: var(--danger); color: #2a0b0b; }
+
+@media (max-width: 560px) {
+  .value { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .value .k { grid-column: 1 / -1; }
+  .newrow { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .newrow select, .newrow input { grid-column: 1 / -1; }
+}

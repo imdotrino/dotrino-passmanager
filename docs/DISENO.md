@@ -74,6 +74,21 @@ Esto es el patrón del ecosistema —el aparato cumple el rol cuando no hay piez
 dedicada— aplicado a las contraseñas. **Ninguna configuración exige un daemon ni un
 VPS encendido**, que es regla dura de `CLAUDE.md`.
 
+**Lo que NO se puede pedir, y sigue sin poderse: la bóveda entera.** `list` no está en
+`REMOTE_OPS`, y esa ausencia es el diseño — si un aparato pudiera pedirlo todo, el «de a
+una» no significaría nada. Fue la tentación al diseñar `pass.dotrino.com`: darle `list`
+«porque es la consola» habría abierto el mismo agujero con otro nombre.
+
+**Lo que sí se añadió el 2026-08-29, decidido por el dueño: `sites`.** Devuelve **en qué
+dominios hay algo guardado y cuántas entradas en cada uno**, y nada más — ni un id, ni un
+nombre, ni qué campos lleva nadie, ni un resumen con el que comparar. Existe para que el
+gestor (§4.3) abra con la lista de sitios en vez de con un buscador en blanco donde hay
+que adivinar qué escribir. El dominio **ya viajaba en claro** (§5: `sites` no se cifra,
+porque es lo que permite emparejar con la página sin tener la CEK), así que no enseña nada
+nuevo; lo que sí concede es **contestarlo de una vez** en vez de sitio por sitio. Queda
+dicho a propósito, y no abre la puerta a `list`: de `sites` no se llega a ninguna entrada,
+solo a saber por dónde buscarla.
+
 ### 2.0. La aprobación es del APARATO, no de cada credencial
 
 > Decidido por el dueño el 2026-08-25.
@@ -1122,11 +1137,11 @@ Dos reglas:
   la casilla del modal, y **una vez marcado no se quita solo**: guardar encima desde otro
   formulario lo respeta.
 
-  ⚠️ **Hoy la marca se guarda y se respeta al escribir, pero NO la hace cumplir la
-  bóveda.** Que un campo privado exija aprobación para salir es cosa del protocolo
-  (`get` entrega la entrada entera), y eso toca la interfaz de bóveda (§6.1) y el
-  daemon. Deuda anotada: mientras no exista, `private` es una etiqueta honesta de la
-  intención del usuario, no un cerrojo.
+  ✅ **Y la hace cumplir la bóveda, desde el 2026-08-29.** Era deuda —`get` entregaba la
+  entrada entera y `private` no pasaba de una etiqueta honesta—, y se cerró con dos
+  piezas: `get` se puede pedir **por claves** (`projectEntry`), y la puerta
+  (`GuardedVault` / `VaultResponder.wantsPrivate`) mira qué claves son privadas y solo
+  pregunta si hay alguna. Las tres bóvedas usan la misma, así que las tres deciden igual.
 - **Sin `kind`, la etiqueta ES la identidad del campo.** Es por lo que se empareja con lo
   que ya hay guardado (para decir si cambia o si es nuevo), así que al actualizar una
   entrada **se conserva la etiqueta que ya tenía**: cambiarla no sería editar el campo,
@@ -1140,6 +1155,80 @@ se recurre a las pistas del nombre. Un buscador nunca se toma por un dato person
 ecosistema, con sus flags de visibilidad y su reputación; esto son datos que rellenas
 en formularios ajenos, y puedes querer varios juegos (los de casa y los del trabajo)
 sin que ninguno sea «quién eres».
+
+## 4.3. El gestor de registros: administrar lo guardado
+
+> Pedido por el dueño el 2026-08-29: *«un botón de EDITAR que abre el record y permite
+> editar cada uno de los campos, el nombre del record, agregar y quitar valores; esto no
+> tiene relación con la página actual, es para gestionar un record guardado»*. Y a la
+> segunda vuelta: *«lo mejor que podemos hacer es todo un sitio de gestión de los records
+> de todas las páginas, al poner editar solo abres la página de ese record»*.
+
+Es una **página de la extensión** (`chrome-extension://<id>/src/manager.html`), abierta en
+su propia pestaña con `chrome.tabs.create`. No es un sitio web, y esa es la razón de que
+funcione: al ser del origen de la extensión puede pedir **cualquier** operación — la lista
+recortada de §4 es para las páginas ajenas.
+
+**Por qué no cabía en el popup.** El popup son 360 px y es lo rápido del sitio que tienes
+delante: rellenar, copiar, cuál es la predeterminada. Editar un registro no tiene nada que
+ver con la página en la que estás.
+
+### Lo que el gestor NO hace: traerse lo privado
+
+Regla del dueño, dicha en una línea: *«al igual que todo, no trae valores privados; solo
+es posible comparar su cambio con el hash y reemplazar»*.
+
+| | Se enseña | Se puede |
+|---|---|---|
+| **público** | su valor, en su casilla | editarlo encima |
+| **privado** | nada — la casilla sale vacía, con «escribe para reemplazarlo» | **reemplazarlo**, y cambiar su marca |
+
+O sea: **abrir una ficha no cuesta una sola autorización**, y guardar tampoco. Los valores
+públicos se piden con `get` **por claves** (§4.0.2), que es lo que evita sacar la
+contraseña para editar un teléfono; los privados no se piden nunca.
+
+Para saber si lo tecleado cambia algo se comparan **resúmenes** (§4.0.2, operación
+`entry-diff`), igual que el aviso y el modal del campo: escribir en un privado exactamente
+lo que ya había dice «igual» y **no cuenta como un cambio**. Un método de comparación para
+todos los campos, no dos.
+
+Y la marca de privado **se cambia sin tener el valor delante**: `patch` acepta un campo
+`{ label, private }` sin `value`, y entonces deja el valor como estaba. Sin eso, quitarle
+la marca a un dato privado habría exigido traérselo — justo lo que no se hace.
+
+### Un botón para todo
+
+> *«Hay un único botón para guardar todos los cambios de existir, o cancelar»* (dueño).
+
+La ficha entera se guarda de una vez, en **un solo `patch`**, o se cancela de una vez.
+Nada de guardar campo a campo. El botón está apagado mientras no haya nada que guardar, y
+antes de escribir se vuelven a comparar los resúmenes: lo que resultó igual no se escribe.
+
+Quitar un valor **se ve antes de guardar**: la fila se queda tachada y con la vuelta atrás
+en vez de desaparecer. Que algo se esfume antes de confirmar deja al usuario sin saber qué
+está a punto de perder.
+
+Lo que `patch` aprendió para esto (§6.1): **`removeFields`** —un campo libre desaparece;
+uno de los de siempre (`username`, `secret`, `totp`, `notes`) se queda vacío, que es lo
+mismo— y **un campo sin valor no es un campo**, así que vaciarlo es quitarlo y no queda una
+fila fantasma dentro de la entrada.
+
+### Cómo se llega a un registro
+
+Con lo mismo de siempre, porque **no hay «verlos todos»**:
+
+1. **Los dominios** donde hay algo, con cuántas entradas en cada uno (`sites`, §2).
+   Pulsar uno lista sus registros, como si se viniera de su página — y con ellos los que
+   sirven en cualquier sitio, porque ahí también servirían.
+2. **El buscador**, que exige dos letras y busca en toda la bóveda (§4.1).
+3. **El botón «Editar»** de una tarjeta del popup, que entra directo a esa ficha.
+
+El popup gana además un **segundo botón** que abre el gestor entero (dueño, 2026-08-29):
+el de la tarjeta es de un registro, este es la puerta a buscar y a ver dónde hay algo.
+
+La dirección va en el `#fragment` (`#site=…&id=…`) para que un refresco no pierda la ficha
+abierta; con solo el id la vista se vuelve a pedir con `entry-view`, que es `find` del
+sitio quedándose con una — no es `list` disfrazado, porque el id ya lo tenía quien pregunta.
 
 ## 5. Modelo de datos
 
@@ -1182,21 +1271,35 @@ aparato con hardware y con el flujo de aprobación.
 
 ### 6.1. La interfaz de bóveda
 
-**`list` sigue prohibida para la extensión, `search` no la sustituye.** La una devuelve
+**`list` sigue prohibida para la extensión; ni `search` ni `sites` la sustituyen.** La una devuelve
 la bóveda entera y la puede pedir el código cuando quiera; la otra exige un término que
 escribe una persona, devuelve un puñado y solo responde a la UI de la extensión. La
 diferencia no es de tamaño, es de quién decide: sin `search` no hay forma de traerse la
 cuenta del subdominio que cambió (§4.1), y con `list` no haría falta ni preguntar.
+`sites` (2026-08-29) es de la misma familia: devuelve **dominios y cuentas**, nunca una
+entrada, y de ella no se llega a ninguna — solo a saber por dónde buscarla (§2).
 
 Toda pieza consume la misma interfaz; quién esté detrás es intercambiable. Es lo que
 permite construir por pasos sin reescribir nada:
 
 ```js
-find(domain)     // qué hay para este sitio (metadatos, sin secretos)
-get(id)          // UNA credencial — puede exigir aprobación
-put(entry)       // exige una bóveda de verdad; nunca la caché
-list()           // exige la CEK
+find(url)               // qué hay para este sitio (metadatos, sin secretos)
+get(id, { keys })       // UNA credencial, y solo las claves que se piden;
+                        //   con alguna privada dentro, aprobación
+put(entry)              // exige una bóveda de verdad; nunca la caché
+patch(id, changes)      // cambiar unos campos SIN leer la entrada antes
+search(q, { limit })    // por texto, mínimo dos letras, con tope
+sites()                 // en qué dominios hay algo, y cuántas en cada uno
+remove(id)              // quitar una
+list()                  // exige la CEK — nunca en remoto
 ```
+
+Dos cosas de `patch` que se ganaron con el gestor (§4.3), y valen para las tres bóvedas:
+
+- **`removeFields`**: las claves que se van. Un campo libre desaparece; uno de los de
+  siempre se queda vacío, que para todo lo demás es lo mismo.
+- **un campo `{ label, private }` sin `value`** cambia solo la marca y **deja el valor como
+  estaba**. Es lo que permite quitarle lo privado a un dato sin traérselo.
 
 ### 6.2. Web: informativa ≠ administrativa (§5.1)
 

@@ -1124,6 +1124,81 @@ async function renameEntry ({ id, name } = {}) {
   return { ok: true }
 }
 
+/**
+ * EN QUÉ SITIOS HAY ALGO GUARDADO. Solo desde la UI de la extensión.
+ *
+ * Es con lo que el gestor abre: la lista de dominios, en vez de un buscador en blanco
+ * donde hay que adivinar qué escribir (dueño, 2026-08-29). De aquí no sale ni un id ni un
+ * nombre — el dominio ya viaja en claro, porque es lo que permite emparejar con la página
+ * sin poder abrir nada (§5).
+ */
+async function sitesOf () {
+  const v = await connect()
+  if (typeof v.sites !== 'function') return []
+  return v.sites()
+}
+
+/**
+ * LA VISTA PÚBLICA DE UNA ENTRADA, para el gestor (§4.3).
+ *
+ * El gestor se abre en su propia pestaña y sobrevive a un refresco, así que no le vale
+ * llevarse la vista en memoria: al recargar tiene que volver a pedirla. Sale de `find`,
+ * que es de donde salen todas — el sitio viaja en la dirección de la pestaña junto al id.
+ *
+ * **No es `list` con otro nombre**: pide UNA por su id, y el id lo tenía ya quien
+ * pregunta. Sin la lista de arriba no se llega aquí.
+ */
+async function entryView ({ id, url } = {}) {
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  const hay = url ? await findFor(url).catch(() => []) : []
+  const hit = hay.find(e => e.id === id)
+  if (!hit) throw new VaultError(CODES.NOT_FOUND, 'no hay ninguna entrada con ese id')
+  return stripDigest([hit])[0]
+}
+
+/**
+ * ¿LO ESCRITO CAMBIA ALGO? Por resúmenes, sin abrir la entrada (§4.0.2).
+ *
+ * Es lo que le permite al gestor editar un campo privado **sin traérselo**: el usuario
+ * escribe encima, y aquí se dice si eso es lo mismo que hay guardado, algo distinto o un
+ * dato que la entrada no tenía. Reemplazar sí puede; ver, no (dueño, 2026-08-29).
+ *
+ * Un solo método para todos los campos, también los públicos: el gestor tiene su valor
+ * delante y podría compararlos él, pero entonces habría dos formas de contestar la misma
+ * pregunta y acabarían diciendo cosas distintas.
+ *
+ * Lo que sale de aquí son conclusiones —`same`/`changed`/`new`—, nunca los resúmenes.
+ */
+async function entryDiff ({ id, url, pairs } = {}) {
+  const lista = Array.isArray(pairs) ? pairs.filter(x => x && x.key) : []
+  if (!id || !lista.length) return {}
+  const metas = url ? await findFor(url).catch(() => []) : []
+  const m = metas.find(e => e.id === id)
+  if (!m?.fieldHashes) return {}
+  const iguales = await sameAs([m], lista.map(x => ({ key: x.key, value: String(x.value ?? '') })))
+  const out = {}
+  for (const { key } of lista) {
+    out[key] = iguales.has(`${id}|${key}`) ? 'same' : (m.fieldHashes[key] ? 'changed' : 'new')
+  }
+  return out
+}
+
+/**
+ * GUARDAR LOS CAMBIOS de una entrada. Solo desde la UI de la extensión.
+ *
+ * Se manda entero de una vez —un botón para todo (dueño, 2026-08-29)—, y va por `patch`:
+ * la fusión ocurre dentro de la bóveda, así que editar el nombre de un registro no saca
+ * su contraseña ni la pone en riesgo si algo falla a medias.
+ */
+async function patchEntry ({ id, changes } = {}) {
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  const v = await connect()
+  const out = await v.patch(id, changes || {})
+  try { await cache.forget(id) } catch (_) {}
+  forgetFinds()
+  return out
+}
+
 /** Quitar una entrada de la bóveda. Solo desde la UI de la extensión, y con aviso. */
 async function removeEntry ({ id, url }) {
   if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
@@ -1161,6 +1236,10 @@ const OPS = {
   search: async p => stripDigest(await searchEntries(p)),
   remove: p => removeEntry(p),
   rename: p => renameEntry(p),
+  sites: () => sitesOf(),
+  'entry-view': p => entryView(p),
+  'entry-diff': p => entryDiff(p),
+  patch: p => patchEntry(p),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),
   get: async p => getEntry(await connect(), p.id, p.keys),

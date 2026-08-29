@@ -67,6 +67,21 @@ async function currentUrl () {
   return tab?.url || ''
 }
 
+/**
+ * ABRIR EL GESTOR (§4.3), en su propia pestaña.
+ *
+ * Es una página de la extensión, así que puede pedir cualquier operación; el popup no le
+ * pasa nada más que dónde estaba y, si se viene de una tarjeta, cuál. Con `id` entra
+ * directo a esa ficha, que es lo que hace el botón «Editar».
+ */
+function openManager ({ url, id } = {}) {
+  const p = new URLSearchParams()
+  if (url) p.set('site', url)
+  if (id) p.set('id', id)
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html') + '#' + p.toString() })
+  window.close()
+}
+
 async function tellPage (op, payload) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) return null
@@ -288,10 +303,15 @@ function nameCell (e, onRenamed) {
   return linea
 }
 
-function entryRow (e, { onFill, onCopy, onDelete, onDefault, onRenamed, isDefault }) {
+function entryRow (e, { onFill, onCopy, onDelete, onDefault, onRenamed, onEdit, isDefault }) {
   const fill = el('button', { className: 'ghost', textContent: t(lang, 'fill') })
   const copy = el('button', { className: 'ghost', textContent: t(lang, 'copy') })
   const del = el('button', { className: 'ghost danger', textContent: t(lang, 'del') })
+  // EDITAR no tiene nada que ver con la página que tienes delante (dueño, 2026-08-29):
+  // se sale del popup y se abre la ficha en el gestor, que es donde se administra.
+  const edit = el('button', { className: 'ghost', textContent: t(lang, 'edit') })
+  edit.dataset.testid = `popup-edit-${e.id}`
+  edit.onclick = () => onEdit(e)
   fill.onclick = () => onFill(e)
   copy.onclick = () => onCopy(e)
   del.onclick = () => onDelete(e)
@@ -320,10 +340,12 @@ function entryRow (e, { onFill, onCopy, onDelete, onDefault, onRenamed, isDefaul
       nameCell(e, onRenamed),
       el('div', { className: 'hint', textContent: sitioDe(e) }),
     ]),
+    // Con cuatro botones ya no caben en la misma línea que la casilla: los botones van
+    // en su propio grupo, que baja entero cuando no cabe. Cuatro medio partidos serían
+    // peor que dos líneas limpias.
     el('div', { className: 'acts' }, [
       el('label', { className: 'def' }, [marca, el('span', { textContent: t(lang, 'byDefault') })]),
-      el('span', { className: 'sp' }),
-      fill, copy, del,
+      el('div', { className: 'btns' }, [edit, fill, copy, del]),
     ]),
     confirmar,
   ])
@@ -387,15 +409,26 @@ async function renderSite (estado0) {
   // El pie dice DÓNDE están tus contraseñas, y es lo único que distingue las dos vías
   // a ojos del usuario. Quien no enlazó nada no está a medio configurar: está usando la
   // suya, y se le dice así.
+  // El segundo botón, al lado del de editar de cada tarjeta (dueño, 2026-08-29): este no
+  // es de ningún registro, es la puerta al gestor entero — buscar, y ver en qué sitios
+  // tienes algo. Va debajo de la lista y no en el pie: en el pie no se ve.
+  const abrirGestor = el('button', { className: 'ghost wide', textContent: t(lang, 'openManager') })
+  abrirGestor.dataset.testid = 'popup-manager'
+  abrirGestor.onclick = () => openManager({ url })
   const pie = el('p', { className: 'hint foot', textContent: propia ? t(lang, 'ownVault') : t(lang, 'linkedVault') })
 
-  view.replaceChildren(profileBar(estado0), el('h2', { textContent: t(lang, 'onThisSite') }), list, estado, pie)
+  view.replaceChildren(
+    profileBar(estado0),
+    el('h2', { textContent: t(lang, 'onThisSite') }),
+    list, estado, abrirGestor, pie,
+  )
 
   try {
     const items = await ask('find', { url })
     const porDefecto = await ask('default-get', { url }).catch(() => null)
     list.replaceChildren(...items.map(e => entryRow(e, {
       onFill, onCopy, onDelete, onDefault, isDefault: e.id === porDefecto,
+      onEdit: (x) => openManager({ url, id: x.id }),
       // Renombrar cambia lo que dice la lista entera —el nombre visible sale de dentro—,
       // así que se vuelve a pintar en vez de parchear la fila.
       onRenamed: (cambió) => { if (cambió) render(); else renderSite(estado0) },

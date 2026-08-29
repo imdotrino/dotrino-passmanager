@@ -17,6 +17,7 @@
     "test:offers": "node --test extension/test/offers.test.mjs",
     "test:field-button": "node extension/test/field-button.e2e.mjs",
     "test:reemplazos": "node extension/test/reemplazos.e2e.mjs",
+    "test:gestor": "node extension/test/gestor.e2e.mjs",
     "store:shots": "node extension/store/tienda.mjs"
   },
   "dependencies": {

@@ -47,6 +47,9 @@ button.ghost {
   background: none; color: var(--dim); cursor: pointer; font-size: 12px;
 }
 button.ghost:hover { color: var(--fg); border-color: var(--dim); }
+/* La puerta al gestor: ancha, para que se lea como una sección y no como una acción
+   más de la última tarjeta. */
+button.ghost.wide { width: 100%; padding: 8px 12px; }
 .hint { margin: 0; color: var(--dim); font-size: 12px; }
 .error { color: var(--danger); font-size: 12px; margin: 0; }
 ul.entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -56,8 +59,8 @@ li.entry {
   display: grid; gap: 6px;
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
 }
-.entry .acts { display: flex; align-items: center; gap: 6px; }
-.entry .acts .sp { flex: 1; }
+.entry .acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.entry .acts .btns { display: flex; gap: 6px; margin-left: auto; }
 .entry .acts button { padding: 4px 8px; font-size: 12px; }
 .entry .def { display: flex; align-items: center; gap: 5px; font-size: 11px; opacity: .8; cursor: pointer; }
 .entry .def input { margin: 0; accent-color: var(--accent); }
@@ -117,7 +120,8 @@ button.primary.danger { background: var(--danger); color: #2a0b0b; border-color:
 }
 .mycode:hover { color: var(--fg); border-color: var(--dim); }
 
-/* El pie que dice dónde están las contraseñas: presente pero sin competir. */
+/* El pie que dice dónde están las contraseñas, y desde dónde se administran: presente
+   pero sin competir. */
 .foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; }
 button.link {
   background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
