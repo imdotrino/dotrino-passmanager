@@ -35,18 +35,6 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('   [error de página]', e.message))
 
 /**
- * DECIR QUE SÍ. Guardar ya no lo pide —la bóveda fusiona sobre lo suyo (`patch`) y no sale
- * ni un valor—, pero ver QUÉ HABÍA ANTES sí, porque eso es abrir la entrada.
- */
-async function autorizar (f, ms = 3000) {
-  const si = f.locator('[data-testid=approval-yes]')
-  try { await si.waitFor({ state: 'visible', timeout: ms }) } catch (_) { return false }
-  await si.click()
-  await page.waitForTimeout(400)
-  return true
-}
-
-/**
  * ABRIR una entrada desde la pantalla de la extensión, diciendo que sí.
  *
  * La bóveda pide autorización antes de soltar nada (DISENO §3.3.2) y la pregunta se
@@ -280,15 +268,11 @@ try {
     ok(await filas.first().getAttribute('data-field') === 'tel', 'y es el teléfono')
     ok(/cambia|change/i.test(await filas.first().locator('.tag').textContent()), 'marcado como «cambia»')
 
-    // Ver QUÉ HABÍA ANTES es abrir la entrada, así que se pide aparte y no se hace solo.
-    ok(!(await filas.first().locator('.old').count()), 'sin pedirlo, lo de antes no se enseña')
-    ok(await f.locator('[data-testid=save-prompt-reveal]').isVisible(), 'y se ofrece verlo')
-    await f.locator('[data-testid=save-prompt-reveal]').click()
-    // Son datos PÚBLICOS —un teléfono, un correo—, así que no pide autorización: solo se
-    // pregunta por lo privado (§3.3.2). Lo comprueba de cerca `reemplazos.e2e.mjs`.
-    ok(!(await autorizar(f, 2000)), 'y siendo públicos, no pide autorización')
-    await page.waitForTimeout(700)
-    ok((await filas.first().locator('.old').textContent()) === '0999111222', 'con el número anterior tachado')
+    // Lo que había ANTES no se enseña, y no hay botón que lo ofrezca: para eso habría que
+    // abrir la entrada, y un aviso de guardar no es sitio para sacar de la bóveda un dato
+    // privado que nadie pidió (dueño, 2026-08-29). Hubo un «Ver qué cambia» y se quitó.
+    ok(!(await filas.first().locator('.old').count()), 'lo de antes no se enseña')
+    ok(!(await f.locator('[data-testid=save-prompt-reveal]').count()), 'y no hay botón que lo ofrezca')
     const destinos = f.locator('[data-testid=save-prompt-target]')
     ok(await destinos.count() === 2, 'ofrece los datos que ya había, y crear otra entrada')
     const datosId = await destinos.nth(1).getAttribute('data-id')

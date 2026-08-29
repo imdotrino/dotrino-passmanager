@@ -452,8 +452,8 @@ denegada no es un caso raro: es lo que le pasó al dueño. La respuesta es `patc
 que fusiona dentro de la bóveda: no sale ni un valor, no hay nada que autorizar y no hay
 lectura que pueda fallar.
 
-Lo que sí sigue costando una autorización es **ver lo que había antes** en el aviso de
-guardar: eso es abrir la entrada, y para eso está el botón que lo pide.
+Y **ver lo que había antes** ya no se ofrece en ninguna parte: era la única cosa del aviso
+que abría una entrada, y se quitó (§4.0.2).
 
 ### Lo que esto arregla de paso
 
@@ -760,9 +760,12 @@ Tres decisiones que lo hacen seguro, y el porqué de cada una:
   valor corto y con forma conocida (un teléfono, un documento) se adivina a partir de él si
   se tiene delante.
 
-**Lo que el resumen NO da: qué había antes.** Dice si es igual, no qué era. Enseñar el
-valor anterior sigue exigiendo abrir la entrada, y eso sigue siendo «Ver qué cambia» con su
-autorización.
+**Lo que el resumen NO da: qué había antes.** Dice si es igual, no qué era, y **el aviso no
+lo enseña**. Hubo un botón «Ver qué cambia» que abría la entrada para poner el valor
+anterior tachado al lado del nuevo; se quitó el 2026-08-29, y el dueño dio las dos razones
+en una frase: *«no es necesario, además de que intenta traer data privada»*. Un aviso de
+guardar es para decir qué se va a escribir, no para sacar de la bóveda un dato que nadie
+pidió.
 
 #### En la lista se ve CON QUÉ se va a rellenar
 
@@ -856,8 +859,8 @@ De ahí sale cómo se pinta el aviso, que es la parte que importa:
 - **Decir «esto cambia» sale de los resúmenes** (arriba): sin abrir nada y sin
   autorización. Por eso el aviso solo lista lo que de verdad cambia, y cada fila dice
   «guardar» o «reemplazar» acertando.
-- **Ver QUÉ HABÍA ANTES sí es privado**: eso exige abrir la entrada. El aviso ofrece
-  **«Ver qué cambia»** y es el usuario quien lo pide — la confirmación es la de siempre.
+- **Ver QUÉ HABÍA ANTES no se ofrece.** Exigiría abrir la entrada, y para lo que hace
+  falta aquí —saber qué cambia— bastan los resúmenes.
 - Guardar sin haber comparado está permitido: se escriben las casillas marcadas sobre la
   entrada elegida. La lectura que hace falta para no perder lo demás es parte de la
   escritura que el usuario ya confirmó, no un vistazo previo.

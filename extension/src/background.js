@@ -709,8 +709,8 @@ async function candidatesFor (p, v) {
  *
  * Dice `same`, `changed` o `new` por campo sin abrir una sola entrada: la bóveda mandó el
  * resumen de cada campo con su nonce (§4.0.2) y aquí se hashea lo que el usuario acaba de
- * escribir. Lo que NO sale de aquí es **el valor anterior**: para enseñarlo hay que abrir
- * la entrada, y eso es una autorización — `diffAgainst`.
+ * escribir. Lo que NO sale de aquí es **el valor anterior**: para enseñarlo habría que
+ * abrir la entrada, y el aviso no lo enseña.
  */
 async function diffByDigest (candidates, p) {
   // Los valores salen del PENDIENTE, no de `typed`: ahí la contraseña viaja en `null` a
@@ -723,9 +723,6 @@ async function diffByDigest (candidates, p) {
     out[c.id] = pares.map(({ key }) => ({
       key,
       status: iguales.has(`${c.id}|${key}`) ? 'same' : (c.fieldHashes[key] ? 'changed' : 'new'),
-      // Lo de antes NO está aquí: un resumen dice si es igual, no qué era. Para eso hay
-      // que abrir la entrada, y eso es «Ver qué cambia».
-      before: '',
     }))
   }
   return out
@@ -752,30 +749,6 @@ function stripDigest (list) {
   return (Array.isArray(list) ? list : []).map(({ nonce, fieldHashes, ...resto }) => resto)
 }
 
-async function diffAgainst (v, id, p) {
-  // Solo los campos que se escribieron: para decir qué había antes en el teléfono no hace
-  // falta sacar también la contraseña. Si alguno de ellos es privado, ahí sí se pregunta.
-  const base = await getEntry(v, id, typedPairs(p).map(x => x.key))
-  const antes = new Map()
-  if (base.username) antes.set('username', base.username)
-  if (base.secret) antes.set('secret', base.secret)
-  for (const f of parseFields(base.fields)) antes.set(fieldKey(f), f.value)
-
-  const fila = (key, value, secret) => {
-    const viejo = antes.get(key) || ''
-    return {
-      key,
-      status: viejo === value ? 'same' : viejo ? 'changed' : 'new',
-      // De la contraseña no viaja nada, ni la nueva ni la que había.
-      before: secret ? null : viejo,
-    }
-  }
-  const out = []
-  if (p.username) out.push(fila('username', p.username, false))
-  if (p.secret) out.push(fila('secret', p.secret, true))
-  for (const f of p.fields || []) out.push(fila(fieldKey(f), f.value, false))
-  return out
-}
 
 /**
  * ¿Hay algo que ofrecer en este sitio? Devuelve el sitio y el usuario, NUNCA la
@@ -802,22 +775,22 @@ async function pendingSave ({ host } = {}) {
  * `pending-save`: aquí se mira lo que hay en la bóveda. Se responde solo al origen de
  * la extensión, que es donde vive el aviso.
  *
- * La frontera privado/público la marca `ask`:
+ * La frontera privado/público:
  *
  *   · **público** — la lista de candidatos, que es lo que `find` devuelve sin llave.
  *     Sale siempre, porque sin ella el usuario no puede elegir qué reemplaza.
- *   · **privado** — los valores guardados, o sea poder decir «esto cambia» y enseñar lo
- *     anterior. Cuesta una autorización en CUALQUIER bóveda —también en la propia, desde
- *     que pregunta (§3.3.1)—, así que se espera a que el usuario la pida (`reveal`).
+ *   · **privado** — los VALORES guardados. No salen: para decir «esto cambia» bastan los
+ *     resúmenes (§4.0.2), y enseñar lo que había antes exigiría abrir la entrada. Hubo un
+ *     botón que lo ofrecía y se quitó (dueño, 2026-08-29): un aviso de guardar no es
+ *     sitio para sacar de la bóveda un dato privado que nadie pidió.
  */
-async function pendingDetail ({ id, reveal } = {}) {
+async function pendingDetail () {
   const p = await readPending()
   if (!p) return { has: false }
 
   let v = null
   try { v = await connect() } catch (_) { /* sin bóveda a mano: se ofrece guardar igual */ }
   const candidates = v ? await candidatesFor(p, v).catch(() => []) : []
-  const ask = v ? v.capabilities?.needsApproval !== false : true
 
   // Lo que se va a escribir es lo que el usuario ACABA de teclear: no sale de la bóveda
   // y por eso viaja siempre. La contraseña es la excepción de siempre — va en `null` y
@@ -851,12 +824,6 @@ async function pendingDetail ({ id, reveal } = {}) {
   const porResumen = await diffByDigest(candidates, p).catch(() => ({}))
   Object.assign(diffs, porResumen)
 
-  // Y con lo de ANTES a la vista, que sí exige abrir la entrada: eso es «Ver qué cambia»
-  // y lo pide el usuario (§3.3.2). Solo entonces las filas llevan el valor anterior.
-  if (reveal && id) {
-    try { diffs[id] = await diffAgainst(v, id, p) } catch (_) { /* si no abre, el de arriba */ }
-  }
-
   return {
     has: true,
     host: p.host,
@@ -864,7 +831,6 @@ async function pendingDetail ({ id, reveal } = {}) {
     login: !!p.secret,
     typed,
     candidates: stripDigest(candidates),
-    ask,
     diffs,
   }
 }

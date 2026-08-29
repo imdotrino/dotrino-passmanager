@@ -85,12 +85,6 @@
   }
   .t .when { font-size: .72rem; opacity: .55; white-space: nowrap; }
 
-  /* «Ver qué cambia»: con una bóveda conectada, saberlo cuesta una aprobación, así que
-     se pide y no se hace solo. */
-  .link {
-    background: none; color: #7fc6e6; padding: 6px 0 0;
-    font-size: .78rem; text-decoration: underline; text-underline-offset: 2px;
-  }
 
   /* La lista de lo que se va a escribir: una fila por dato, con su casilla. */
   .fields { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
@@ -121,12 +115,6 @@
   }
   .tag.changed { background: rgba(190,140,0,.35); color: #ffe6a8; }
   /* Lo que había antes, para que «cambia» diga qué cambia. */
-  .old {
-    display: block; font-size: .72rem; opacity: .55;
-    padding: 0 6px 5px 30px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    text-decoration: line-through;
-  }
 </style>
 </head>
 <body>
@@ -141,7 +129,6 @@
   </div>
   <div class="lbl" id="fieldsLabel" hidden></div>
   <ul class="fields" id="fields"></ul>
-  <button class="link" id="reveal" data-testid="save-prompt-reveal" hidden></button>
   <p class="err" id="err" hidden></p>
   <div class="row">
     <button id="save" data-testid="save-prompt-save"></button>

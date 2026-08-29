@@ -94,8 +94,9 @@ function fail (e) {
 // La frontera de lo privado está en el medio: la LISTA de candidatas es pública (es lo
 // que se ve sin la llave), pero saber si un dato *cambia* obliga a abrir lo guardado.
 // QUÉ cambia se sabe sin abrir nada: la bóveda manda un resumen de cada campo y aquí se
-// compara con lo escrito (§4.0.2). Lo que sigue costando una autorización es ver QUÉ
-// HABÍA ANTES — eso es «Ver qué cambia», y lo pide el usuario.
+// compara con lo escrito (§4.0.2). Lo que NO se enseña es qué había antes: para eso habría
+// que abrir la entrada, y este aviso no es sitio para sacar de la bóveda un dato privado
+// que nadie pidió (dueño, 2026-08-29). Había un botón «Ver qué cambia» y se quitó.
 
 let detail = null
 let target = ''        // '' = una entrada nueva
@@ -110,8 +111,8 @@ function rowsFor (id) {
   const diff = id ? detail.diffs?.[id] : null
   // Los NOMBRES de lo que lleva la entrada elegida vienen en la vista pública, sin abrir
   // nada (§4.0.2): con eso ya se sabe si un dato **existe** ahí, que es lo que separa
-  // «nuevo» de «cambia». Lo que sigue sin saberse es si vale lo mismo — para eso hay que
-  // abrirla, y eso es «Ver qué cambia».
+  // «nuevo» de «cambia». Lo que sigue sin saberse es si vale lo mismo, y eso lo dicen los
+  // resúmenes (`diffs`).
   const dentro = id ? detail.candidates?.find((c) => c.id === id) : null
   const keys = Array.isArray(dentro?.fieldKeys) ? dentro.fieldKeys : null
   return detail.typed
@@ -122,7 +123,7 @@ function rowsFor (id) {
       const status = !id
         ? 'new'
         : d ? d.status : (keys ? (keys.includes(f.key) ? 'changed' : 'new') : 'unknown')
-      return { ...f, status, before: d?.before || '' }
+      return { ...f, status }
     })
     .filter((r) => r.status !== 'same')
 }
@@ -387,23 +388,8 @@ function renderFields () {
     li.append(label)
 
     // Qué había antes, para que «cambia» diga QUÉ cambia. De la contraseña, nada.
-    if (row.status === 'changed' && row.before) {
-      const old = document.createElement('span')
-      old.className = 'old'
-      old.textContent = row.before
-      old.title = row.before
-      li.append(old)
-    }
     ul.append(li)
   }
-
-  // QUÉ cambia ya se sabe (por resúmenes, §4.0.2). Lo que sigue costando una autorización
-  // es ver QUÉ HABÍA ANTES, así que el botón sale solo cuando queda algo que enseñar.
-  const puedePedir = !!target &&
-    (detail.diffs[target] || []).some((d) => d.status === 'changed' && !d.before)
-  $('reveal').hidden = !puedePedir
-  $('reveal').textContent = t(lang, 'seeChanges')
-  $('reveal').title = t(lang, 'seeChangesHint')
 
   syncButtons()
   resize()
@@ -416,15 +402,6 @@ function syncButtons () {
   const nada = picked.size === 0
   $('save').disabled = nada
   $('save').title = nada ? t(lang, 'pickNothing') : ''
-}
-
-$('reveal').onclick = async () => {
-  $('reveal').disabled = true
-  try {
-    const d = await ask('pending-detail', { id: target, reveal: true })
-    if (d?.diffs) Object.assign(detail.diffs, d.diffs)
-  } catch (e) { fail(e) } finally { $('reveal').disabled = false }
-  renderFields()
 }
 
 async function load () {
@@ -443,10 +420,9 @@ async function load () {
   const parecidas = detail.candidates.filter((c) => c.similar)
   target = parecidas.length === 1 ? parecidas[0].id : ''
 
-  // Nada que añadir ni que cambiar: no se molesta al usuario con un aviso que solo
-  // puede contestar que sí a lo que ya tenía igual. Solo se sabe cuando abrir lo
-  // guardado no cuesta una aprobación.
-  if (!detail.ask && !rowsFor(target).length) {
+  // Nada que añadir ni que cambiar: no se molesta al usuario con un aviso que solo puede
+  // contestar que sí a lo que ya tenía igual.
+  if (!rowsFor(target).length) {
     try { await ask('dismiss-pending') } catch (_) {}
     return close()
   }
