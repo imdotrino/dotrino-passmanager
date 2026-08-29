@@ -159,6 +159,16 @@ function pencil (o) {
 /** Qué entrada se está renombrando ahora mismo. */
 let editando = ''
 
+/**
+ * EL VISTO que confirma el nombre.
+ *
+ * Enter y salir del campo ya guardaban, y siguen guardando; lo que no hacían era
+ * **decirse** (dueño, 2026-08-29: *«no se sabe dónde presionar para confirmar»*). Un
+ * atajo que solo conoce quien lo escribió no es un atajo, es un secreto.
+ *
+ * Pulsarlo dispara antes el `blur` del campo, que guarda lo mismo: el botón acaba siendo
+ * el sitio donde mirar más que el que hace el trabajo, y da igual cuál de los dos gane.
+ */
 function nameInput (o) {
   const caja = document.createElement('input')
   caja.type = 'text'
@@ -183,7 +193,20 @@ function nameInput (o) {
     if (ev.key === 'Escape') { ev.preventDefault(); guardar(false) }
   })
   caja.addEventListener('blur', () => guardar(true))
-  return caja
+
+  const listo = document.createElement('button')
+  listo.type = 'button'
+  listo.className = 'ok'
+  listo.dataset.testid = `field-modal-name-ok-${o.id}`
+  listo.title = t(lang, 'confirmName')
+  listo.setAttribute('aria-label', t(lang, 'confirmName'))
+  listo.textContent = '✓'
+  listo.addEventListener('click', (ev) => { ev.preventDefault(); guardar(true) })
+
+  const fila = document.createElement('span')
+  fila.className = 'editing'
+  fila.append(caja, listo)
+  return { fila, caja }
 }
 
 function renderTargets () {
@@ -232,8 +255,8 @@ function renderTargets () {
 
     // Renombrando ESTA: el nombre se cambia por un campo de texto.
     if (o.id && o.id === editando) {
-      const caja = nameInput(o)
-      label.append(radio, caja)
+      const { fila, caja } = nameInput(o)
+      label.append(radio, fila)
       li.append(label)
       ul.append(li)
       requestAnimationFrame(() => { caja.focus(); caja.select() })

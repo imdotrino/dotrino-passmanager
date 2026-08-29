@@ -73,10 +73,32 @@ li.entry {
 .entry .confirm button { padding: 4px 8px; font-size: 12px; }
 button.danger { color: var(--danger); border-color: var(--danger); }
 button.primary.danger { background: var(--danger); color: #2a0b0b; border-color: transparent; }
-.entry .name { font-weight: 600; }
+.entry .name { font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.entry .nametext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* El lápiz: al lado del nombre, tenue hasta que lo buscas. El nombre de una entrada lo
+   pone el usuario; lo que se calcula del contenido es solo el punto de partida. */
+.entry .pencil {
+  flex: none; background: none; border: 0; color: inherit; opacity: .35;
+  padding: 0 2px; font-size: .9rem; line-height: 1; cursor: pointer; font-weight: 400;
+}
+.entry .pencil:hover, .entry .pencil:focus-visible { opacity: 1; }
+/* Escribiendo el nombre: el campo y su visto, que es lo que se ve. Enter y salir del
+   campo hacen lo mismo, pero no se anuncian. */
+.entry .editing { display: flex; align-items: center; gap: 6px; width: 100%; }
+.entry .newname {
+  flex: 1; min-width: 0; padding: 3px 6px; font: inherit; font-weight: 400;
+  background: rgba(255,255,255,.06); color: inherit;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
+}
+.entry .newname:focus { outline: 2px solid #00658c; outline-offset: -1px; }
+.entry .ok {
+  flex: none; background: none; color: #7fc6e6; cursor: pointer; font-weight: 400;
+  border: 1px solid rgba(127,198,230,.35); border-radius: 6px; padding: 2px 8px;
+}
+.entry .ok:hover { background: rgba(127,198,230,.12); }
 .entry .hint { font-size: 11px; }
 .entry .who { min-width: 0; }
-.entry .who > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry .who > .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toast {
   position: fixed; left: 12px; right: 12px; bottom: 10px; margin: 0;
   padding: 8px 10px; border-radius: 8px; background: var(--ok); color: #07281a;

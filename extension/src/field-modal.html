@@ -43,6 +43,18 @@
     border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
   }
   .newname:focus { outline: 2px solid #00658c; outline-offset: -1px; }
+  /* El campo del nombre y su visto, en una fila: el campo se lleva el hueco y el botón
+     se queda con lo justo. */
+  .editing { grid-column: 2 / -1; display: flex; align-items: center; gap: 6px; }
+  .editing .newname { grid-column: auto; }
+  .ok {
+    flex: none; background: none; color: #7fc6e6; cursor: pointer;
+    border: 1px solid rgba(127,198,230,.35); border-radius: 6px;
+    padding: 3px 9px; font-size: .84rem; line-height: 1.2;
+  }
+  .ok:hover { background: rgba(127,198,230,.12); }
+  .ok:focus-visible { outline: 2px solid #4cc2ff; outline-offset: 1px; }
+
   .t .who2 { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .t .when { font-size: .7rem; opacity: .55; white-space: nowrap; }
 

@@ -232,7 +232,63 @@ function sitioDe (e) {
   return sitio && sitio !== (e.hint || '') ? sitio : ''
 }
 
-function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
+/**
+ * EL NOMBRE DE LA ENTRADA, y su lápiz.
+ *
+ * Aquí también, no solo en los modales de la página (dueño, 2026-08-29: *«en el modal de
+ * la extensión no veo el botón de editar»*). Y es donde más falta hace: esta es la lista
+ * donde se administra lo guardado, así que es el primer sitio donde alguien va a buscar
+ * cómo renombrar algo.
+ *
+ * El **visto** confirma. Enter y salir del campo hacen lo mismo, pero no se anuncian.
+ */
+function nameCell (e, onRenamed) {
+  const nombre = e.hint || e.title || e.sites?.[0] || '—'
+  const linea = el('div', { className: 'name' })
+  const texto = el('span', { className: 'nametext', textContent: nombre })
+
+  const lapiz = el('button', {
+    className: 'pencil',
+    type: 'button',
+    textContent: '✎',
+    title: t(lang, 'renameEntry'),
+  })
+  lapiz.setAttribute('aria-label', t(lang, 'renameEntry'))
+  lapiz.dataset.testid = `popup-rename-${e.id}`
+
+  lapiz.onclick = () => {
+    const caja = el('input', { type: 'text', className: 'newname', value: nombre === '—' ? '' : nombre })
+    caja.placeholder = t(lang, 'entryName')
+    caja.dataset.testid = `popup-name-${e.id}`
+    const visto = el('button', { className: 'ok', type: 'button', textContent: '✓', title: t(lang, 'confirmName') })
+    visto.setAttribute('aria-label', t(lang, 'confirmName'))
+    visto.dataset.testid = `popup-name-ok-${e.id}`
+
+    let cerrado = false
+    const guardar = async (aplicar) => {
+      if (cerrado) return
+      cerrado = true
+      if (!aplicar) return onRenamed(false)
+      try { await ask('rename', { id: e.id, name: caja.value }) } catch (err) { toast(humanError(err), 'error') }
+      onRenamed(true)
+    }
+    caja.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); guardar(true) }
+      if (ev.key === 'Escape') { ev.preventDefault(); guardar(false) }
+    })
+    caja.addEventListener('blur', () => guardar(true))
+    visto.onclick = (ev) => { ev.preventDefault(); guardar(true) }
+
+    linea.replaceChildren(el('span', { className: 'editing' }, [caja, visto]))
+    caja.focus()
+    caja.select()
+  }
+
+  linea.append(texto, lapiz)
+  return linea
+}
+
+function entryRow (e, { onFill, onCopy, onDelete, onDefault, onRenamed, isDefault }) {
   const fill = el('button', { className: 'ghost', textContent: t(lang, 'fill') })
   const copy = el('button', { className: 'ghost', textContent: t(lang, 'copy') })
   const del = el('button', { className: 'ghost danger', textContent: t(lang, 'del') })
@@ -261,7 +317,7 @@ function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
     // revés»). Y tiene razón: en una lista de un solo sitio, el sitio es lo que todas
     // tienen en común y el nombre es lo único que las distingue.
     el('div', { className: 'who' }, [
-      el('div', { className: 'name', textContent: e.hint || e.title || e.sites?.[0] || '—' }),
+      nameCell(e, onRenamed),
       el('div', { className: 'hint', textContent: sitioDe(e) }),
     ]),
     el('div', { className: 'acts' }, [
@@ -340,6 +396,9 @@ async function renderSite (estado0) {
     const porDefecto = await ask('default-get', { url }).catch(() => null)
     list.replaceChildren(...items.map(e => entryRow(e, {
       onFill, onCopy, onDelete, onDefault, isDefault: e.id === porDefecto,
+      // Renombrar cambia lo que dice la lista entera —el nombre visible sale de dentro—,
+      // así que se vuelve a pintar en vez de parchear la fila.
+      onRenamed: (cambió) => { if (cambió) render(); else renderSite(estado0) },
     })))
     estado.textContent = items.length ? '' : t(lang, 'noneHere')
   } catch (e) {

@@ -189,7 +189,17 @@ function pencil (id) {
   return b
 }
 
-/** El campo donde se escribe el nombre. Enter guarda, Escape deja como estaba. */
+/**
+ * El campo donde se escribe el nombre, con su VISTO al lado.
+ *
+ * Enter y salir del campo ya guardaban, y siguen guardando; lo que no hacían era
+ * **decirse** (dueño, 2026-08-29: *«no se sabe dónde presionar para confirmar»*). Un
+ * atajo que solo conoce quien lo escribió no es un atajo, es un secreto.
+ *
+ * El de la entrada NUEVA no lleva visto, y es a propósito: ahí no hay nada que confirmar
+ * —el nombre se aplica al guardar, con el botón de abajo—, y un visto que no hace nada
+ * enseña a desconfiar del que sí.
+ */
 function nameInput (id, valor) {
   const caja = document.createElement('input')
   caja.type = 'text'
@@ -200,7 +210,7 @@ function nameInput (id, valor) {
   if (!id) {
     caja.addEventListener('input', () => { nuevoNombre = caja.value })
     caja.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.preventDefault() })
-    return caja
+    return { fila: caja, caja }
   }
   let cerrado = false
   const guardar = async (aplicar) => {
@@ -222,7 +232,23 @@ function nameInput (id, valor) {
     if (ev.key === 'Escape') { ev.preventDefault(); guardar(false) }
   })
   caja.addEventListener('blur', () => guardar(true))
-  return caja
+
+  const listo = document.createElement('button')
+  listo.type = 'button'
+  listo.className = 'ok'
+  listo.dataset.testid = `save-prompt-name-ok-${id}`
+  listo.title = t(lang, 'confirmName')
+  listo.setAttribute('aria-label', t(lang, 'confirmName'))
+  listo.textContent = '✓'
+  listo.addEventListener('click', (ev) => { ev.preventDefault(); guardar(true) })
+
+  const fila = document.createElement('span')
+  fila.className = 'editing'
+  fila.append(caja, listo)
+  // El PAR, como el otro `return` de arriba: quien llama necesita el contenedor para
+  // colgarlo y el campo para enfocarlo. Devolver solo el contenedor pintaba «undefined»
+  // en la fila —el destructurado no encontraba nada— y así lo vio el dueño.
+  return { fila, caja }
 }
 
 function renderTargets () {
@@ -281,8 +307,8 @@ function renderTargets () {
     // renombrando. En los dos casos el campo se lleva la fila.
     const escribiendo = (!o.id && o.id === target) || (o.id && o.id === editando)
     if (escribiendo) {
-      const caja = nameInput(o.id, o.id ? o.label : (nuevoNombre ?? sugerido()))
-      label.append(radio, caja)
+      const { fila, caja } = nameInput(o.id, o.id ? o.label : (nuevoNombre ?? sugerido()))
+      label.append(radio, fila)
       li.append(label)
       ul.append(li)
       if (o.id) requestAnimationFrame(() => { caja.focus(); caja.select() })

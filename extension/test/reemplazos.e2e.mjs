@@ -289,6 +289,42 @@ try {
   ok(abierta?.secret === 'clave-buena', 'con su contraseña')
   const datosFinal = await abrir(entryId)
   ok(campos(datosFinal).length === cuantos, 'y la entrada de datos sigue intacta')
+  // --- 5b. el nombre lo pone el usuario, y se confirma con el visto ------------
+  console.log('\nponerle nombre a una entrada')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1200)
+  await pulsar('tel')
+  m = await modal()
+  ok(!!m, 'sale el modal')
+  if (m) {
+    await m.locator(`[data-testid=field-modal-target-${entryId}]`).check()
+    await page.waitForTimeout(400)
+    await m.locator(`[data-testid=field-modal-rename-${entryId}]`).click()
+    await page.waitForTimeout(400)
+    const caja = m.locator(`[data-testid=field-modal-name-${entryId}]`)
+    ok(await caja.isVisible(), 'el lápiz abre el campo del nombre')
+    await caja.fill('La de mis datos')
+    // Con el VISTO, que es lo que se ve; Enter y el blur hacen lo mismo pero no se
+    // anuncian (dueño, 2026-08-29).
+    const visto = m.locator(`[data-testid=field-modal-name-ok-${entryId}]`)
+    ok(await visto.isVisible(), 'y a su lado hay un visto para confirmar')
+    await visto.click()
+    await page.waitForTimeout(1200)
+    const fila = m.locator(`[data-testid=field-modal-target][data-id="${entryId}"] .who2`)
+    ok(await fila.textContent() === 'La de mis datos', 'el nombre queda puesto en la lista')
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+  const conNombre = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
+    .find((e) => e.id === entryId)
+  ok(conNombre?.hint === 'La de mis datos', 'y en la bóveda: ' + conNombre?.hint)
+  // Vaciarlo devuelve el que se calcula del contenido: ninguna fila se queda sin nombre.
+  await pedir('rename', { id: entryId, name: '' })
+  await page.waitForTimeout(400)
+  const sinNombre = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
+    .find((e) => e.id === entryId)
+  ok(sinNombre?.hint === 'ana@datos.com', 'y vaciarlo devuelve el calculado: ' + sinNombre?.hint)
+
   // --- 6. dos registros que acaban VIÉNDOSE IGUAL -----------------------------
   //
   // Lo que el dueño vio el 2026-08-29: «cuando pongo un Nombre igual a dos records uno
@@ -380,6 +416,60 @@ try {
   const queda = await fichas()
   ok(queda.length === 1 && queda[0].id === entryId, 'quitar una deja la otra en pie')
   ok(campos(await abrir(entryId)).length === cuantos, 'y entera')
+  // --- 6b. renombrar desde el AVISO, que es la otra pantalla con la lista -----
+  console.log('\ny renombrar desde el aviso de guardar')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(900)
+  await page.fill('input[name=city]', 'Guayaquil')
+  await page.fill('input[name="family-name"]', 'Ruiz')
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'sale el aviso')
+  if (f) {
+    await f.locator(`[data-testid=save-prompt-rename-${entryId}]`).click()
+    const caja = f.locator(`[data-testid=save-prompt-name-${entryId}]`)
+    await caja.waitFor({ timeout: 5000 })
+    // Lo que el dueño vio: la fila decía «undefined» en vez de traer el nombre actual.
+    ok(await caja.inputValue() !== 'undefined', 'el campo trae el nombre, no «undefined»')
+    await caja.fill('Mis datos')
+    await f.locator(`[data-testid=save-prompt-name-ok-${entryId}]`).click()
+    await page.waitForTimeout(1400)
+    const fila = f.locator(`[data-testid=save-prompt-target][data-id="${entryId}"] .who2`)
+    ok(await fila.textContent() === 'Mis datos', 'y el visto lo confirma en la lista')
+    await f.locator('[data-testid=save-prompt-dismiss]').click().catch(() => {})
+    await page.waitForTimeout(500)
+  }
+
+  // --- 7. y el lápiz también en la lista de la extensión ----------------------
+  //
+  // Es donde se administra lo guardado, así que es el primer sitio donde alguien busca
+  // cómo renombrar algo (dueño, 2026-08-29: «en el modal de la extensión no veo el botón
+  // de editar»).
+  console.log('\nel lápiz en la lista de la extensión')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(700)
+  // Con la pestaña del SITIO al frente, que es como corre el popup de verdad: colgado de
+  // la barra, con el sitio delante. Si no, se ve a sí mismo y la lista sale vacía.
+  await page.bringToFront()
+  await ext.waitForTimeout(300)
+  await ext.reload()
+  await ext.waitForTimeout(2500)
+
+  const lapiz = ext.locator(`[data-testid=popup-rename-${entryId}]`)
+  ok(await lapiz.count() === 1, 'cada entrada de la lista lleva su lápiz')
+  if (await lapiz.count()) {
+    await lapiz.click()
+    const caja = ext.locator(`[data-testid=popup-name-${entryId}]`)
+    await caja.waitFor({ timeout: 5000 })
+    await caja.fill('Mis datos de aquí')
+    await ext.locator(`[data-testid=popup-name-ok-${entryId}]`).click()
+    await ext.waitForTimeout(1800)
+    ok(await ext.locator('.entry .nametext').first().textContent() === 'Mis datos de aquí',
+      'y el visto lo confirma')
+  }
+  const renombrada = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
+    .find((e) => e.id === entryId)
+  ok(renombrada?.hint === 'Mis datos de aquí', 'queda en la bóveda: ' + renombrada?.hint)
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

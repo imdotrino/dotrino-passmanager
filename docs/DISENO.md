@@ -701,9 +701,18 @@ una suposición: con dos cuentas del mismo sitio dice lo mismo de las dos, y qui
 lista no tiene con qué elegir.
 
 Ahora hay un campo `name` y **manda sobre el calculado**. Un lápiz al lado del nombre, en
-las dos pantallas que listan entradas, lo convierte en un campo de texto: Enter guarda,
-Escape deja como estaba, y **vacío quita el nombre puesto y vuelve el calculado** — una
-fila nunca se queda sin nombre.
+las **tres** pantallas que listan entradas —el modal del campo, el aviso de guardar y la
+lista de la extensión—, lo convierte en un campo de texto con un **visto** al lado.
+
+Enter y salir del campo también guardan, y siguen guardando; el visto está porque **no se
+anunciaban** (dueño, 2026-08-29: *«no se sabe dónde presionar para confirmar»*). Un atajo
+que solo conoce quien lo escribió no es un atajo, es un secreto. Escape deja como estaba, y
+**vaciarlo quita el nombre puesto y devuelve el calculado** — una fila nunca se queda sin
+nombre.
+
+**La entrada nueva NO lleva visto**, y es a propósito (dueño, 2026-08-29): ahí no hay nada
+que confirmar, porque la entrada no existe hasta que se guarda un campo. Un visto que no
+hace nada enseña a desconfiar del que sí.
 
 - **Va SELLADO**, no en claro como `title`: *«la cuenta de mi mamá»* dice bastante más de
   una persona que el dominio donde la usa. Viaja en la vista pública como `hint`, que ya

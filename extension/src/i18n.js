@@ -60,6 +60,7 @@ const STRINGS = {
     askOther: 'algo que guardaste',
     entryName: 'Nombre de la entrada',
     renameEntry: 'Cambiar el nombre',
+    confirmName: 'Listo',
     askDenied: 'No lo autorizaste, así que no salió nada.',
     empty: 'La bóveda está vacía. Importa lo que ya tienes o añade una entrada.',
     fill: 'Rellenar',
@@ -76,7 +77,10 @@ const STRINGS = {
     noUser: 'sin usuario',
     fieldNew: 'nuevo',
     fieldChanged: 'cambia',
-    saveWhere: 'Guardar en',
+    // «Registros» y no «Guardar en» (dueño, 2026-08-29): la lista dejó de ser solo el
+    // sitio a donde va lo que guardas —ahí se elige, se busca y ahora se renombra—, y el
+    // título tiene que decir QUÉ hay debajo, no una sola de las cosas que se hacen.
+    saveWhere: 'Registros',
     fieldsLabel: 'Campos',
     newEntry: 'Una entrada nueva',
     mostSimilar: 'se parece',
@@ -157,6 +161,7 @@ const STRINGS = {
     askOther: 'something you saved',
     entryName: 'Entry name',
     renameEntry: 'Rename',
+    confirmName: 'Done',
     askDenied: 'You did not authorize it, so nothing left your vault.',
     empty: 'The vault is empty. Import what you already have, or add an entry.',
     fill: 'Fill',
@@ -173,7 +178,7 @@ const STRINGS = {
     noUser: 'no username',
     fieldNew: 'new',
     fieldChanged: 'changes',
-    saveWhere: 'Save into',
+    saveWhere: 'Records',
     fieldsLabel: 'Fields',
     newEntry: 'A new entry',
     mostSimilar: 'closest',
