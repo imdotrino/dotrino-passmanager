@@ -42,6 +42,7 @@ const ask = (op, payload) => new Promise((resolve, reject) => {
 
 document.documentElement.lang = lang
 $('save').textContent = t(lang, 'save')
+$('whereTitle').textContent = t(lang, 'saveWhere')
 $('fillTitle').textContent = t(lang, 'fillSection')
 $('saveTitle').textContent = t(lang, 'saveSection')
 $('fillAll').textContent = t(lang, 'fillAllChecked')
@@ -95,10 +96,9 @@ async function start () {
   if (ctx.canSave) {
     try { detail = await ask('pending-detail') } catch (_) { detail = null }
   }
-  // Si no había ninguna recordada, se abre en una entrada donde haya algo que hacer: con
-  // varias, la primera puede ser justo la que ya tiene ese dato igual y el modal saldría
-  // en blanco.
-  if (memoria.get() === null) {
+  // Sin predeterminada, se abre en una entrada donde haya algo que hacer: la primera
+  // puede ser justo la que ya tiene ese dato igual, y el modal saldría en blanco.
+  if (!(await porDefecto())) {
     for (let i = 0; i < records.length; i++) {
       at = i
       if (rowsToSave().length || puedeRellenar().length) break
@@ -107,69 +107,119 @@ async function start () {
   render()
 }
 
+/**
+ * DÓNDE: la lista de entradas, con la nueva al final.
+ *
+ * Con una sola opción —«una entrada nueva», porque el sitio no tiene nada— no se enseña:
+ * elegir entre una cosa no es elegir. Igual que en el aviso de después de entrar.
+ */
+function renderTargets () {
+  const ul = $('targets')
+  ul.textContent = ''
+  // Con más de cinco, la lista tapa el modal: aparece el buscador. Y el buscador vale
+  // para algo más que filtrar —busca en TODA la bóveda—, así que también sale cuando el
+  // sitio no tiene nada: es el caso del subdominio que cambió (dueño, 2026-08-28).
+  const conviene = records.length > 5 || records.length <= 1
+  $('q').hidden = !conviene && !buscando
+  $('q').placeholder = t(lang, 'searchRecords')
+  $('whereBox').hidden = records.length <= 1 && !conviene
+  if ($('whereBox').hidden) return
+
+  for (const [i, o] of records.entries()) {
+    const li = document.createElement('li')
+    li.dataset.testid = 'field-modal-target'
+    li.dataset.id = o.id
+
+    const label = document.createElement('label')
+    label.className = 't'
+
+    const radio = document.createElement('input')
+    radio.type = 'radio'
+    radio.name = 'target'
+    radio.value = o.id
+    radio.checked = i === at
+    radio.dataset.testid = o.id ? `field-modal-target-${o.id}` : 'field-modal-target-new'
+    radio.addEventListener('change', () => { at = i; render() })
+
+    const who = document.createElement('span')
+    who.className = 'who2'
+    who.textContent = o.name
+    who.title = o.name
+
+    const when = document.createElement('span')
+    when.className = 'when'
+    when.textContent = o.when || ''
+
+    label.append(radio, who, when)
+    li.append(label)
+    ul.append(li)
+  }
+}
+
 /** Los campos de la página que la entrada elegida puede rellenar. */
 function puedeRellenar () {
   const r = actual()
-  return r.id ? ctx.page.filter(f => (f.ids || []).includes(r.id)) : []
+  if (!r.id) return []
+  return r.fuera ? ctx.page : ctx.page.filter(f => (f.ids || []).includes(r.id))
 }
 
 /**
- * La última entrada elegida en este sitio.
+ * La entrada PREDETERMINADA del sitio, la que el usuario marcó en el popup.
  *
- * Se recuerda porque abrir el modal cinco veces en la misma página y tener que volver a
- * buscar la entrada con las flechas es trabajo que el gestor puede ahorrar. Vive en el
- * almacén de la EXTENSIÓN (este marco es suyo), no en el del sitio, y es una comodidad:
- * si el valor guardado ya no existe, se ignora sin más.
+ * Sustituye a recordar la última elegida (dueño, 2026-08-28): recordar adivina, y con
+ * tres cuentas del mismo sitio adivina mal la mitad de las veces. Marcarla es decirlo.
  */
-const memoria = {
-  // La clave se calcula al usarla: el sitio llega con el contexto, después de cargar.
-  clave () {
-    let host = ''
-    try { host = new URL(ctx.url || '').host } catch (_) { host = '' }
-    return host ? `passmanager/last-record/${host}` : ''
-  },
-  get () {
-    const k = this.clave()
-    try { return k ? localStorage.getItem(k) : null } catch (_) { return null }
-  },
-  set (id) {
-    const k = this.clave()
-    try { if (k) localStorage.setItem(k, id || '') } catch (_) {}
-  },
+async function porDefecto () {
+  try { return await ask('default-get', { url: ctx.url }) } catch (_) { return null }
 }
 
-/** Las entradas del sitio, y la nueva al final. */
+/** Lo que hay escrito en el buscador. Con texto, la lista es el resultado. */
+let buscando = ''
+
+/** Las entradas del sitio —o las que casen con la búsqueda—, y la nueva al final. */
 async function loadRecords (elegir) {
+  const marcada = await porDefecto()
   let hay = []
-  try { hay = await ask('find', { url: ctx.url }) } catch (_) { hay = [] }
+  if (buscando) {
+    // Buscar mira TODA la bóveda: es para traerse la cuenta de otro dominio.
+    try { hay = await ask('search', { q: buscando, limit: 12 }) } catch (_) { hay = [] }
+  } else {
+    try { hay = await ask('find', { url: ctx.url }) } catch (_) { hay = [] }
+  }
 
   // Solo las entradas que pintan algo aquí: las que pueden rellenar alguno de los campos
   // de esta página, o —si se va a guardar— cualquiera del sitio.
   const utiles = new Set(ctx.page.flatMap(f => f.ids || []))
   records = hay
-    .filter(e => utiles.has(e.id) || ctx.canSave)
-    .map(e => ({ id: e.id, name: e.hint || e.title || t(lang, 'noUser'), when: ago(e.updatedAt) }))
+    // Buscando, valen todas: si la pediste por su nombre es que la quieres.
+    .filter(e => buscando || utiles.has(e.id) || ctx.canSave)
+    .map(e => ({
+      id: e.id,
+      name: e.hint || e.title || t(lang, 'noUser'),
+      when: ago(e.updatedAt),
+      // De fuera: no puede rellenar ningún campo de esta página *que sepamos*. Es la que
+      // se trae buscando, del dominio que cambió — y con ella se ofrece todo, porque
+      // averiguar qué lleva dentro exigiría abrirla solo para pintar la lista.
+      fuera: !utiles.has(e.id),
+    }))
   // La entrada nueva es una opción más, y va al final: guardar es lo de abajo.
   if (ctx.canSave) records.push({ id: '', name: t(lang, 'newEntry'), when: '' })
   if (!records.length) records = [{ id: '', name: t(lang, 'newEntry'), when: '' }]
-  const quiero = elegir !== undefined ? elegir : memoria.get()
-  const i = quiero !== null && quiero !== undefined ? records.findIndex(r => r.id === quiero) : -1
+  // La predeterminada va PRIMERA, y elegida. Es lo que el usuario pidió que pasara al
+  // abrir un campo, y ponerla arriba es la mitad de eso.
+  if (marcada) {
+    const j = records.findIndex(r => r.id === marcada)
+    if (j > 0) records.unshift(records.splice(j, 1)[0])
+  }
+  const quiero = elegir !== undefined ? elegir : marcada
+  const i = quiero ? records.findIndex(r => r.id === quiero) : -1
   at = i >= 0 ? i : Math.min(at, records.length - 1)
 }
 
 function actual () { return records[at] || { id: '' } }
 
 function render () {
-  const r = actual()
-  $('recName').textContent = r.name
-  $('recWhen').textContent = r.when || ''
-  // Con una sola opción no hay a dónde ir: las flechas se van. Apagadas y a la vista
-  // prometen algo que no existe — y la única que queda entonces es «una entrada nueva».
-  const solaUna = records.length <= 1
-  $('prev').hidden = solaUna
-  $('next').hidden = solaUna
-  $('prev').disabled = at <= 0
-  $('next').disabled = at >= records.length - 1
+  renderTargets()
 
   // Rellenar: los campos de la página que ESTA entrada puede poner.
   const puede = puedeRellenar()
@@ -247,6 +297,8 @@ function render () {
   // Y el de abajo, los de todas las filas de una vez.
   $('save').textContent = t(lang, filas.some(r => r.status === 'changed') ? 'replaceAll' : 'saveAll')
   $('save').disabled = false
+  // Para las pruebas: ya está pintado, con su lista y sus secciones.
+  document.body.dataset.ready = '1'
   resize()
 }
 
@@ -274,15 +326,7 @@ const privadas = () => [...document.querySelectorAll('#saveList input[type=check
   .filter(b => b.checked)
   .map(b => b.dataset.testid.replace('field-modal-private-', ''))
 
-const mover = (paso) => {
-  const i = at + paso
-  if (i < 0 || i >= records.length) return
-  at = i
-  memoria.set(actual().id)
-  render()
-}
-$('prev').onclick = () => mover(-1)
-$('next').onclick = () => mover(1)
+
 
 $('fillAll').onclick = () => {
   const marcados = [...document.querySelectorAll('#fillList input[type=checkbox]')]
@@ -317,6 +361,14 @@ async function fill (keys) {
       const c = campos.find(x => (x.kind || (x.label ? `label:${x.label}` : 'other')) === k)
       if (c) values.push({ key: k, value: c.value })
     }
+    if (!values.length) {
+      // Se ofreció porque no se sabía qué llevaba dentro (una traída de otro dominio) y
+      // resulta que no lleva eso. Se dice, en vez de cerrarse como si hubiera hecho algo.
+      $('err').textContent = t(lang, 'nothingForField')
+      $('err').hidden = false
+      for (const b of document.querySelectorAll('button')) b.disabled = false
+      return resize()
+    }
     post({ op: 'fill-field-modal', values })
     close()
   } catch (e) { fail(e) }
@@ -329,6 +381,18 @@ async function fill (keys) {
  * lo demás dejaría media lista de botones muertos. Al terminar se vuelve a mirar qué
  * queda, y si ya no queda nada que hacer el modal se va.
  */
+// El buscador, con freno: cada tecla no puede ser un viaje a la bóveda.
+let tecleando = null
+$('q').addEventListener('input', () => {
+  clearTimeout(tecleando)
+  tecleando = setTimeout(async () => {
+    buscando = $('q').value.trim()
+    await loadRecords('')
+    render()
+    $('q').focus()
+  }, 220)
+})
+
 async function guardar (pick) {
   if (!pick.length) return
   const priv = privadas().filter(k => pick.includes(k))
@@ -345,9 +409,7 @@ async function guardar (pick) {
     // Los marcadores de la página tienen que enterarse: lo guardado ya no se ofrece.
     post({ op: 'saved-field-modal' })
     // Si la entrada acaba de nacer, el siguiente campo va A ESA, no a otra nueva.
-    const destino = r.id || res?.id || ''
-    memoria.set(destino)
-    await loadRecords(destino)
+    await loadRecords(r.id || res?.id || '')
     try { detail = await ask('pending-detail') } catch (_) { detail = null }
     if (!rowsToSave().length && !ctx.page.some(f => (f.ids || []).includes(actual().id))) return close()
     render()

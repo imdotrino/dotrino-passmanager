@@ -204,17 +204,35 @@ function renderAdd (s) {
   name.focus()
 }
 
-function entryRow (e, { onFill, onCopy }) {
+/**
+ * Una entrada de la lista: quién es, y qué se puede hacer con ella.
+ *
+ * La casilla **predeterminada** no es un adorno: marca cuál sale elegida al abrir el
+ * botón de un campo en la página (§4.1), que con tres cuentas del mismo sitio es la
+ * diferencia entre elegir siempre o no elegir nunca. Solo puede haber una por sitio, así
+ * que marcar una desmarca la anterior.
+ */
+function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
   const fill = el('button', { className: 'ghost', textContent: t(lang, 'fill') })
   const copy = el('button', { className: 'ghost', textContent: t(lang, 'copy') })
+  const del = el('button', { className: 'ghost danger', textContent: t(lang, 'del') })
   fill.onclick = () => onFill(e)
   copy.onclick = () => onCopy(e)
+  del.onclick = () => onDelete(e)
+
+  const marca = el('input', { type: 'checkbox', checked: !!isDefault })
+  marca.onchange = () => onDefault(e, marca.checked)
+
   return el('li', { className: 'entry' }, [
     el('div', { className: 'who' }, [
       el('div', { className: 'name', textContent: e.title || e.sites?.[0] || '—' }),
       el('div', { className: 'hint', textContent: e.hint || e.sites?.[0] || '' }),
     ]),
-    fill, copy,
+    el('div', { className: 'acts' }, [
+      el('label', { className: 'def' }, [marca, el('span', { textContent: t(lang, 'byDefault') })]),
+      el('span', { className: 'sp' }),
+      fill, copy, del,
+    ]),
   ])
 }
 
@@ -245,6 +263,38 @@ async function renderSite (estado0) {
     } catch (err) { toast(humanError(err), 'error') }
   }
 
+  /**
+   * Borrar. Con aviso, y el aviso es UI nuestra: nada de `confirm()` del navegador
+   * (CONVENCIONES §5). Se dice qué se borra y que no hay vuelta atrás.
+   */
+  const onDelete = (e) => {
+    const nombre = e.title || e.hint || e.sites?.[0] || '—'
+    const si = el('button', { className: 'primary danger', textContent: t(lang, 'del') })
+    const no = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
+    si.onclick = async () => {
+      try {
+        await ask('remove', { id: e.id, url })
+        toast(t(lang, 'deleted'))
+        render()
+      } catch (err) { toast(humanError(err), 'error') }
+    }
+    no.onclick = render
+    view.replaceChildren(
+      el('h2', { textContent: `${t(lang, 'del')}: ${nombre}` }),
+      el('p', { className: 'hint', textContent: t(lang, 'delAsk') }),
+      si, no,
+    )
+    si.focus()
+  }
+
+  /** Cuál sale elegida al abrir un campo. Una por sitio: marcar una suelta la otra. */
+  const onDefault = async (e, marcada) => {
+    try {
+      await ask('default-set', { url, id: marcada ? e.id : null })
+      render()
+    } catch (err) { toast(humanError(err), 'error') }
+  }
+
   const onCopy = async (e) => {
     try {
       const full = await askForOne(e)
@@ -262,7 +312,10 @@ async function renderSite (estado0) {
 
   try {
     const items = await ask('find', { url })
-    list.replaceChildren(...items.map(e => entryRow(e, { onFill, onCopy })))
+    const porDefecto = await ask('default-get', { url }).catch(() => null)
+    list.replaceChildren(...items.map(e => entryRow(e, {
+      onFill, onCopy, onDelete, onDefault, isDefault: e.id === porDefecto,
+    })))
     estado.textContent = items.length ? '' : t(lang, 'noneHere')
   } catch (e) {
     estado.className = 'error'

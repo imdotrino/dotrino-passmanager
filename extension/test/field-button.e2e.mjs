@@ -40,8 +40,8 @@ const que = async (campos) => (await pedir('offers', { url: page.url(), fields: 
 async function modal () {
   for (let i = 0; i < 40; i++) {
     const f = page.frames().find((x) => x.url().includes('field-modal.html'))
-    // Pintado = ya sabe de qué entrada habla. No hay botón de cerrar por el que esperar.
-    if (f) { await f.locator('#recName').filter({ hasNotText: /^$/ }).waitFor({ timeout: 8000 }); return f }
+    // Pintado = ya sabe de qué entrada habla y ha dibujado sus secciones.
+    if (f) { await f.locator('body[data-ready]').waitFor({ timeout: 8000 }); return f }
     await page.waitForTimeout(200)
   }
   return null
@@ -69,8 +69,9 @@ try {
   const m0 = await modal()
   ok(!!m0, 'el modal sale con solo el usuario escrito')
   if (m0) {
-    ok((await m0.locator('#recName').textContent()).match(/nueva|new/i), 'y dice «una entrada nueva»')
-    ok(!(await m0.locator('[data-testid=field-modal-next]').isVisible()), 'sin flechas: no hay a dónde ir')
+    // Sin entradas del sitio no hay lista que elegir, pero SÍ buscador: es como se trae
+    // la cuenta de otro dominio cuando cambia el subdominio.
+    ok(await m0.locator('[data-testid=field-modal-search]').isVisible(), 'sale el buscador')
     await page.mouse.click(200, 120)     // fuera: así se cierra
     await page.waitForTimeout(400)
     ok(!page.frames().find((x) => x.url().includes('field-modal.html')), 'y se cierra al pulsar fuera')
@@ -143,7 +144,7 @@ try {
   // El modal SÍ es alcanzable: es un iframe de la extensión, como el aviso.
   const m = await modal()
   ok(!!m, 'el modal del campo sale al pulsar el marcador')
-  ok((await m.locator('#recName').textContent()) !== '', 'con una entrada en la cabecera')
+  ok(await m.locator('[data-testid=field-modal-target]').count() >= 1, 'con la entrada que la puede rellenar')
   const filas = m.locator('[data-testid=field-modal-fill-row]')
   ok(await filas.count() >= 2, 'y la lista de lo que puede rellenar (' + (await filas.count()) + ')')
   ok(await m.locator('[data-testid=field-modal-check-email]').isChecked(), 'con las casillas marcadas')
@@ -172,14 +173,10 @@ try {
   if (m2) {
     // Hay una entrada de datos del sitio, así que la nueva es la ÚLTIMA de la cabecera y
     // las flechas están a la vista.
-    ok(await m2.locator('[data-testid=field-modal-next]').isVisible(), 'con flechas, que hay más de una')
-    // Hasta el final de la lista: la entrada nueva es la última, nunca la primera.
-    const next = m2.locator('[data-testid=field-modal-next]')
-    for (let i = 0; i < 8 && !(await next.isDisabled()); i++) await next.click()
-    ok((await m2.locator('#recName').textContent()).match(/nueva|new/i),
-      'y la entrada nueva es la última: ' + (await m2.locator('#recName').textContent()))
-    const prev = m2.locator('[data-testid=field-modal-prev]')
-    for (let i = 0; i < 8 && !(await prev.isDisabled()); i++) await prev.click()
+    const destinos = m2.locator('[data-testid=field-modal-target]')
+    ok(await destinos.count() >= 2, 'con la lista de a dónde va (' + (await destinos.count()) + ')')
+    ok((await destinos.last().textContent()).match(/nueva|new/i),
+      'y la entrada nueva es la última: ' + (await destinos.last().textContent()))
     ok(!(await m2.locator('#saveBox').isHidden()), 'con su sección de guardar')
     const fila = m2.locator('[data-testid=field-modal-save-row][data-field=city]')
     const nombre = await fila.locator('.name').textContent()
@@ -221,8 +218,8 @@ try {
   await page.mouse.click(cajaCity3.x + cajaCity3.width - 10, cajaCity3.y + 8)
   const mn = await modal()
   if (mn) {
-    const next2 = mn.locator('[data-testid=field-modal-next]')
-    for (let i = 0; i < 8 && !(await next2.isDisabled()); i++) await next2.click()
+    await mn.locator('[data-testid=field-modal-target-new]').check()
+    await page.waitForTimeout(300)
     await mn.locator('[data-testid=field-modal-save-city]').click()
     await page.waitForTimeout(1500)
     await page.mouse.click(200, 120)
@@ -237,7 +234,43 @@ try {
   await page.fill('input[name=city]', '')
   await page.waitForTimeout(500)
 
+  console.log('\nbuscar la cuenta de OTRO dominio (el subdominio que cambió)')
+  // 127.0.0.1 es otro sitio que localhost, aunque sirvan lo mismo: sirve de subdominio
+  // nuevo sin montar otro servidor.
+  const OTRO = SITE.replace('localhost', '127.0.0.1')
+  await page.goto(`${OTRO}/login.html`)
+  await page.waitForTimeout(1200)
+  r = await que([{ id: 0, key: 'login', value: '', username: '', secret: '' }])
+  ok(!r[0].fill, 'ahí no hay nada guardado: no ofrece rellenar')
+  await page.fill('input[name=user]', 'x')
+  await page.waitForTimeout(800)
+  const cajaOtro = await page.locator('input[name=user]').boundingBox()
+  await page.mouse.click(cajaOtro.x + cajaOtro.width - 10, cajaOtro.y + 8)
+  const mo = await modal()
+  ok(!!mo, 'el modal sale')
+  if (mo) {
+    ok(await mo.locator('[data-testid=field-modal-search]').isVisible(), 'con el buscador')
+    await mo.locator('[data-testid=field-modal-search]').fill('ana@ejemplo.com')
+    await page.waitForTimeout(900)
+    const traidos = mo.locator('[data-testid=field-modal-target]')
+    ok(await traidos.count() >= 2, 'y encuentra la cuenta del otro dominio')
+    // La primera es la encontrada; se elige y se rellena desde ella.
+    const idTraido = await traidos.first().getAttribute('data-id')
+    await mo.locator(`[data-testid=field-modal-target-${idTraido}]`).check()
+    await page.waitForTimeout(400)
+    ok(await mo.locator('[data-testid=field-modal-fill-row]').count() >= 1,
+      'ofrece rellenar con ella aunque sea de otro sitio')
+    await mo.locator('[data-testid=field-modal-fill-all]').click()
+    await page.waitForTimeout(1200)
+  }
+  const puesto2 = await page.evaluate(() =>
+    Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
+  ok(puesto2.user === 'ana@ejemplo.com' && !!puesto2.password,
+    'y la credencial de otro dominio entra: ' + puesto2.user)
+
   console.log('\ny se cierra al pulsar fuera')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1000)
   await page.fill('input[name=member]', 'SOC-1')
   await page.waitForTimeout(700)
   const cajaSocio = await page.locator('input[name=member]').boundingBox()

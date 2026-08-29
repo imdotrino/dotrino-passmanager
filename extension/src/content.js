@@ -61,6 +61,11 @@ function forgetEntries () {
  * el campo ya tiene algo escrito y se puede ofrecer guardarlo (dueño, 2026-08-28).
  */
 let shownKey = ''
+// TODOS los campos detectados con lo que se puede hacer en cada uno; `lastShown` son los
+// que además llevan marcador. Rellenar necesita los primeros: una contraseña vacía de un
+// sitio sin nada guardado no tiene botón, y aun así hay que poder escribir en ella cuando
+// el usuario trae una cuenta de otro dominio.
+let lastFields = []
 let lastShown = []
 
 async function scan () {
@@ -97,12 +102,13 @@ async function scan () {
     fields: markable.map((f, i) => descFor(f, i)),
   })
   const dicho = r?.error ? [] : (r.result || [])
+  const todos = []
   const shown = []
   for (let i = 0; i < markable.length; i++) {
     const offers = dicho[i] || { fill: false, save: false, ids: [] }
-    if (offers.fill || offers.save) {
-      shown.push({ ...markable[i], offers, title: titleFor(offers) })
-    }
+    const campo = { ...markable[i], offers, title: titleFor(offers) }
+    todos.push(campo)
+    if (offers.fill || offers.save) shown.push(campo)
   }
 
   // Volver a montarlos en cada tecla haría parpadear el que tienes debajo del cursor: se
@@ -110,6 +116,7 @@ async function scan () {
   const key = shown
     .map(f => `${markable.findIndex(m => m.el === f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}`)
     .join('|')
+  lastFields = todos
   lastShown = shown
   if (key !== shownKey) {
     ui.mountMarkers(shown, onPick)
@@ -248,7 +255,7 @@ async function captureField (field) {
 async function fillFromModal (values) {
   const { detect, ui } = await mods
   for (const v of Array.isArray(values) ? values : []) {
-    for (const f of lastShown) {
+    for (const f of lastFields) {
       if (keyOf(f) !== v.key) continue
       if (v.key === 'login') {
         if (f.el === f.form?.username && v.username) detect.fillField(f.el, v.username)
@@ -271,7 +278,7 @@ async function sendModalContext () {
   if (!w) return
   const vistos = new Set()
   const page = []
-  for (const f of lastShown) {
+  for (const f of lastFields) {
     const k = keyOf(f)
     if (vistos.has(k)) continue
     vistos.add(k)

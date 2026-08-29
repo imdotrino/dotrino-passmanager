@@ -703,7 +703,16 @@ async function savePending ({ id, pick, privateKeys, keepRest } = {}) {
     // Los de la entrada que se actualiza, tal cual: una entrada SIN sitios sirve en
     // cualquier parte (§4.2), y ponerle el host aquí la convertiría en la de este sitio
     // sin que nadie lo pidiera.
-    sites: base ? (base.sites || []) : [p.host],
+    //
+    // La excepción es guardar en una entrada de OTRO dominio, que ahora se puede elegir
+    // buscándola: ahí sí se suma este sitio, porque es justo lo que se está diciendo —el
+    // subdominio cambió y la cuenta es la misma—, y si no, la entrada no volvería a
+    // aparecer aquí nunca.
+    sites: base
+      ? ((base.sites || []).length && p.host && !(base.sites || []).includes(p.host)
+          ? [...base.sites, p.host]
+          : (base.sites || []))
+      : [p.host],
     username: (quiere('username') && p.username) || base?.username || '',
     secret: (quiere('secret') && p.secret) || base?.secret || '',
     totp: base?.totp || '',
@@ -864,6 +873,69 @@ async function offersFor ({ url, fields } = {}) {
   return out
 }
 
+/**
+ * LA ENTRADA PREDETERMINADA de un sitio: la que sale elegida al abrir el botón de un
+ * campo (dueño, 2026-08-28).
+ *
+ * Es una preferencia del usuario, no contenido suyo: vive en el almacén de la extensión,
+ * separada **por perfil** como todo lo demás. Si esa entrada ya no existe, el que
+ * pregunta se encuentra un id que no está en la lista y sigue sin ella — no hace falta
+ * limpiarla a mano.
+ */
+const defaultKey = async (url) => {
+  const host = hostOf(url)
+  if (!host) return ''
+  return keyFor((await activeProfile()).id, `passmanager/default/${host}`)
+}
+
+async function getDefault ({ url } = {}) {
+  const k = await defaultKey(url)
+  return k ? ((await store.get(k)) || null) : null
+}
+
+async function setDefault ({ url, id } = {}) {
+  const k = await defaultKey(url)
+  if (!k) return { ok: false }
+  if (id) await store.set(k, id)
+  else await store.del(k)
+  return { ok: true, id: id || null }
+}
+
+/**
+ * BUSCAR una entrada por texto, en toda la bóveda y no solo en este sitio.
+ *
+ * Es para el caso que el dueño describió el 2026-08-28: *«a veces cambia el subdominio y
+ * la clave es la misma»*. Sin esto, la cuenta que sirve existe pero no hay forma de
+ * llegar a ella desde la página nueva.
+ *
+ * **No la puede pedir la página.** Y no es `list` disfrazado (DISENO §2): exige un
+ * término que escribe una persona y devuelve un puñado de vistas públicas. La lista
+ * entera sigue sin poder pedirse.
+ */
+async function searchEntries ({ q, limit } = {}) {
+  const texto = String(q || '').trim()
+  if (texto.length < 2) return []
+  const v = await connect()
+  if (typeof v.search !== 'function') return []
+  return v.search(texto, { limit: Math.min(Number(limit) || 20, 50) })
+}
+
+/** Quitar una entrada de la bóveda. Solo desde la UI de la extensión, y con aviso. */
+async function removeEntry ({ id, url }) {
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  const v = await connect()
+  await v.remove(id)
+  try { await cache.forget(id) } catch (_) {}
+  // Si era la predeterminada, deja de serlo: un valor por defecto que apunta a lo que ya
+  // no está deja el modal eligiendo una entrada fantasma.
+  try {
+    const k = await defaultKey(url)
+    if (k && (await store.get(k)) === id) await store.del(k)
+  } catch (_) {}
+  forgetFinds()
+  return { ok: true }
+}
+
 const OPS = {
   status,
   capture,
@@ -882,6 +954,10 @@ const OPS = {
   'profile-remove': removeProfile,
   find: p => findFor(p.url),
   offers: p => offersFor(p),
+  search: p => searchEntries(p),
+  remove: p => removeEntry(p),
+  'default-get': p => getDefault(p),
+  'default-set': p => setDefault(p),
   get: async p => getEntry(await connect(), p.id),
   put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
 }

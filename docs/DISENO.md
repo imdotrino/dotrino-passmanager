@@ -433,6 +433,14 @@ pulsan en UI de la extensión:
 un tercer camino, «Guardar la contraseña de esta página», con su propio formulario. Era
 lo mismo que los otros dos, más escondido y con más pasos. **No lo reintroduzcas.**
 
+**Lo que sí hace el popup**, además de listar lo que hay para el sitio (2026-08-28):
+
+- **Borrar una entrada**, con aviso. El aviso es UI nuestra —nada de `confirm()`
+  (CONVENCIONES §5)— y dice qué se borra y que no hay vuelta atrás.
+- **Marcar la predeterminada del sitio**, con una casilla por fila. Es la que sale elegida
+  al abrir el botón de un campo (§4.1). Una por sitio: marcar una suelta la anterior, y si
+  se borra esa entrada deja de estar marcada.
+
 ### 4.0.1. El aviso sale DESPUÉS de entrar, no antes
 
 > Dicho por el dueño el 2026-08-27: *«los gestores actuales muestran la solicitud de
@@ -642,7 +650,11 @@ centro de la pantalla: se habla de ese campo, y el modal tiene que estar donde e
 campo. Sigue al scroll y se recoloca si la ventana cambia.
 
 ```
-   ‹   localhost · hace 3 días   ›     ← de qué entrada hablamos; sin ninguna, «nueva»
+   Dotrino Pass Manager                ← la marca, como en el aviso
+   GUARDAR EN                          ← la MISMA lista de radios del aviso
+   ( ) ana@ejemplo.com    hace 3 días
+   (•) beto@ejemplo.com   hace 1 mes
+   ( ) una entrada nueva
    ─────────────────────────────
    RELLENAR
    [x] Correo            [Completar]   ← una fila por campo de la página que ESA tenga
@@ -655,10 +667,19 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
    [           Guardar            ]
 ```
 
-- **La cabecera manda sobre las dos secciones**: de esa entrada se rellena, y en esa
-  entrada se guarda. Las flechas recorren las entradas del sitio y terminan en **«una
-  entrada nueva»**, que es lo único que hay cuando no existe ninguna — y entonces **no
-  hay flechas**: apagadas y a la vista prometen algo que no existe.
+- **La lista de arriba manda sobre las dos secciones**: de esa entrada se rellena, y en
+  esa entrada se guarda. Termina en **«una entrada nueva»**, y si el sitio no tiene
+  ninguna, esa es la única. Empezó con flechas `‹ ›` y el dueño lo cambió el 2026-08-28:
+  *«la propuesta de "Save into" es mucho mejor»* — se ven todas de un vistazo en vez de
+  desfilar de una en una.
+- **Con más de cinco entradas aparece un buscador**, porque a partir de ahí la lista tapa
+  el modal. Y no solo filtra: **busca en toda la bóveda**, también fuera de este sitio.
+  Por eso sale también cuando el sitio **no tiene ninguna** — que es justo cuando hace
+  falta (ver abajo).
+- **La entrada predeterminada del sitio va primera y elegida.** Se marca en el popup, con
+  su casilla. Sustituye a «recuerda la última elegida», que se probó el mismo día y se
+  quitó: recordar adivina, y con tres cuentas del mismo sitio adivina mal la mitad de las
+  veces; marcarla es decirlo.
 - **Las dos secciones listan todo lo que califica**, no solo el campo que se pulsó:
   arriba, cada campo de la página que esa entrada puede rellenar; abajo, cada campo
   escrito que le añadiría o le cambiaría algo. El pulsado viene marcado y los demás no,
@@ -676,10 +697,8 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
   protagonista.
 - **Guardar de a uno no tira lo demás.** Lo que queda sin guardar sigue apuntado, y la
   entrada recién creada pasa a ser la elegida: el segundo campo va A ESA, no a otra nueva.
-- **Recuerda la última entrada elegida** en ese sitio (dueño, 2026-08-28): abrir el modal
-  cinco veces en la misma página y volver a buscarla con las flechas es trabajo que el
-  gestor puede ahorrar. Se guarda en el almacén de la extensión —no en el del sitio— y si
-  esa entrada ya no existe, se ignora.
+- **La predeterminada del sitio manda** al abrir (arriba). Se guarda en el almacén de la
+  extensión, separada por perfil, y si esa entrada ya no existe se ignora sola.
 - **Cada sección aparece solo si tiene sentido**: sin nada guardado no hay «rellenar»,
   y sin nada escrito que añadir no hay «guardar».
 - **Es un iframe de la extensión**, como el aviso: el botón que escribe en la bóveda tiene
@@ -690,6 +709,26 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
   tenga apuntado.
 - **Rellenar cruza el valor a la página**, que es literalmente lo que rellenar significa:
   el marco pide la entrada, y le dice al content script qué escribir en qué campo.
+
+#### Traerse la cuenta de otro dominio
+
+> *«a veces cambia el subdominio y la clave es la misma»* (dueño, 2026-08-28).
+
+Pasa constantemente: la cuenta que sirve **existe**, pero está guardada en otro dominio y
+desde la página nueva no hay forma de llegar a ella. El buscador del modal la trae.
+
+- **Busca en toda la bóveda, no en este sitio.** Es la operación `search`, y **no es
+  `list` con otro nombre** (§2, §6.1): exige un término de al menos dos letras que
+  **escribe una persona**, devuelve un puñado de vistas públicas y **la página no la
+  puede pedir**. La bóveda entera sigue sin poder pedirse de una vez.
+- **Busca por lo que identifica a la entrada** —título, sitios y nombre visible—, nunca
+  por los valores de dentro: teclear «1700» y que aparezca tu documento es exactamente lo
+  que no puede pasar.
+- **Con una entrada de fuera se ofrece rellenar TODO lo de la página**, porque saber qué
+  lleva dentro exigiría abrirla solo para pintar la lista. Si al rellenar resulta que no
+  tiene ese dato, se dice; no se cierra como si hubiera hecho algo.
+- **Y guardar en ella suma este sitio a los suyos.** Es lo que se está diciendo al
+  elegirla —la cuenta es la misma—, y sin eso la entrada no volvería a aparecer aquí.
 
 #### Las dos preguntas de la tabla se responden mirando dentro
 
@@ -837,6 +876,12 @@ La app nativa **no vive aquí**: es una pantalla más de `dotrino-app`, que ya e
 aparato con hardware y con el flujo de aprobación.
 
 ### 6.1. La interfaz de bóveda
+
+**`list` sigue prohibida para la extensión, `search` no la sustituye.** La una devuelve
+la bóveda entera y la puede pedir el código cuando quiera; la otra exige un término que
+escribe una persona, devuelve un puñado y solo responde a la UI de la extensión. La
+diferencia no es de tamaño, es de quién decide: sin `search` no hay forma de traerse la
+cuenta del subdominio que cambió (§4.1), y con `list` no haría falta ni preguntar.
 
 Toda pieza consume la misma interfaz; quién esté detrás es intercambiable. Es lo que
 permite construir por pasos sin reescribir nada:

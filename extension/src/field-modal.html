@@ -15,24 +15,39 @@
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,.12);
   }
-  /* Cabecera: de qué entrada se habla, y las flechas para cambiarla. */
-  .head { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 6px; }
-  .rec { text-align: center; overflow: hidden; }
-  .rec b { display: block; font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rec span { font-size: .7rem; opacity: .55; }
-  .arrow {
-    background: none; border: 1px solid rgba(255,255,255,.18); color: inherit;
-    border-radius: 7px; width: 26px; height: 26px; font: inherit; cursor: pointer;
+  /* La marca, igual que en el aviso de después de entrar: quién pregunta. */
+  .brand { display: flex; align-items: center; gap: 7px; }
+  .brand img { width: 16px; height: 16px; display: block; }
+  .brand b { font-size: .86rem; }
+
+  /* DÓNDE: la misma lista de radios del aviso (dueño, 2026-08-28: «es mucho mejor que
+     seleccionar con las flechas»). Una entrada por fila, con su fecha para distinguir
+     dos que se llamen igual, y la nueva al final. */
+  .t {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: baseline; gap: 8px; padding: 4px 5px; cursor: pointer;
   }
-  .arrow:disabled { opacity: .3; cursor: default; }
+  .t input { margin: 0; accent-color: #00658c; }
+  .t .who2 { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t .when { font-size: .7rem; opacity: .55; white-space: nowrap; }
 
   h2 {
     font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
-    opacity: .5; margin: 12px 0 4px; font-weight: 600;
+    opacity: .5; margin: 10px 0 4px; font-weight: 600;
   }
   hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 12px 0 0; }
 
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  /* Cinco entradas caben; a partir de ahí, scroll y a buscar. */
+  #targets { max-height: 132px; overflow-y: auto; }
+  #targets li:hover { background: rgba(255,255,255,.05); }
+  #q {
+    width: 100%; margin: 2px 0 5px; padding: 5px 7px;
+    font: inherit; font-size: .8rem;
+    color: inherit; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.14); border-radius: 7px;
+  }
+  #q:focus { outline: 2px solid #00658c; outline-offset: -1px; }
   li { border-radius: 7px; }
   li:hover { background: rgba(255,255,255,.05); }
   .row {
@@ -70,10 +85,15 @@
 </style>
 </head>
 <body>
-  <div class="head">
-    <button class="arrow" id="prev" data-testid="field-modal-prev" aria-label="anterior">‹</button>
-    <div class="rec"><b id="recName"></b><span id="recWhen"></span></div>
-    <button class="arrow" id="next" data-testid="field-modal-next" aria-label="siguiente">›</button>
+  <div class="brand">
+    <img src="../icons/icon-32.png" alt="">
+    <b>Dotrino Pass Manager</b>
+  </div>
+
+  <div id="whereBox" hidden>
+    <h2 id="whereTitle"></h2>
+    <input type="search" id="q" data-testid="field-modal-search" hidden>
+    <ul id="targets"></ul>
   </div>
 
   <div id="fillBox" hidden>

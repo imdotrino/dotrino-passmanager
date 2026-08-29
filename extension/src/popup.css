@@ -50,10 +50,19 @@ button.ghost:hover { color: var(--fg); border-color: var(--dim); }
 .hint { margin: 0; color: var(--dim); font-size: 12px; }
 .error { color: var(--danger); font-size: 12px; margin: 0; }
 ul.entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+/* Dos líneas: arriba de quién es, abajo qué se puede hacer con ella. En una sola no
+   caben la casilla de predeterminada y los tres botones sin apretarlo todo. */
 li.entry {
-  display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center;
+  display: grid; gap: 6px;
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
 }
+.entry .acts { display: flex; align-items: center; gap: 6px; }
+.entry .acts .sp { flex: 1; }
+.entry .acts button { padding: 4px 8px; font-size: 12px; }
+.entry .def { display: flex; align-items: center; gap: 5px; font-size: 11px; opacity: .8; cursor: pointer; }
+.entry .def input { margin: 0; accent-color: var(--accent); }
+button.danger { color: var(--danger); border-color: var(--danger); }
+button.primary.danger { background: var(--danger); color: #2a0b0b; border-color: transparent; }
 .entry .name { font-weight: 600; }
 .entry .hint { font-size: 11px; }
 .entry .who { min-width: 0; }
