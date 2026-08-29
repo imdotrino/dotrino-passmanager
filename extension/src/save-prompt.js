@@ -146,10 +146,11 @@ function renderTargets () {
   $('where').hidden = false
   $('whereLabel').textContent = t(lang, 'saveWhere')
 
-  // La etiqueta «se parece» va SOLO en la primera: cuando dos entradas tienen el mismo
-  // usuario se parecen las dos, y marcarlas todas no dice nada. Lo que las distingue es
-  // la fecha, y esa sí va en cada una.
-  let yaMarcada = false
+  // La etiqueta «se parece» va SOLO si hay UNA que se parezca. Con dos, ninguna se
+  // distingue de la otra por ahí, y ponérsela a la primera sería señalar a una al azar:
+  // lo que las separa es la fecha, que va en cada una.
+  const unaSola = detail.candidates.filter((c) => c.similar).length === 1
+  let yaMarcada = !unaSola
   const opciones = [
     { id: '', label: t(lang, 'newEntry'), when: '', tag: '' },
     ...detail.candidates.map((c) => {
@@ -299,7 +300,15 @@ async function load () {
   // Preseleccionada, la que más se parece — que es la que el usuario querría pisar el
   // 90 % de las veces. Si ninguna se parece, una entrada nueva: no se pisa por defecto
   // algo que no se sabe si es lo mismo.
-  target = detail.candidates.find((c) => c.similar)?.id || ''
+  // A DÓNDE va, si el usuario no toca nada.
+  //
+  // Solo cuando **una sola** entrada se parece. Si se parecen dos —dos cuentas con el
+  // mismo usuario, dos fichas de datos del mismo sitio— «la que más se parece» no existe,
+  // y elegir la primera es escribir encima de un registro al azar. Ahí no se adivina: se
+  // deja marcada la entrada nueva y que el usuario diga cuál (dueño, 2026-08-29:
+  // *«los records deben tener un id único que no se muestra, no se mergean así»*).
+  const parecidas = detail.candidates.filter((c) => c.similar)
+  target = parecidas.length === 1 ? parecidas[0].id : ''
 
   // Nada que añadir ni que cambiar: no se molesta al usuario con un aviso que solo
   // puede contestar que sí a lo que ya tenía igual. Solo se sabe cuando abrir lo

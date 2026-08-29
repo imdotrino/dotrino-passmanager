@@ -269,6 +269,97 @@ try {
   ok(abierta?.secret === 'clave-buena', 'con su contraseña')
   const datosFinal = await abrir(entryId)
   ok(campos(datosFinal).length === cuantos, 'y la entrada de datos sigue intacta')
+  // --- 6. dos registros que acaban VIÉNDOSE IGUAL -----------------------------
+  //
+  // Lo que el dueño vio el 2026-08-29: «cuando pongo un Nombre igual a dos records uno
+  // desaparece; los records deben tener un id único que no se muestra, no se mergean
+  // así». Aquí se recorre entero: dos fichas distintas, se le pone a una lo que hace que
+  // se llame igual que la otra, y las dos tienen que seguir estando y seguir separadas.
+  console.log('\ndos registros que acaban viéndose igual')
+  const fichas = async () =>
+    ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || []).filter((e) => e.type === 'data')
+
+  // Una segunda ficha de datos, con otro nombre y otro teléfono.
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1000)
+  await page.fill('input[name="given-name"]', 'Beto')
+  await page.fill('input[name=email]', 'beto@datos.com')
+  await page.fill('input[name=tel]', '0977000222')
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  if (f) {
+    for (const c of await f.locator('[data-testid=save-prompt-field] input[type=checkbox]').all()) await c.check()
+    await f.locator('[data-testid=save-prompt-target-new]').check()
+    await page.waitForTimeout(300)
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await page.waitForTimeout(1500)
+  }
+  let dos = await fichas()
+  ok(dos.length === 2, 'hay dos fichas de datos (' + dos.length + ')')
+  const beto = dos.find((e) => e.hint === 'beto@datos.com')
+  ok(!!beto, 'y se distinguen por su nombre visible')
+
+  // Y ahora se le pone a Beto el correo de la otra: por fuera pasan a ser la misma.
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1100)
+  await page.fill('input[name=email]', 'ana@datos.com')
+  await page.waitForTimeout(700)
+  await pulsar('email')
+  m = await modal()
+  ok(!!m, 'sale el modal del correo')
+  if (m) {
+    const destinos = m.locator('[data-testid=field-modal-target]')
+    const ids = []
+    for (let i = 0; i < await destinos.count(); i++) ids.push(await destinos.nth(i).getAttribute('data-id'))
+    ok(ids.includes(beto.id), 'el modal ofrece la ficha de Beto entre los destinos')
+    await m.locator(`[data-testid=field-modal-target-${beto.id}]`).check()
+    await page.waitForTimeout(350)
+    await m.locator('[data-testid=field-modal-save-email]').click()
+    await page.waitForTimeout(1600)
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+
+  dos = await fichas()
+  ok(dos.length === 2, 'NINGUNA desapareció (' + dos.length + ')')
+  ok(new Set(dos.map((e) => e.id)).size === 2, 'y cada una con su id')
+  ok(dos[0].hint === dos[1].hint && dos[0].hint === 'ana@datos.com',
+    'las dos se ven igual: ' + dos.map((e) => e.hint).join(' / '))
+
+  // Se ven igual y NO son la misma: cada una conserva lo suyo dentro.
+  const laDeBeto = await abrir(beto.id)
+  const laOtra = await abrir(entryId)
+  ok(campo(laDeBeto, 'Teléfono')?.value === '0977000222', 'la de Beto conserva su teléfono')
+  ok(campo(laOtra, 'Teléfono')?.value === '0999111222', 'y la otra el suyo')
+  ok(!campo(laDeBeto, 'Número de socio'), 'sin heredar nada de la otra')
+  ok(campo(laOtra, 'Número de socio')?.private === true, 'ni al revés')
+
+  // Con dos que se parecen, el aviso NO elige por ti: elegir una al azar sería escribir
+  // encima de un registro cualquiera.
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1000)
+  // DOS datos: con uno solo el aviso no salta solo (§4.0.2).
+  await page.fill('input[name=city]', 'Ambato')
+  await page.fill('input[name="family-name"]', 'Ruiz')
+  await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+  f = await aviso()
+  ok(!!f, 'sale el aviso con dos fichas que se parecen')
+  if (f) {
+    ok(await f.locator('[data-testid=save-prompt-target-new]').isChecked(),
+      'con dos fichas que se parecen, no se elige ninguna por ti')
+    ok(await f.locator('[data-testid=save-prompt-target] .tag').count() === 0 ||
+       !(await f.locator('[data-testid=save-prompt-target] .tag').first().textContent()).match(/parece|similar/i),
+      'y ninguna se señala como «la que más se parece»')
+    await f.locator('[data-testid=save-prompt-dismiss]').click().catch(() => {})
+    await page.waitForTimeout(500)
+  }
+
+  // Y quitar una deja la otra en pie.
+  await pedir('remove', { id: beto.id, url: `${SITE}/profile.html` })
+  await page.waitForTimeout(500)
+  const queda = await fichas()
+  ok(queda.length === 1 && queda[0].id === entryId, 'quitar una deja la otra en pie')
+  ok(campos(await abrir(entryId)).length === cuantos, 'y entera')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

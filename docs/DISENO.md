@@ -742,6 +742,31 @@ etiqueta que un campo ya tenía manda —es su identidad, cambiarla sería crear
 era privado sigue siéndolo, y si la entrada no existe no se crea nada. Está en las tres
 bóvedas porque está en `LocalVault`, y viaja por el proxio como una operación más.
 
+#### La identidad de un registro es su ID, nunca lo que se ve
+
+> *«los records deben tener un id único que no se muestra, no se mergean así»* (dueño,
+> 2026-08-29, al ver desaparecer uno de dos que se llamaban igual).
+
+Dos entradas que por fuera se ven idénticas —el mismo usuario, el mismo nombre, el mismo
+sitio— son **dos entradas**. Es el caso normal, no el raro: dos cuentas del mismo correo en
+el mismo sitio, una de trabajo y otra personal; dos fichas de datos con el mismo nombre.
+Nada las junta, y tocar una no toca la otra.
+
+Lo que sale de ahí, y está probado (`lib/test/parche.test.js`, sección «identidad»):
+
+- **el `id` es un UUID y no se enseña nunca.** Lo que se enseña es el nombre visible, que
+  se calcula del contenido (§5) y por tanto puede repetirse. Que dos filas se lean igual no
+  dice nada sobre si son la misma;
+- **`put` sin `id` crea siempre una entrada nueva**, aunque su contenido ya exista;
+- **`patch(id)` toca esa y solo esa**; y `remove(id)` deja las demás en pie.
+
+**Y por eso, cuando el nombre no distingue, no se adivina.** El aviso de guardar
+preselecciona «la que más se parece» solo cuando **una sola** entrada se parece. Con dos
+cuentas del mismo usuario, «la que más se parece» no existe: elegir la primera es escribir
+encima de un registro al azar, y quien no mire la lista perderá el otro. Con dos o más se
+deja marcada la **entrada nueva** y se quita la etiqueta de «se parece» — que también
+señalaba a una al azar.
+
 #### Qué es privado, exactamente
 
 - **Siempre, sin que nadie lo marque:** la contraseña, el código de dos pasos, las notas y
