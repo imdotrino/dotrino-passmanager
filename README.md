@@ -50,9 +50,12 @@ guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera un
 
 En la página, el gestor pone un botón en la esquina de un campo **solo cuando puede
 hacer algo ahí**: si el campo está vacío y tienes algo guardado suyo, **rellenar**; si
-tiene algo escrito, **guardar**. Con una sola letra ya aparece. **Nada se rellena solo**: al
-pulsar sale un modal pegado al campo donde eliges **de qué entrada**, rellenas ese dato o
-**todos** de una vez, y guardas lo que escribiste — marcándolo **privado** si quieres.
+tiene algo escrito que no está ya guardado igual, **guardar**. Con una sola letra ya
+aparece, y desaparece cuando no queda nada que hacer — para saber que es el mismo valor no
+hace falta abrir nada: la bóveda manda un **resumen** de cada campo y se comparan
+resúmenes. **Nada se rellena solo**: al pulsar sale un modal pegado al campo donde eliges
+**de qué entrada**, rellenas ese dato o **todos** de una vez, y guardas lo que escribiste
+— marcándolo **privado** si quieres.
 
 **Y la bóveda pregunta antes de soltar nada.** También la que la extensión lleva dentro:
 sacar una contraseña de ahí abre una confirmación en la pantalla de la extensión, igual que

@@ -442,10 +442,11 @@ no se ha añadido un peaje.
 ### Lo que esto arregla de paso
 
 Para pintar el marcador campo a campo (§4.1) hacía falta saber si alguna entrada tiene ese
-campo **y con qué valor**, y eso solo se sabe abriendo. Con la bóveda propia el gestor
-**abría todas las entradas del sitio en cada carga de página** — sin que nadie lo pidiera y
-sin que se viera. Con la puerta puesta ya no: se responde con la mitad pública, como con
-una bóveda conectada, y el marcador puede salir de más pero nunca antes de tiempo.
+campo **y con qué valor**. Con la bóveda propia el gestor lo resolvía **abriendo todas las
+entradas del sitio en cada carga de página** — sin que nadie lo pidiera y sin que se viera.
+Con la puerta puesta eso se acabó, y lo que hace falta saber viaja ahora en la vista
+pública: los nombres de los campos y **un resumen de cada valor** (§4.0.2). El marcador
+sigue siendo exacto y ninguna bóveda abre nada para pintarlo.
 
 ## 3.4. Sin daemon también funciona: la bóveda en una pestaña
 
@@ -656,24 +657,68 @@ Es la frontera que ya existía en el modelo de datos (§5) y que aquí se vuelve
 
 | | Qué es | Quién puede verlo |
 |---|---|---|
-| **público** | id, título, sitios, **nombre visible** (el usuario, o el correo, o el primer campo NO privado), cuándo se tocó, y **qué campos lleva por su nombre** (`fieldKeys`: `username`, `secret`, `label:Número de socio`…) | cualquiera que pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
+| **público** | id, título, sitios, **nombre visible**, cuándo se tocó, **qué campos lleva por su nombre** (`fieldKeys`) y **un resumen de cada uno** (`fieldHashes` + `nonce`) | quien pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
 | **privado** | los **valores**: usuario, contraseña, campos, notas, TOTP | solo se abren de a uno (`get`), y eso es **una aprobación en cualquier bóveda** (§3.3.2) |
 
 **Los NOMBRES de los campos son públicos; sus valores no.** Es de la misma familia que
 `sites`, que ya viaja en claro para poder emparejar con la página y revela en qué sitios
 tienes cuenta (§5): saber que guardaste algo llamado «Número de socio» es bastante menos
-que el número. Y es lo que permite ofrecer rellenarlo **sin abrir nada** — antes, un campo
-que el gestor no reconoce solo se podía rellenar abriendo la entrada entera.
+que el número. Y es lo que permite ofrecer rellenarlo **sin abrir nada**.
+
+#### El resumen: comparar sin abrir, y con UN solo método
+
+> *«para que se pueda validar si un valor privado está cambiando, el vault debería enviar
+> el hash del valor con la finalidad de compararlo… me refiero a los 3 vaults»* y
+> *«el método del hash podría aplicarse también a públicos para no tener dos métodos de
+> comparación»* (dueño, 2026-08-29).
+
+Decir «esto que escribiste ya está guardado igual» exige comparar con lo guardado, y abrir
+la entrada es una autorización (§3.3.2). Así que la bóveda manda, junto a la vista pública,
+**un resumen HMAC-SHA-256 de cada campo**: quien pregunta hashea lo que tiene delante y
+compara resúmenes. Lo hacen **las tres** —el daemon, la pestaña del vault y la de dentro de
+la extensión—, porque lo calcula `LocalVault.find`, que es la pieza que las tres usan.
+
+Y cubre **todos** los campos, públicos y privados. Antes lo público se comparaba mirando
+el valor y lo privado no se comparaba: dos caminos para la misma pregunta, que acababan
+diciendo cosas distintas del mismo formulario.
+
+Tres decisiones que lo hacen seguro, y el porqué de cada una:
+
+- **Un `nonce` nuevo en cada respuesta.** El resumen no es una huella estable: no sirve
+  para reconocer la misma contraseña entre dos respuestas ni para guardar una tabla y
+  consultarla más tarde.
+- **El nombre del campo entra en el HMAC.** El resumen del usuario no vale para probar
+  contra la contraseña, aunque valgan lo mismo.
+- **Los resúmenes NO salen del service worker.** `find` y `search` los quitan antes de
+  contestar (`stripDigest`), y hacia fuera van conclusiones —`same`/`changed`/`new`, o dos
+  booleanos—, nunca el material con el que se compara. Un resumen no es el valor, pero un
+  valor corto y con forma conocida (un teléfono, un documento) se adivina a partir de él si
+  se tiene delante.
+
+**Lo que el resumen NO da: qué había antes.** Dice si es igual, no qué era. Enseñar el
+valor anterior sigue exigiendo abrir la entrada, y eso sigue siendo «Ver qué cambia» con su
+autorización.
+
+#### Y el freno, porque comparar deja rastro
+
+Comparar dice un bit sobre lo guardado, y la página puede leerlo: propone un valor, mira si
+el marcador desaparece y así prueba si acertó. Con una entrada **sin sitios** —tu correo,
+tu teléfono, tu documento (§4.2)— eso vale desde CUALQUIER página, no solo desde la suya.
+
+El freno lo vuelve inútil sin estorbar a nadie: **1200 comparaciones por sitio y minuto**,
+veinte por segundo. Una persona escribiendo genera una por tecla —60 palabras por minuto
+son 300 pulsaciones—; adivinar un teléfono son cientos de millones. Pasado el tope, ese sitio deja de comparar durante un
+rato y el marcador vuelve a salir de más, que es el fallo seguro.
 
 De ahí sale cómo se pinta el aviso, que es la parte que importa:
 
 - **La lista de candidatas es pública**, y por eso sale siempre. Sin ella el usuario no
   podría elegir qué reemplaza, y para elegir no hace falta abrir nada.
-- **Decir «esto cambia» es privado**, porque exige abrir la entrada y comparar los
-  valores. Cuesta una aprobación en **cualquier** bóveda desde el §3.3.2, así que **no se
-  hace solo** en ninguna: el aviso ofrece **«Ver qué cambia»** y es el usuario quien lo
-  pide. Lo que sí se sabe de balde es si ese dato **existe** en la entrada, que es lo que
-  separa «guardar» de «reemplazar» en cada fila.
+- **Decir «esto cambia» sale de los resúmenes** (arriba): sin abrir nada y sin
+  autorización. Por eso el aviso solo lista lo que de verdad cambia, y cada fila dice
+  «guardar» o «reemplazar» acertando.
+- **Ver QUÉ HABÍA ANTES sí es privado**: eso exige abrir la entrada. El aviso ofrece
+  **«Ver qué cambia»** y es el usuario quien lo pide — la confirmación es la de siempre.
 - Guardar sin haber comparado está permitido: se escriben las casillas marcadas sobre la
   entrada elegida. La lectura que hace falta para no perder lo demás es parte de la
   escritura que el usuario ya confirmó, no un vistazo previo.
@@ -696,16 +741,12 @@ sale es una tabla, no una impresión (dueño, 2026-08-28):
 | sí | ninguna | vacío | **no** | — |
 | sí | ninguna | con algo escrito | **sí** | guardar → en una de las que hay, o en una nueva |
 | sí | alguna | vacío | **sí** | **rellenar** (de cuál, si hay varias) + **rellenar todo** |
-| sí | alguna | escrito **igual** a lo guardado | **sí** ⚠️ | guardar → reemplazarlo por lo mismo no cambia nada |
+| sí | alguna | escrito **igual** a lo guardado | **no** | — |
 | sí | alguna | escrito **distinto** | **sí** | guardar → en esa entrada, o en una nueva |
 
-> ⚠️ **Esa fila decía «no», y se retiró el 2026-08-29.** Saber si lo escrito vale lo mismo
-> que lo guardado exige **abrir** la entrada, y abrir pasa por la puerta (§3.3.2) en todas
-> las bóvedas. Pero además, hacerlo era un **oráculo**: la página propone un valor, mira si
-> el botón aparece y así prueba si acertó — y una entrada sin sitios (tu correo, tu
-> teléfono, tu documento, §4.2) vale para cualquier página, no solo para la suya. El botón
-> ahora sale de más en ese caso; el precio es un botón que no hacía falta, y lo que se
-> quita es una forma de adivinar lo guardado sin abrir nada.
+La última fila se contesta **sin abrir nada**, con los resúmenes del §4.0.2: la bóveda
+manda un hash por campo y aquí se hashea lo escrito. Estuvo unas horas retirada el
+2026-08-29 —comparar exigía abrir la entrada— y volvió con los resúmenes y su freno.
 
 Lo que hay que leer ahí, dicho en palabras:
 
@@ -714,12 +755,13 @@ Lo que hay que leer ahí, dicho en palabras:
   que escribir el usuario no encendía nada — y parecía que había que llenarlo todo.)
 - **Rellenar solo en un campo vacío.** Escribir encima de lo que puso el usuario sería
   decidir por él; lo que quiere ahí es guardar lo suyo.
-- **«Ya está guardado igual» ya no apaga el botón** (ver el aviso de la tabla). La regla
-  sigue escrita porque sigue siendo la correcta y vuelve en cuanto haya forma de aplicarla
-  sin ese oráculo: «igual» quiere decir **igual en TODAS las entradas que tienen ese
-  campo** (dueño, 2026-08-28) —con dos entradas, coincidir con una y diferir de la otra
-  deja algo que hacer, reemplazar el de la otra—, y el botón solo desaparecería cuando no
-  quedara ninguna opción posible.
+- **Lo que ya está guardado igual no se ofrece.** Es el caso de justo después de
+  rellenar: el campo tiene el valor de la bóveda y el botón desaparece solo. Pero «igual»
+  quiere decir **igual en TODAS las entradas que tienen ese campo** (dueño, 2026-08-28):
+  con dos entradas, coincidir con una y diferir de la otra deja algo que hacer
+  —reemplazar el de la otra—, y **el botón solo desaparece cuando no queda ninguna opción
+  posible**. En un acceso se miran **las dos mitades**: cambiar solo la contraseña
+  enciende también el botón del usuario, porque lo que se guarda es la credencial.
 - **Nada se rellena solo, tampoco aquí.** Rellenar es siempre un botón que se pulsa, y
   hay dos: **«Rellenar este valor»** (eliges de qué entrada) y **«Rellenar todos los
   valores»**, que pone en la página todo lo que esa entrada tenga. El segundo existe para
@@ -730,8 +772,8 @@ Lo que hay que leer ahí, dicho en palabras:
   cualquiera sea, aparece el semicírculo y me permite guardar ESE campo, en un record
   existente o uno nuevo»*. El número de socio, el código del portal: son los **campos
   libres** del §4.2 y su identidad es la **etiqueta** que les pone la página. Y también se
-  **rellenan**, aunque no se abra nada: la vista pública dice **qué campos lleva** cada
-  entrada, por su nombre y sin un solo valor (§4.0.2).
+  **rellenan**, y se comparan, aunque no se abra nada: la vista pública dice **qué campos
+  lleva** cada entrada y **un resumen de cada uno** (§4.0.2).
 - **Lo que se guarda es ESE campo.** Los demás del mismo formulario van en el aviso pero
   **sin marcar**, para que estén a un clic sin volver a empezar. Igual al enviar un
   formulario: lo reconocido va marcado y los libres acompañan sin marcar — enviar un
@@ -839,23 +881,19 @@ desde la página nueva no hay forma de llegar a ella. El buscador del modal la t
 
 #### Las dos preguntas de la tabla se responden mirando dentro
 
-«¿Alguna entrada tiene este campo?» y «¿lo tiene con este mismo valor?» no se contestan
-con lo público (§4.0.2): hay que **abrir** las entradas del sitio. Y abrir cuesta una
-autorización **en cualquier bóveda**, también en la propia desde que pregunta (§3.3.2).
+«¿Alguna entrada tiene este campo?» y «¿lo tiene con este mismo valor?» se contestan las
+dos **sin abrir nada**, con lo que la vista pública trae del §4.0.2: los **nombres** de los
+campos para la primera, y su **resumen** para la segunda. Abrir una entrada sigue costando
+una autorización en cualquier bóveda (§3.3.2), y pintar botones no la pide nunca.
 
-Pedirla al cargar cada página sería insoportable, así que **no se abre nada para pintar
-botones**: la tabla se aplica por lo grueso —«hay entradas con campos», sin saber cuáles—
-y el botón puede salir de más. El que sobra lleva a un modal que dirá que no cambia nada;
-el que falta deja un gestor que parece roto. Se prefiere lo primero.
+Aquí hubo una tabla con la diferencia entre las dos bóvedas: la propia abría todo y
+respondía exacto, la conectada iba por lo grueso. **Ya no hay diferencia, y ninguna abre
+nada** — abrir todas las entradas del sitio en cada carga de página, sin que nadie lo
+pidiera y sin que se viera, era justo lo que la puerta del §3.3.2 vino a cerrar.
 
-Aquí había una tabla con la diferencia entre las dos bóvedas: la propia abría todo y
-respondía exacto. **Ya no hay diferencia** — abrir todas las entradas del sitio en cada
-carga de página, sin que nadie lo pidiera y sin que se viera, era justo lo que la puerta
-del §3.3.2 vino a cerrar.
-
-Lo que es igual en las dos, y no ha cambiado: **la decisión se toma en el service worker**
-—lo escrito viaja hacia él (la página ya lo tiene), y de vuelta salen dos booleanos y de
-qué entradas; ningún valor guardado entra en el proceso de la página.
+Y lo de siempre: **la decisión se toma en el service worker** —lo escrito viaja hacia él
+(la página ya lo tiene), y de vuelta salen dos booleanos y de qué entradas; ni un valor
+guardado ni un resumen entran en el proceso de la página.
 
 Una caja de **búsqueda** nunca es un dato de nadie, se reconozca el resto o no; y lo que
 no es un dato por su propio tipo (casillas, botones, ficheros) tampoco entra.

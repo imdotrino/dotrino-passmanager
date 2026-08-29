@@ -93,9 +93,9 @@ function fail (e) {
 //
 // La frontera de lo privado está en el medio: la LISTA de candidatas es pública (es lo
 // que se ve sin la llave), pero saber si un dato *cambia* obliga a abrir lo guardado.
-// Eso cuesta una autorización en CUALQUIER bóveda desde el §3.3.2, así que no se hace
-// solo en ninguna: se ofrece «Ver qué cambia». Lo que sí sale de balde es si el dato
-// **existe** en la entrada elegida, que es lo que separa «nuevo» de «cambia».
+// QUÉ cambia se sabe sin abrir nada: la bóveda manda un resumen de cada campo y aquí se
+// compara con lo escrito (§4.0.2). Lo que sigue costando una autorización es ver QUÉ
+// HABÍA ANTES — eso es «Ver qué cambia», y lo pide el usuario.
 
 let detail = null
 let target = ''        // '' = una entrada nueva
@@ -263,9 +263,10 @@ function renderFields () {
     ul.append(li)
   }
 
-  // Abrir lo guardado para saber qué cambia es sacar información privada de la bóveda:
-  // se pide, no se hace solo.
-  const puedePedir = detail.ask && target && !detail.diffs[target]
+  // QUÉ cambia ya se sabe (por resúmenes, §4.0.2). Lo que sigue costando una autorización
+  // es ver QUÉ HABÍA ANTES, así que el botón sale solo cuando queda algo que enseñar.
+  const puedePedir = !!target &&
+    (detail.diffs[target] || []).some((d) => d.status === 'changed' && !d.before)
   $('reveal').hidden = !puedePedir
   $('reveal').textContent = t(lang, 'seeChanges')
   $('reveal').title = t(lang, 'seeChangesHint')

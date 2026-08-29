@@ -136,11 +136,12 @@ try {
   ok(r[0].fill && !r[0].save, 'fila 5 · vacío con algo guardado → rellenar')
   ok(r[0].ids.length === 1, 'y dice de qué entrada sale')
 
-  // La fila 6 («escrito igual a lo guardado → sin botón») se retiró el 2026-08-29: saber
-  // que es igual exige abrir la entrada, abrir pide autorización, y hacerlo a espaldas del
-  // usuario era un oráculo —la página propone un valor y mira si el botón desaparece—.
+  // La fila 6 se contesta con los RESÚMENES, sin abrir nada: la bóveda manda el hash de
+  // cada campo y aquí se hashea lo escrito (§4.0.2).
   r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
-  ok(!r[0].fill && r[0].save, 'fila 6 · escrito igual a lo guardado → el botón sale de más, no de menos')
+  ok(!r[0].fill && !r[0].save, 'fila 6 · escrito IGUAL a lo guardado → sin botón')
+  r = await que([{ id: 0, key: 'secret', value: 'clave-buena', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
+  ok(!r[0].fill && !r[0].save, 'y también en la contraseña, que nunca sale de la bóveda')
 
   r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'otra' }])
   ok(!r[0].fill && r[0].save, 'fila 7 · escrito distinto → guardar')
@@ -198,10 +199,9 @@ try {
   ok(puesto.member === 'SOC-4471', 'incluido el que el gestor no reconoce')
   ok(puesto.city === '', 'y no se inventa el que no estaba guardado')
 
-  // Y con todo puesto ya no se ofrece rellenar —el campo tiene algo—, pero sí guardar:
-  // sin abrir la entrada no se sabe que es el mismo valor (fila 6, retirada).
+  // Y con todo puesto, ya no queda nada que ofrecer: es la fila 6.
   r = await que([{ id: 0, key: 'email', value: 'ana@datos.com' }])
-  ok(!r[0].fill && r[0].save, 'después de rellenar ya no se ofrece rellenar')
+  ok(!r[0].fill && !r[0].save, 'después de rellenar, el botón desaparece')
 
   console.log('\nguardar un campo desde su modal, y marcarlo privado')
   await page.goto(`${SITE}/profile.html`)
@@ -288,6 +288,34 @@ try {
   ok(r[0].save, 'con «Quito» sigue habiendo qué hacer (reemplazar el de la otra)')
   r = await que([{ id: 0, key: 'city', value: 'Cuenca' }])
   ok(r[0].save, 'y con «Cuenca», lo mismo')
+
+  // Y EN EL MODAL, entrada por entrada: con «Quito» escrito, la que ya tiene Quito no
+  // ofrece nada que guardar y la que tiene Cuenca ofrece reemplazar. Es lo que el dueño
+  // vio mal el 2026-08-29 —salía «replace» en las dos—, y lo que arreglan los resúmenes.
+  await page.fill('input[name=city]', 'Quito')
+  await page.waitForTimeout(900)
+  const cajaCity4 = await page.locator('input[name=city]').boundingBox()
+  await page.mouse.click(cajaCity4.x + cajaCity4.width - 10, cajaCity4.y + 8)
+  const mi = await modal()
+  ok(!!mi, 'el modal sale con «Quito» escrito')
+  if (mi) {
+    const opciones = mi.locator('[data-testid=field-modal-target]')
+    const n = await opciones.count()
+    const vistos = []
+    for (let i = 0; i < n; i++) {
+      const id = await opciones.nth(i).getAttribute('data-id')
+      if (!id) continue
+      await mi.locator(`[data-testid=field-modal-target-${id}]`).check()
+      await page.waitForTimeout(350)
+      const fila = mi.locator('[data-testid=field-modal-save-row][data-field=city]')
+      vistos.push(await fila.count() ? 'ofrece' : 'nada')
+    }
+    ok(vistos.includes('nada'), 'en la entrada que ya tiene «Quito» no ofrece guardar nada')
+    ok(vistos.includes('ofrece'), 'y en la otra sí, porque ahí sí cambia')
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+
   await page.fill('input[name=city]', '')
   await page.waitForTimeout(500)
 

@@ -281,22 +281,18 @@ try {
   f = await aviso()
   ok(!!f, 'el aviso vuelve a salir')
   if (f) {
-    // Sin abrir la entrada solo se sabe qué datos EXISTEN en ella, no cuáles valen lo
-    // mismo: salen los cinco escritos, los cinco marcados como que cambian.
+    // Qué cambia se sabe por RESÚMENES, sin abrir nada ni pedir autorización.
     const filas = f.locator('[data-testid=save-prompt-field]')
-    ok(await filas.count() === 5, 'salen los datos escritos (hay ' + (await filas.count()) + ')')
-    const tel = f.locator('[data-testid="save-prompt-field"][data-field="tel"]')
-    ok(await tel.count() === 1, 'entre ellos el teléfono')
-    ok(/cambia|change/i.test(await tel.locator('.tag').textContent()), 'marcado como «cambia»')
-
-    // Y para saber cuál cambia DE VERDAD hay que abrirla, que es una autorización: eso
-    // es «Ver qué cambia» (§3.3.2). Al pedirlo, la lista se queda en el que cambió.
-    ok(await f.locator('[data-testid=save-prompt-reveal]').isVisible(), 'se ofrece ver qué cambia')
-    await f.locator('[data-testid=save-prompt-reveal]').click()
-    ok(await autorizar(f), 'y pedirlo pide autorización')
-    await page.waitForTimeout(600)
-    ok(await filas.count() === 1, 'con eso, solo queda lo que cambia (hay ' + (await filas.count()) + ')')
+    ok(await filas.count() === 1, 'solo sale lo que cambia (hay ' + (await filas.count()) + ')')
     ok(await filas.first().getAttribute('data-field') === 'tel', 'y es el teléfono')
+    ok(/cambia|change/i.test(await filas.first().locator('.tag').textContent()), 'marcado como «cambia»')
+
+    // Lo que sigue costando una autorización es ver QUÉ HABÍA ANTES (§3.3.2).
+    ok(!(await filas.first().locator('.old').count()), 'sin abrirla, lo de antes no se enseña')
+    ok(await f.locator('[data-testid=save-prompt-reveal]').isVisible(), 'y se ofrece verlo')
+    await f.locator('[data-testid=save-prompt-reveal]').click()
+    ok(await autorizar(f), 'que sí pide autorización')
+    await page.waitForTimeout(600)
     ok((await filas.first().locator('.old').textContent()) === '0999111222', 'con el número anterior tachado')
     const destinos = f.locator('[data-testid=save-prompt-target]')
     ok(await destinos.count() === 2, 'ofrece los datos que ya había, y crear otra entrada')

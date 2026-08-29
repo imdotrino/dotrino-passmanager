@@ -32,6 +32,7 @@ import {
 } from './vendor/passmanager/webauthn.js'
 import { parseInvite } from './vendor/vault/invite.js'
 import { entryWho } from './vendor/passmanager/model.js'
+import { fieldHasher } from './vendor/passmanager/crypto.js'
 import { KINDS } from './vendor/passmanager/fields.js'
 // La misma regla de identidad que usa la página: la clase si se reconoce, y si no la
 // etiqueta. Dos ideas distintas de qué es «el mismo campo» sería un campo duplicado.
@@ -674,6 +675,9 @@ async function candidatesFor (p, v) {
       // dato ya está ahí» sin abrirla (§4.0.2). Sin esto el aviso no sabe si una fila es
       // nueva o reemplaza, y lo dice todo como «no se sabe».
       ...(Array.isArray(h.fieldKeys) ? { fieldKeys: h.fieldKeys } : {}),
+      // Y el resumen de cada uno, para comparar SIN abrir. Se queda dentro del service
+      // worker: `pendingDetail` lo usa y lo quita antes de contestar (`stripDigest`).
+      ...(h.nonce && h.fieldHashes ? { nonce: h.nonce, fieldHashes: h.fieldHashes } : {}),
       // Sin sitios sirve en cualquier parte (§4.2). Se ofrece, pero al final y dicho:
       // pisar tu dirección de siempre desde el formulario de una tienda cualquiera
       // tiene que ser una decisión, no un descuido.
@@ -700,6 +704,54 @@ async function candidatesFor (p, v) {
  * extensión) o cuando el usuario lo pide. Con una bóveda conectada, pedirlo es la
  * aprobación de siempre.
  */
+/**
+ * QUÉ CAMBIA de lo escrito, comparando RESÚMENES.
+ *
+ * Dice `same`, `changed` o `new` por campo sin abrir una sola entrada: la bóveda mandó el
+ * resumen de cada campo con su nonce (§4.0.2) y aquí se hashea lo que el usuario acaba de
+ * escribir. Lo que NO sale de aquí es **el valor anterior**: para enseñarlo hay que abrir
+ * la entrada, y eso es una autorización — `diffAgainst`.
+ */
+async function diffByDigest (candidates, p) {
+  // Los valores salen del PENDIENTE, no de `typed`: ahí la contraseña viaja en `null` a
+  // propósito, y sin ella no hay nada que comparar de la mitad que más importa.
+  const pares = typedPairs(p)
+  const iguales = await sameAs(candidates, pares)
+  const out = {}
+  for (const c of candidates) {
+    if (!c.nonce || !c.fieldHashes) continue
+    out[c.id] = pares.map(({ key }) => ({
+      key,
+      status: iguales.has(`${c.id}|${key}`) ? 'same' : (c.fieldHashes[key] ? 'changed' : 'new'),
+      // Lo de antes NO está aquí: un resumen dice si es igual, no qué era. Para eso hay
+      // que abrir la entrada, y eso es «Ver qué cambia».
+      before: '',
+    }))
+  }
+  return out
+}
+
+/** Lo que el usuario acaba de escribir, como pares `{ key, value }`. */
+function typedPairs (p) {
+  const out = []
+  if (p.username) out.push({ key: 'username', value: p.username })
+  if (p.secret) out.push({ key: 'secret', value: p.secret })
+  for (const f of p.fields || []) out.push({ key: fieldKey(f), value: f.value || '' })
+  return out
+}
+
+/**
+ * LOS RESÚMENES NO SALEN DEL SERVICE WORKER.
+ *
+ * Comparar se hace aquí y hacia fuera van conclusiones —`same`/`changed`/`new`, o dos
+ * booleanos—, nunca el material con el que se compara. Un resumen no es el valor, pero un
+ * valor corto y con forma conocida (un teléfono, un documento) se adivina a partir de él
+ * si se tiene delante; que no salga de aquí es lo que hace que eso no importe.
+ */
+function stripDigest (list) {
+  return (Array.isArray(list) ? list : []).map(({ nonce, fieldHashes, ...resto }) => resto)
+}
+
 async function diffAgainst (v, id, p) {
   const base = await getEntry(v, id)
   const antes = new Map()
@@ -791,13 +843,28 @@ async function pendingDetail ({ id, reveal } = {}) {
     })
   }
 
+  // QUÉ CAMBIA, por resúmenes: sin abrir nada y sin pedir autorización. Sale para TODOS
+  // los candidatos, porque comparar ya no cuesta una aprobación.
   const diffs = {}
-  const mirar = ask ? (reveal && id ? [id] : []) : candidates.map(c => c.id)
-  for (const t of mirar) {
-    try { diffs[t] = await diffAgainst(v, t, p) } catch (_) { /* si no abre, sin diff */ }
+  const porResumen = await diffByDigest(candidates, p).catch(() => ({}))
+  Object.assign(diffs, porResumen)
+
+  // Y con lo de ANTES a la vista, que sí exige abrir la entrada: eso es «Ver qué cambia»
+  // y lo pide el usuario (§3.3.2). Solo entonces las filas llevan el valor anterior.
+  if (reveal && id) {
+    try { diffs[id] = await diffAgainst(v, id, p) } catch (_) { /* si no abre, el de arriba */ }
   }
 
-  return { has: true, host: p.host, username: p.username, login: !!p.secret, typed, candidates, ask, diffs }
+  return {
+    has: true,
+    host: p.host,
+    username: p.username,
+    login: !!p.secret,
+    typed,
+    candidates: stripDigest(candidates),
+    ask,
+    diffs,
+  }
 }
 
 /**
@@ -932,10 +999,8 @@ async function getEntry (v, id) {
  */
 const FIND_TTL_MS = 60 * 1000
 const findMemo = new Map()
-// Y lo mismo abierto, cuando abrir no cuesta nada (ver `openedFor`).
-const openMemo = new Map()
 
-const forgetFinds = () => { findMemo.clear(); openMemo.clear() }
+const forgetFinds = () => { findMemo.clear() }
 
 async function findFor (url) {
   const host = hostOf(url)
@@ -947,39 +1012,71 @@ async function findFor (url) {
 }
 
 /**
- * Lo guardado del sitio, ABIERTO, para poder comparar valores.
+ * ¿YA ESTÁ GUARDADO IGUAL? Se contesta con los RESÚMENES, sin abrir nada.
  *
- * **Hoy no lo hace ninguna bóveda, y es a propósito.** Abrir cuesta una autorización en
- * todas desde el §3.3.2, y pedirla al cargar cada página sería insoportable; pero además,
- * comparar lo escrito con lo guardado a espaldas del usuario era un **oráculo**: la página
- * propone un valor, mira si el marcador desaparece y así prueba si acertó — y una entrada
- * sin sitios (§4.2) vale para cualquier página, no solo para la suya.
+ * La bóveda manda un resumen por campo junto con un nonce nuevo en cada respuesta
+ * (§4.0.2). Aquí se hashea lo que el usuario tiene delante con ese mismo nonce y se
+ * comparan resúmenes: ni la contraseña guardada sale de la bóveda, ni hace falta una
+ * autorización para saber que no cambia nada.
  *
- * Se devuelve `null` y quien pregunta se queda con lo público (§4.0.2), que ahora dice
- * **qué campos** lleva cada entrada por su nombre. Así el marcador sigue siendo exacto en
- * «¿hay algo que poner aquí?» y solo se queda corto en «¿es el mismo valor?»: sale de más
- * en vez de faltar, que es lo que se prefiere.
+ * **Un solo método, para todos los campos** (dueño, 2026-08-29). Antes lo público se
+ * comparaba mirando el valor y lo privado no se comparaba: dos caminos que acababan
+ * diciendo cosas distintas del mismo formulario.
  *
- * Sigue aquí porque es donde volverá a encenderse el día que haya forma de comparar sin
- * ese oráculo.
+ * Devuelve un `Set` con las claves `id|key` que coinciden.
  */
-async function openedFor (url) {
-  const v = await connect()
-  if (v.capabilities?.needsApproval !== false) return null
-  const host = hostOf(url)
-  const hit = openMemo.get(host)
-  if (hit && Date.now() - hit.ts < FIND_TTL_MS) return hit.list
-  const list = []
-  for (const meta of await findFor(url)) {
-    try {
-      const e = await v.get(meta.id)
-      const keys = new Map()
-      for (const f of parseFields(e.fields)) keys.set(fieldKey(f), f.value)
-      list.push({ id: e.id, type: e.type, username: e.username || '', secret: e.secret || '', keys })
-    } catch (_) { /* una que no abre no cuenta */ }
+async function sameAs (metas, pares) {
+  const out = new Set()
+  const conNonce = metas.filter(m => m.nonce && m.fieldHashes)
+  if (!conNonce.length || !pares.length) return out
+  // Un hasheador por nonce: todas las entradas de una misma respuesta lo comparten, así
+  // que en la práctica es uno.
+  const hashers = new Map()
+  for (const m of conNonce) {
+    if (!hashers.has(m.nonce)) hashers.set(m.nonce, await fieldHasher(m.nonce))
   }
-  openMemo.set(host, { ts: Date.now(), list })
-  return list
+  const cache = new Map()
+  for (const m of conNonce) {
+    for (const { key, value } of pares) {
+      const guardado = m.fieldHashes[key]
+      if (!guardado) continue
+      const memo = `${m.nonce}|${key}|${value}`
+      if (!cache.has(memo)) cache.set(memo, await hashers.get(m.nonce)(key, value))
+      if (cache.get(memo) === guardado) out.add(`${m.id}|${key}`)
+    }
+  }
+  return out
+}
+
+/**
+ * EL FRENO de la comparación, y la razón de que exista.
+ *
+ * Comparar deja un rastro que la página puede leer: propone un valor, mira si el
+ * marcador desaparece y así prueba si acertó. Con una entrada sin sitios —tu correo, tu
+ * teléfono, tu documento (§4.2)— eso vale desde CUALQUIER página, no solo desde la suya.
+ *
+ * El freno lo vuelve inútil sin estorbar a nadie: una persona escribiendo genera una
+ * comparación por tecla, unas decenas por formulario; adivinar un teléfono son cientos de
+ * millones. Pasado el tope, este sitio deja de comparar durante un rato y el marcador
+ * vuelve a salir de más, que es el fallo seguro.
+ */
+const COMPARE_WINDOW_MS = 60 * 1000
+// 1200 por minuto: veinte por segundo, muy por encima de lo que teclea nadie —60 palabras
+// por minuto son 300 pulsaciones— y muy por debajo de lo que haría falta para adivinar
+// algo (un teléfono son cientos de millones de intentos, o siglos a este ritmo).
+const COMPARE_MAX = 1200
+const compareCount = new Map()   // host → { desde, n }
+
+function canCompare (host) {
+  if (!host) return false
+  const ahora = Date.now()
+  const c = compareCount.get(host)
+  if (!c || ahora - c.desde > COMPARE_WINDOW_MS) {
+    compareCount.set(host, { desde: ahora, n: 1 })
+    return true
+  }
+  c.n++
+  return c.n <= COMPARE_MAX
 }
 
 /**
@@ -994,50 +1091,55 @@ async function openedFor (url) {
 async function offersFor ({ url, fields } = {}) {
   let metas = []
   try { metas = await findFor(url) } catch (_) { metas = [] }
-  let abiertas = null
-  try { abiertas = await openedFor(url) } catch (_) { abiertas = null }
+
+  const lista = Array.isArray(fields) ? fields : []
+  // LAS DOS MITADES de un acceso: el usuario y la contraseña son botones distintos, pero
+  // una sola credencial —«es la misma si coinciden las dos mitades que haya» (dueño,
+  // 2026-08-28)—, así que las dos hay que hashearlas aunque solo una esté en la lista.
+  const mitades = (f) => [
+    ...(f.username ? [{ key: 'username', value: f.username }] : []),
+    ...(f.secret ? [{ key: 'secret', value: f.secret }] : []),
+  ]
+  const pares = []
+  const suma = (par) => {
+    if (!par.value) return
+    if (!pares.some(x => x.key === par.key && x.value === par.value)) pares.push(par)
+  }
+  for (const f of lista) {
+    const acceso = f.key === 'username' || f.key === 'secret'
+    if (acceso) mitades(f).forEach(suma)
+    else suma({ key: f.key, value: f.value || '' })
+  }
+  const iguales = canCompare(hostOf(url))
+    ? await sameAs(metas, pares).catch(() => new Set())
+    : new Set()
 
   const out = []
-  for (const f of Array.isArray(fields) ? fields : []) {
-    // El usuario y la contraseña son dos campos con su clave cada uno, pero la misma
-    // credencial: para saber si ya está guardada igual hay que mirar las dos mitades.
-    const esUser = f.key === 'username'
-    const esClave = f.key === 'secret'
-    const acceso = esUser || esClave
+  for (const f of lista) {
+    const acceso = f.key === 'username' || f.key === 'secret'
     const libre = !acceso && !KINDS.includes(f.key)
-    // Lo escrito en ESTA casilla, también en un acceso: el usuario y la contraseña son
-    // dos botones distintos, y el de la contraseña no se enciende porque haya usuario.
     const value = f.value || ''
 
-    let ids = []
-    let same = false
-    if (abiertas) {
-      const suyas = abiertas.filter(e => acceso
-        ? (esUser ? !!e.username : !!e.secret)
-        : e.keys.has(f.key))
-      ids = suyas.map(e => e.id)
-      // «Ya está guardado igual» solo cuenta si lo está en TODAS las entradas que tienen
-      // ese campo (dueño, 2026-08-28): con dos entradas, coincidir con una y diferir de
-      // la otra deja algo que hacer —reemplazar el de la otra—, y el botón no puede
-      // desaparecer cuando queda una opción posible.
-      const igual = acceso
-        // La credencial es una cosa: es la misma si coinciden las dos mitades que haya.
-        ? (e) => e.secret === (f.secret || '') && e.username === (f.username || '')
-        : (e) => e.keys.get(f.key) === (f.value || '')
-      same = suyas.length > 0 && suyas.every(igual)
-    } else {
-      // Sin abrir nada: la vista pública dice QUÉ campos lleva cada entrada, por su
-      // nombre y sin un solo valor (§4.0.2). Con eso el marcador es exacto en «¿hay algo
-      // que poner aquí?» —también en un campo que el gestor no reconoce, que es el número
-      // de socio del §4.2— y solo se queda corto en «¿es el mismo valor?», que es lo
-      // único que de verdad exige abrir.
-      const conNombres = metas.filter(m => Array.isArray(m.fieldKeys))
-      ids = conNombres.length === metas.length
-        ? metas.filter(m => m.fieldKeys.includes(f.key)).map(m => m.id)
-        // Una bóveda que todavía no manda los nombres (un daemon sin actualizar): lo
-        // grueso de antes, y un campo libre se queda sin oferta.
-        : libre ? [] : metas.filter(m => acceso ? (m.hasSecret || m.type === 'login') : m.hasFields).map(m => m.id)
-    }
+    // La vista pública dice QUÉ campos lleva cada entrada, por su nombre y sin un solo
+    // valor (§4.0.2): con eso el marcador es exacto también en un campo que el gestor no
+    // reconoce —el número de socio del §4.2—, sin abrir nada.
+    const conNombres = metas.filter(m => Array.isArray(m.fieldKeys))
+    const ids = conNombres.length === metas.length
+      ? metas.filter(m => m.fieldKeys.includes(f.key)).map(m => m.id)
+      // Una bóveda que todavía no manda los nombres (un daemon sin actualizar): lo grueso
+      // de antes, y un campo libre se queda sin oferta.
+      : libre ? [] : metas.filter(m => acceso ? (m.hasSecret || m.type === 'login') : m.hasFields).map(m => m.id)
+
+    // «Ya está guardado igual» solo cuenta si lo está en TODAS las entradas que tienen
+    // ese campo (dueño, 2026-08-28): con dos entradas, coincidir con una y diferir de la
+    // otra deja algo que hacer —reemplazar el de la otra—, y el botón no puede
+    // desaparecer cuando queda una opción posible.
+    //
+    // En un acceso se miran LAS DOS mitades: cambiar solo la contraseña tiene que
+    // encender también el botón del usuario, porque lo que se guarda es la credencial.
+    const aComprobar = acceso ? mitades(f) : [{ key: f.key, value }]
+    const same = !!value && ids.length > 0 &&
+      ids.every(id => aComprobar.every(m => iguales.has(`${id}|${m.key}`)))
 
     out.push({ id: f.id, ids, ...fieldOffers({ value, stored: ids.length > 0, same }) })
   }
@@ -1123,9 +1225,9 @@ const OPS = {
   'profile-use': useProfile,
   'profile-rename': renameProfile,
   'profile-remove': removeProfile,
-  find: p => findFor(p.url),
+  find: async p => stripDigest(await findFor(p.url)),
   offers: p => offersFor(p),
-  search: p => searchEntries(p),
+  search: async p => stripDigest(await searchEntries(p)),
   remove: p => removeEntry(p),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),

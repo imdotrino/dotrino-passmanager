@@ -62,6 +62,20 @@ La puerta es **la misma pieza** que usa `VaultResponder`, y por eso las tres bó
 gestor se comportan igual: el sí se recuerda (o no, según con qué llave), el no nunca se
 recuerda, y dos peticiones a la vez producen un solo aviso.
 
+Y como abrir una entrada cuesta una autorización, `find` y `search` traen además **un
+resumen de cada campo** —públicos y privados, un solo método— con un nonce nuevo en cada
+respuesta, para poder decir «esto ya está guardado igual» sin abrir nada:
+
+```js
+const [hit] = await vault.find('https://salesforce.com/')
+const hash = await fieldHasher(hit.nonce)
+const igual = await hash('secret', loQueEscribio) === hit.fieldHashes.secret
+```
+
+El resumen dice si es igual, **no qué era**: para eso hay que abrir la entrada. Y no se
+reparte más allá de quien compara — con un valor corto y de forma conocida (un teléfono,
+un documento), tenerlo delante es poder adivinarlo.
+
 ## Qué más trae
 
 | | |
@@ -74,7 +88,8 @@ recuerda, y dos peticiones a la vez producen un solo aviso.
 | `normalizeFields` | campos libres `{ label, value, kind }` |
 | `SessionCache` | recuerdo en memoria de lo ya entregado |
 | `GuardedVault` / `ApprovalGate` | la puerta de autorización, delante de cualquier bóveda |
-| `entryFieldKeys` | qué campos lleva una entrada, por su nombre y sin un solo valor |
+| `entryFieldKeys` / `entryFieldValues` | qué campos lleva una entrada, por su nombre |
+| `makeNonce` / `fieldHasher` | los **resúmenes** con los que se compara sin abrir la entrada |
 
 ## Dos reglas que el código hace cumplir
 
