@@ -63,7 +63,7 @@ try {
   await Promise.all([page.waitForURL(/inside/), page.click('#go')])
   let f = await aviso()
   ok(!!f, 'el aviso sale aunque no haya submit')
-  if (f) ok((await f.locator('#user').textContent()) === 'ana@ejemplo.com', 'con el usuario correcto')
+  if (f) ok((await f.locator('#who').textContent()).startsWith('ana@ejemplo.com'), 'con el usuario correcto')
   if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
 
   // --- caso 3: dos pasos ---
@@ -77,8 +77,8 @@ try {
   await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'el aviso sale en el segundo paso')
-  if (f) ok((await f.locator('#user').textContent()) === 'beto@ejemplo.com',
-    'lleva el usuario del PRIMER paso: ' + (f ? await f.locator('#user').textContent() : '—'))
+  if (f) ok((await f.locator('#who').textContent()).startsWith('beto@ejemplo.com'),
+    'lleva el usuario del PRIMER paso: ' + (f ? await f.locator('#who').textContent() : '—'))
   if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
 
   // --- caso 6: registro con confirmación ---
@@ -205,8 +205,9 @@ try {
   f = await aviso()
   ok(!!f, 'el aviso sale sin contraseña ninguna')
   if (f) {
-    const titulo = await f.locator('[data-t=title]').textContent()
-    ok(/datos|info/i.test(titulo), 'y pregunta por los DATOS, no por una contraseña: ' + titulo)
+    ok(/Dotrino/.test(await f.locator('[data-t=title]').textContent()), 'con la marca arriba')
+    ok((await f.locator('[data-testid=save-prompt-who]').textContent()).includes('localhost'),
+      'y debajo, dónde va a parar')
     ok(await f.locator('[data-testid=save-prompt-field]').count() === 6, 'una fila por dato')
     ok(await f.locator('[data-testid=save-prompt-pick-city]').isChecked(), 'todas marcadas de entrada')
     await f.locator('[data-testid=save-prompt-pick-city]').uncheck()

@@ -81,8 +81,10 @@ try {
   await frame.locator('[data-testid=save-prompt-field]').first().waitFor({ timeout: 8000 })
   await guardar.waitFor({ state: 'visible', timeout: 8000 })
 
-  ok((await frame.locator('#host').textContent()) === 'localhost', 'enseña el sitio')
-  ok((await frame.locator('#user').textContent()) === 'seyacat@dotrino.com', 'enseña el usuario')
+  // Arriba, la marca; debajo, a dónde va a parar esto — que sigue a lo elegido abajo.
+  ok(/Dotrino/.test(await frame.locator('[data-t=title]').textContent()), 'lleva la marca')
+  const donde = await frame.locator('[data-testid=save-prompt-who]').textContent()
+  ok(donde === 'seyacat@dotrino.com · localhost', 'y dice quién y dónde: ' + donde)
 
   // La contraseña NO puede estar en el aviso: solo la sabe el service worker.
   const inner = await frame.locator('body').innerHTML()

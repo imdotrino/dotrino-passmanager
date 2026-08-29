@@ -15,9 +15,12 @@
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,.12);
   }
-  h1 { font-size: .95rem; margin: 0 0 2px; }
-  .who { font-size: .82rem; opacity: .72; word-break: break-all; }
-  .note { font-size: .78rem; opacity: .72; margin: 8px 0 0; }
+  /* La marca, con su pájaro: quién pregunta, no qué se pregunta. Lo que se va a hacer
+     lo dicen las secciones de abajo, que es donde se mira. */
+  .brand { display: flex; align-items: center; gap: 7px; }
+  .brand img { width: 18px; height: 18px; display: block; }
+  h1 { font-size: .95rem; margin: 0; }
+  .who { font-size: .82rem; opacity: .72; word-break: break-all; margin-top: 2px; }
   .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   button {
     font: inherit; cursor: pointer; border: 0; border-radius: 8px;
@@ -60,7 +63,8 @@
   }
 
   /* La lista de lo que se va a escribir: una fila por dato, con su casilla. */
-  .fields { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 2px; }
+  .fields { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+  #fieldsLabel { margin-top: 12px; }
   .fields li { border-radius: 8px; }
   .fields li:hover { background: rgba(255,255,255,.05); }
   /* Cuatro columnas, una por pieza: casilla · qué es · qué se va a escribir · si es
@@ -96,13 +100,16 @@
 </style>
 </head>
 <body>
-  <h1 data-t="title">¿Guardo esta contraseña?</h1>
-  <div class="who"><span id="user"></span> · <span id="host"></span></div>
-  <p class="note" id="note" hidden></p>
+  <div class="brand">
+    <img src="../icons/icon-32.png" alt="">
+    <h1 data-t="title">Dotrino Pass Manager</h1>
+  </div>
+  <div class="who" id="who" data-testid="save-prompt-who"></div>
   <div class="where" id="where" hidden>
     <div class="lbl" id="whereLabel"></div>
     <ul class="targets" id="targets"></ul>
   </div>
+  <div class="lbl" id="fieldsLabel" hidden></div>
   <ul class="fields" id="fields"></ul>
   <button class="link" id="reveal" data-testid="save-prompt-reveal" hidden></button>
   <p class="err" id="err" hidden></p>

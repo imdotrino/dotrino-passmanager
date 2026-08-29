@@ -450,7 +450,7 @@ El recorrido, y dónde está cada pieza:
 | al enviar | content script | lee del formulario lo que se reconoce —usuario, contraseña y los datos sueltos— y lo manda al service worker (`capture`) |
 | entre páginas | service worker | las sostiene en `chrome.storage.session`, **una sola** y con caducidad de 5 min |
 | ya en la página siguiente | content script | pregunta si hay algo pendiente **para este mismo sitio** y monta el aviso |
-| el aviso | **iframe de la extensión** | enseña el sitio, el usuario, **qué se va a escribir campo por campo y dónde** (§4.0.2). La contraseña **no llega hasta aquí** |
+| el aviso | **iframe de la extensión** | **la marca arriba**, debajo a dónde va a parar, y **qué se va a escribir campo por campo y dónde** (§4.0.2). La contraseña **no llega hasta aquí** |
 | el «sí» | service worker | escribe en la bóveda **lo que quedó marcado**; después borra lo capturado |
 
 **Por qué un iframe y no HTML nuestro dentro de la página.** Porque el botón que acaba
@@ -539,6 +539,12 @@ el usuario elige cuál se reemplaza. Reglas de esa lista:
   tu dirección de siempre desde el formulario de una tienda cualquiera tiene que ser un
   acto, no un descuido. Y al actualizarlas **conservan sus sitios**, o sea ninguno: no se
   convierten en la entrada de este sitio por haberlas tocado aquí.
+
+La cabecera del aviso, que el dueño ajustó el 2026-08-28: arriba **la marca con su
+pájaro** —quién pregunta, no qué se pregunta: lo que se va a hacer lo dicen las secciones
+de abajo, que es donde se mira—, y debajo una línea que **sigue a la entrada elegida**
+(`nombre · sitio`), porque es la respuesta a «¿dónde va a parar esto?» y cambia con la
+selección. Las dos secciones llevan su título: **GUARDAR EN** y **CAMPOS**.
 
 Reglas que valen para todo lo anterior:
 

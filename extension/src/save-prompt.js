@@ -21,12 +21,11 @@ const user = p.get('user') || ''
 
 const $ = (id) => document.getElementById(id)
 
-$('user').textContent = user || t(lang, 'noUser')
-$('host').textContent = host
-document.querySelector('[data-t="title"]').textContent = t(lang, 'askSave')
+document.documentElement.lang = lang
 $('save').textContent = t(lang, 'save')
 $('no').textContent = t(lang, 'notNow')
-document.documentElement.lang = lang
+// De entrada, lo que se acaba de escribir; en cuanto haya destino elegido, ese manda.
+$('who').textContent = [user || '', host].filter(Boolean).join(' · ')
 
 const ask = (op, payload) => new Promise((resolve, reject) => {
   chrome.runtime.sendMessage({ op, payload }, (r) => {
@@ -108,6 +107,19 @@ function rowsFor (id) {
 /** Cómo se llama esta fila: los campos libres, como los llama el sitio. */
 const labelOf = (row) => row.label || kindLabel(lang, row.key)
 
+/**
+ * La línea de debajo de la marca: DÓNDE va a parar esto.
+ *
+ * Sigue a la selección de abajo (dueño, 2026-08-28): con una entrada elegida dice cuál
+ * es; con una nueva, el usuario que se acaba de escribir. Y siempre el sitio, que es lo
+ * que ata todo esto a la página que tienes delante.
+ */
+function renderWho () {
+  const r = detail?.candidates?.find(c => c.id === target)
+  const quien = r ? (r.hint || r.title) : (user || t(lang, 'noUser'))
+  $('who').textContent = [quien, host].filter(Boolean).join(' · ')
+}
+
 function renderTargets () {
   const ul = $('targets')
   ul.textContent = ''
@@ -150,7 +162,7 @@ function renderTargets () {
     radio.value = o.id
     radio.checked = o.id === target
     radio.dataset.testid = o.id ? `save-prompt-target-${o.id}` : 'save-prompt-target-new'
-    radio.addEventListener('change', () => { target = o.id; renderFields() })
+    radio.addEventListener('change', () => { target = o.id; renderWho(); renderFields() })
 
     const who = document.createElement('span')
     who.className = 'who2'
@@ -176,6 +188,8 @@ function renderFields () {
   const ul = $('fields')
   ul.textContent = ''
   const rows = rowsFor(target)
+  $('fieldsLabel').textContent = t(lang, 'fieldsLabel')
+  $('fieldsLabel').hidden = !rows.length
   // Marcadas las que se pidieron: al enviar un formulario, todas; al pulsar el botón de
   // un campo, ese. Los demás quedan a mano, sin marcar.
   picked = new Set(rows.filter((r) => r.pick !== false).map((r) => r.key))
@@ -261,13 +275,6 @@ $('reveal').onclick = async () => {
 async function load () {
   detail = await ask('pending-detail')
   if (!detail?.has) return close()
-  if (!detail.login) {
-    document.querySelector('[data-t="title"]').textContent = t(lang, 'askSaveData')
-    // Un formulario de datos no tiene cuenta: «sin usuario ·» delante del sitio sobra,
-    // y además suena a que falta algo.
-    if (!user) document.querySelector('.who').textContent = host
-  }
-
   // Preseleccionada, la que más se parece — que es la que el usuario querría pisar el
   // 90 % de las veces. Si ninguna se parece, una entrada nueva: no se pisa por defecto
   // algo que no se sabe si es lo mismo.
@@ -282,6 +289,7 @@ async function load () {
   }
 
   renderTargets()
+  renderWho()
   renderFields()
 }
 
