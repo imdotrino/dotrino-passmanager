@@ -642,12 +642,15 @@ async function pendingDetail ({ id, reveal } = {}) {
  * ya existía se queda como estaba, y si es nueva simplemente no entra. Sin lista se
  * guarda todo, que es lo que hacía el aviso antes de tener casillas.
  */
-async function savePending ({ id, pick } = {}) {
+async function savePending ({ id, pick, privateKeys } = {}) {
   const p = await readPending()
   if (!p) throw new VaultError(CODES.NOT_FOUND, 'ya no hay nada que guardar')
   const v = await connect()
   const marcadas = Array.isArray(pick) ? new Set(pick) : null
   const quiere = (k) => !marcadas || marcadas.has(k)
+  // Lo PRIVADO de una entrada: lo que solo sale de la bóveda con confirmación. Se marca
+  // al guardar, campo a campo (§4.2).
+  const privadas = new Set(Array.isArray(privateKeys) ? privateKeys : [])
 
   // Actualizar es SUMAR sobre lo que ya había, no reemplazarlo: una entrada tiene notas,
   // TOTP y campos que este formulario ni ve, y perderlos por guardar un teléfono sería
@@ -664,7 +667,14 @@ async function savePending ({ id, pick } = {}) {
     // La etiqueta que ya tenía manda: es la identidad del campo libre, y cambiarla sería
     // crear otro. Si no había, la del sitio; y si el campo tiene clase, su nombre.
     const label = (i >= 0 && fields[i].label) || f.label || KIND_LABEL[lang]?.[f.kind] || f.kind || ''
-    const fila = { label, value: f.value, ...(f.kind ? { kind: f.kind } : {}) }
+    const fila = {
+      label,
+      value: f.value,
+      ...(f.kind ? { kind: f.kind } : {}),
+      // Si ya era privado, sigue siéndolo: quitarlo tiene que ser un acto, no un
+      // descuido de haber guardado encima desde un formulario.
+      ...((privadas.has(key) || (i >= 0 && fields[i].private)) ? { private: true } : {}),
+    }
     if (i >= 0) fields[i] = fila
     else fields.push(fila)
   }

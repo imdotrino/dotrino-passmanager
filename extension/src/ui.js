@@ -106,6 +106,16 @@ function styles () {
       pointer-events: auto;
       color-scheme: normal;
     }
+    /* El modal de un campo: pegado a su marcador, no en el centro de la pantalla. Va en
+       coordenadas del documento para seguir a su campo al hacer scroll. */
+    .field-modal {
+      position: absolute;
+      width: ${MODAL_W}px; height: 200px;
+      border: 0; border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.34);
+      pointer-events: auto;
+      color-scheme: normal;
+    }
     .marker:hover, .marker:focus-visible { opacity: 1; outline: none; }
     .marker:focus-visible::before { box-shadow: 0 0 0 2px #fff, 0 0 0 4px ${BRAND}; }
 
@@ -177,6 +187,7 @@ function place (node, el) {
 
 export function reposition () {
   for (const m of markers) place(m.node, m.el)
+  placeFieldModal()
 }
 
 /** Quita todos los botones. Se llama antes de volver a escanear. */
@@ -204,13 +215,16 @@ export function mountMarkers (fields, pick) {
     node.title = f.title || 'Dotrino'
     node.dataset.kind = f.kind || 'login'
     node.addEventListener('mousedown', e => e.preventDefault()) // no robar el foco
+    // Se le pasa el marcador ENTERO, con su nodo: el modal sale pegado a él, así que
+    // quien lo abre tiene que saber dónde está.
+    const marker = { ...f, node }
     node.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      onPick?.(f)
+      onPick?.(marker)
     })
     sr.append(node)
-    markers.push({ ...f, node })
+    markers.push(marker)
     place(node, f.el)
   }
   return markers.length
@@ -369,4 +383,57 @@ export function sizeSavePrompt (h) {
 /** La ventana del aviso, para reconocer sus mensajes y no los de la página. */
 export function promptWindow () {
   return prompt?.contentWindow || null
+}
+
+// --- EL MODAL DE UN CAMPO ------------------------------------------------------
+//
+// Pegado a su marcador, a la derecha; a la izquierda si no cabe. Y es un iframe de la
+// extensión por lo mismo que el aviso: ahí dentro se pulsa «Guardar», y eso tiene que
+// nacer fuera de la página.
+
+const MODAL_W = 288
+let fieldModal = null
+let fieldAnchor = null
+
+export function mountFieldModal ({ key, name, anchor }) {
+  const sr = ensureHost()
+  closeFieldModal()
+  const frame = document.createElement('iframe')
+  frame.className = 'field-modal'
+  frame.setAttribute('title', 'Dotrino')
+  frame.src = chrome.runtime.getURL('src/field-modal.html') + '?' +
+    new URLSearchParams({ key: key || '', name: name || '' })
+  sr.append(frame)
+  fieldModal = frame
+  fieldAnchor = anchor || null
+  placeFieldModal()
+  return frame
+}
+
+export function closeFieldModal () {
+  fieldModal?.remove()
+  fieldModal = null
+  fieldAnchor = null
+}
+
+export function fieldModalWindow () {
+  return fieldModal?.contentWindow || null
+}
+
+export function sizeFieldModal (h) {
+  if (!fieldModal || !Number.isFinite(h)) return
+  fieldModal.style.height = `${Math.max(80, Math.min(h, Math.round(window.innerHeight * 0.8)))}px`
+  placeFieldModal()
+}
+
+/** A la derecha del marcador, o a su izquierda si ahí no cabe. Sin salirse abajo. */
+function placeFieldModal () {
+  if (!fieldModal || !fieldAnchor?.isConnected) return
+  const r = fieldAnchor.getBoundingClientRect()
+  const alto = parseInt(fieldModal.style.height, 10) || 200
+  const cabeADerecha = r.right + 8 + MODAL_W <= window.innerWidth
+  const x = cabeADerecha ? r.right + 8 : Math.max(8, r.left - 8 - MODAL_W)
+  const y = Math.max(8, Math.min(r.top, window.innerHeight - alto - 8))
+  fieldModal.style.left = `${x + window.scrollX}px`
+  fieldModal.style.top = `${y + window.scrollY}px`
 }

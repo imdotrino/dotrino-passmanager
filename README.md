@@ -51,8 +51,9 @@ guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera un
 En la página, el gestor pone un botón en la esquina de un campo **solo cuando puede
 hacer algo ahí**: si el campo está vacío y tienes algo guardado suyo, **rellenar**; si
 tiene algo escrito que no está ya guardado igual, **guardar**. Con una sola letra ya
-aparece, y desaparece cuando no queda nada que hacer. **Nada se rellena solo**: rellenar
-es un botón que pulsas —«este valor» o «todos los valores»— y eliges de qué entrada.
+aparece, y desaparece cuando no queda nada que hacer. **Nada se rellena solo**: al pulsar sale
+un modal pegado al campo donde eliges **de qué entrada** (flechas ‹ ›), rellenas ese dato
+o **todos** de una vez, y guardas lo que escribiste — marcándolo **privado** si quieres.
 
 Vale para **cualquier** campo, lo reconozca o no: el número de socio o el código del
 portal se guardan por el nombre que les pone la página, y eliges si van a una entrada que

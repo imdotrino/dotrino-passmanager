@@ -36,6 +36,16 @@ page.on('pageerror', (e) => console.log('   [error de página]', e.message))
 /** Lo que el gestor ofrece en unos campos, preguntado como lo hace la página. */
 const que = async (campos) => (await pedir('offers', { url: page.url(), fields: campos }))?.result || []
 
+/** El modal de un campo, ya pintado. */
+async function modal () {
+  for (let i = 0; i < 40; i++) {
+    const f = page.frames().find((x) => x.url().includes('field-modal.html'))
+    if (f) { await f.locator('[data-testid=field-modal-close]').waitFor({ timeout: 8000 }); return f }
+    await page.waitForTimeout(200)
+  }
+  return null
+}
+
 /** El aviso de guardar, ya pintado. */
 async function aviso () {
   for (let i = 0; i < 40; i++) {
@@ -112,9 +122,15 @@ try {
   // coordenadas porque vive en un shadow root CERRADO, que es justo lo que se quiere.
   const caja = await page.locator('input[name=email]').boundingBox()
   await page.mouse.click(caja.x + caja.width - 10, caja.y + 8)
-  await page.waitForTimeout(700)
-  // Y en el modal, el botón de rellenarlo todo: va debajo de la lista, antes de «Cerrar».
-  await page.mouse.click(360, 396)
+
+  // El modal SÍ es alcanzable: es un iframe de la extensión, como el aviso.
+  const m = await modal()
+  ok(!!m, 'el modal del campo sale al pulsar el marcador')
+  ok((await m.locator('#recName').textContent()) !== '', 'con una entrada en la cabecera')
+  const filas = m.locator('[data-testid=field-modal-fill-row]')
+  ok(await filas.count() >= 2, 'y la lista de lo que puede rellenar (' + (await filas.count()) + ')')
+  ok(await m.locator('[data-testid=field-modal-check-email]').isChecked(), 'con las casillas marcadas')
+  await m.locator('[data-testid=field-modal-fill-all]').click()
   await page.waitForTimeout(1200)
   const puesto = await page.evaluate(() =>
     Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
@@ -126,6 +142,32 @@ try {
   // Y con todo puesto, ya no queda nada que ofrecer: es la fila 6.
   r = await que([{ id: 0, key: 'email', value: 'ana@datos.com' }])
   ok(!r[0].fill && !r[0].save, 'después de rellenar, el botón desaparece')
+
+  console.log('\nguardar un campo desde su modal, y marcarlo privado')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1200)
+  await page.fill('input[name=city]', 'Quito')
+  await page.waitForTimeout(800)
+  const cajaCity = await page.locator('input[name=city]').boundingBox()
+  await page.mouse.click(cajaCity.x + cajaCity.width - 10, cajaCity.y + 8)
+  const m2 = await modal()
+  ok(!!m2, 'el modal sale en un campo con algo escrito')
+  if (m2) {
+    ok(!(await m2.locator('#saveBox').isHidden()), 'con su sección de guardar')
+    ok((await m2.locator('#saveName').textContent()) === 'City' ||
+      (await m2.locator('#saveName').textContent()) === 'Ciudad', 'que dice qué campo es')
+    await m2.locator('[data-testid=field-modal-private]').check()
+    await m2.locator('[data-testid=field-modal-save]').click()
+    await page.waitForTimeout(1500)
+  }
+  const guardadas = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
+    .filter((e) => e.type === 'data')
+  const abierta = guardadas[0] ? (await pedir('get', { id: guardadas[0].id }))?.result : null
+  const ciudad = JSON.parse(abierta?.fields || '[]').find((c) => c.kind === 'city')
+  ok(ciudad?.value === 'Quito', 'el campo queda guardado')
+  ok(ciudad?.private === true, 'y marcado como privado')
+  r = await que([{ id: 0, key: 'city', value: 'Quito' }])
+  ok(!r[0].save, 'y su botón desaparece, que ya está guardado igual')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

@@ -144,88 +144,36 @@ function descFor (f, i) {
 }
 
 /**
- * El usuario pulsó el botón de un campo: se le enseña qué se puede hacer ahí.
+ * El usuario pulsó el botón de un campo. Se abre el modal, pegado a él.
  *
- * Dos cosas, y pueden estar las dos a la vez: **poner** algo guardado, y **guardar** lo
- * que ya está escrito. La segunda va abajo, separada, porque no es una opción más de
- * «qué pongo aquí».
+ * El modal es un **iframe de la extensión** (§4.1): dentro se elige la entrada, se
+ * rellena y se guarda, y ese último botón tiene que nacer fuera de la página. Aquí solo
+ * se apunta antes lo que hay escrito —para que el modal tenga qué guardar— y se le
+ * cuenta qué campos hay delante.
  */
 async function onPick (field) {
   const { ui } = await mods
-  const { entries, error } = await entriesForHost()
-
-  const esDato = !!field.kind || !!field.free
-  // Las entradas que tienen ESTE campo, dichas por el service worker: es lo que sabe
-  // mirar dentro. Aquí solo se les pone nombre con lo público que ya se tiene.
-  const suyas = new Set(field.offers?.ids || [])
-  const options = field.offers?.fill
-    ? entries.filter(e => suyas.has(e.id))
-      .map(e => ({ id: e.id, name: e.title || e.sites?.[0] || '—', hint: e.hint || e.sites?.[0] || '' }))
-    : []
-
-  ui.showModal({
-    title: 'Dotrino',
-    what: esDato ? nameOf(field) : t('fieldLogin'),
-    lead: options.length ? t('fillThisFrom') : '',
-    options,
-    empty: error ? messageFor(error) : t('nothingForField'),
-    closeLabel: t('close'),
-    actions: [
-      field.offers?.save && { label: t('saveThis'), testid: 'field-modal-save', onAction: () => saveFromField(field) },
-      options.length && { label: t('fillAll'), ghost: true, testid: 'field-modal-fill-all', onAction: () => fillAllFlow(options) },
-    ],
-    onChoose: async (opt) => {
-      // Aquí, y solo aquí, se pide UNA credencial: al elegirla el usuario.
-      const got = await ask('get', { id: opt.id })
-      if (got.error) return ui.showModal({ title: 'Dotrino', empty: messageFor(got.error.code), closeLabel: t('close') })
-      await fill(field, got.result)
-    },
+  const { error } = await entriesForHost()
+  if (error) {
+    return ui.showModal({ title: 'Dotrino', empty: messageFor(error), closeLabel: t('close') })
+  }
+  // Apuntar no es guardar: queda en la memoria de sesión del service worker y solo entra
+  // en la bóveda si se pulsa «Guardar», que se pulsa dentro del marco.
+  const puedeGuardar = field.offers?.save ? !!(await captureField(field)) : false
+  abierto = { field, puedeGuardar }
+  ui.mountFieldModal({
+    key: keyOf(field),
+    name: nameOf(field),
+    anchor: field.node,
   })
 }
 
-/**
- * RELLENAR TODO desde una entrada: cada campo de la página que esa entrada tenga.
- *
- * **Sigue sin rellenarse nada solo** (§4.1): esto es un botón que el usuario pulsa, y
- * antes elige de dónde. Lo que ahorra es repetir la elección campo por campo cuando la
- * entrada tiene media docena.
- */
-async function fillAllFlow (options) {
-  const { ui } = await mods
-  if (options.length === 1) return fillAllFrom(options[0].id)
-  // Con varias, primero de cuál: rellenar seis campos desde la entrada equivocada es
-  // peor que no rellenar ninguno.
-  ui.showModal({
-    title: 'Dotrino',
-    what: t('fillAll'),
-    lead: t('fillAllFrom'),
-    options,
-    closeLabel: t('close'),
-    onChoose: (opt) => fillAllFrom(opt.id),
-  })
-}
+/** El campo que tiene el modal abierto, para saber a quién contestarle. */
+let abierto = null
 
-async function fillAllFrom (id) {
-  const { detect, ui } = await mods
-  const got = await ask('get', { id })
-  if (got.error) {
-    return ui.showModal({ title: 'Dotrino', empty: messageFor(got.error.code), closeLabel: t('close') })
-  }
-  const entry = got.result
-  const campos = parseFields(entry.fields)
-  for (const f of lastShown) {
-    if (!f.kind && !f.free) {
-      if (f.el === f.form?.username && entry.username) detect.fillField(f.el, entry.username)
-      if (f.el === f.form?.password && entry.secret) detect.fillField(f.el, entry.secret)
-      continue
-    }
-    const key = detect.fieldKey({ kind: f.kind, label: f.label })
-    const campo = campos.find(x => detect.fieldKey(x) === key)
-    if (campo) detect.fillField(f.el, campo.value)
-  }
-  ui.reposition()
-  scan().catch(() => {})
-}
+const keyOf = (f) => (!f.kind && !f.free)
+  ? 'login'
+  : (cache.detect ? cache.detect.fieldKey({ kind: f.kind, label: f.label }) : 'other')
 
 /** El nombre del campo tal como se le enseña al usuario. */
 function nameOf (field) {
@@ -242,9 +190,8 @@ function nameOf (field) {
  * página siguiente—, y quien escribe en la bóveda sigue siendo el iframe de la
  * extensión, nunca la página.
  */
-async function saveFromField (field) {
-  const { detect, ui } = await mods
-  const noHay = () => ui.showModal({ title: 'Dotrino', empty: t('nothingToSave'), closeLabel: t('close') })
+async function captureField (field) {
+  const { detect } = await mods
 
   // Se guarda ESE campo: es el que se pulsó. Los demás del mismo formulario van también,
   // pero SIN marcar — así una pulsación guarda una cosa, y si querías más están ahí sin
@@ -258,7 +205,7 @@ async function saveFromField (field) {
     const f = field.form
     const username = detect.readUsername(f)
     const secret = f?.password?.value || ''
-    if (!username && !secret) return noHay()
+    if (!username && !secret) return false
     const esPass = field.el === f?.password
     payload = {
       username,
@@ -273,37 +220,58 @@ async function saveFromField (field) {
     const scope = field.el.form || document
     const fields = detect.readDataFields(scope)
     const key = detect.fieldKey({ kind: field.kind, label: field.label })
-    if (!fields.some(x => detect.fieldKey(x) === key)) return noHay()
+    if (!fields.some(x => detect.fieldKey(x) === key)) return false
     payload = { username: '', secret: '', fields, focus: [key], url: location.href }
   }
 
-  await capture(payload)
-  await offerSave([0, 300, 800])
+  const r = await capture(payload)
+  return !r?.error
 }
 
-async function fill (field, entry) {
+/**
+ * RELLENAR lo que el modal pidió. Los valores vienen de la bóveda, por dentro del marco;
+ * aquí solo se escriben en los campos, que es lo único que el marco no puede hacer.
+ */
+async function fillFromModal (values) {
   const { detect, ui } = await mods
-
-  if (!field.kind) {
-    // Un acceso: usuario y contraseña de su formulario, no de toda la página.
-    const form = field.form
-    if (form?.username && entry.username) detect.fillField(form.username, entry.username)
-    if (form?.password && entry.secret) detect.fillField(form.password, entry.secret)
-    ui.reposition()
-    return
+  for (const v of Array.isArray(values) ? values : []) {
+    for (const f of lastShown) {
+      if (keyOf(f) !== v.key) continue
+      if (v.key === 'login') {
+        if (f.el === f.form?.username && v.username) detect.fillField(f.el, v.username)
+        if (f.el === f.form?.password && v.secret) detect.fillField(f.el, v.secret)
+      } else if (v.value !== undefined) {
+        detect.fillField(f.el, v.value)
+      }
+    }
   }
-
-  // Se busca por CLAVE, que para un campo libre es su etiqueta: es su única identidad.
-  const campos = parseFields(entry.fields)
-  const key = detect.fieldKey({ kind: field.kind, label: field.label })
-  const campo = campos.find(f => detect.fieldKey(f) === key)
-  if (campo) detect.fillField(field.el, campo.value)
   ui.reposition()
+  // Lo escrito cambia lo que se puede ofrecer: el marcador del campo recién rellenado
+  // desaparece solo (§4.1, la fila del «ya está guardado igual»).
+  scan().catch(() => {})
 }
 
-function parseFields (raw) {
-  if (Array.isArray(raw)) return raw
-  try { return JSON.parse(raw || '[]') } catch { return [] }
+/** Qué campos hay delante y qué entrada puede rellenar cada uno. Es cosmético. */
+async function sendModalContext () {
+  const { ui } = await mods
+  const w = ui.fieldModalWindow()
+  if (!w) return
+  const vistos = new Set()
+  const page = []
+  for (const f of lastShown) {
+    const k = keyOf(f)
+    if (vistos.has(k)) continue
+    vistos.add(k)
+    page.push({ key: k, name: nameOf(f), ids: f.offers?.ids || [] })
+  }
+  try {
+    w.postMessage({
+      _dotrino: 'field-modal-context',
+      page,
+      canSave: !!abierto?.puedeGuardar,
+      url: location.href,
+    }, EXT_ORIGIN)
+  } catch (_) {}
 }
 
 function messageFor (code) {
@@ -469,18 +437,36 @@ async function offerSave (waits = [0, 400, 1000, 2000]) {
 // sin el filtro la página podría cerrar el aviso —o estirarlo hasta taparlo todo— con
 // una línea. Vale el origen de la extensión o la ventana del propio iframe.
 const EXT_ORIGIN = new URL(chrome.runtime.getURL('')).origin
+const DE_LOS_MARCOS = new Set([
+  'close-save-prompt', 'size-save-prompt',
+  'field-modal-ready', 'close-field-modal', 'size-field-modal',
+  'fill-field-modal', 'saved-field-modal',
+])
+
 addEventListener('message', async (e) => {
   const op = e.data?._dotrino
-  if (op !== 'close-save-prompt' && op !== 'size-save-prompt') return
+  if (!DE_LOS_MARCOS.has(op)) return
   const { ui } = await mods
-  if (e.origin !== EXT_ORIGIN && e.source !== ui.promptWindow()) return
-  if (op === 'close-save-prompt') {
-    ui.closeSavePrompt()
-    // Puede que se acabe de guardar algo: lo que se sabía de la bóveda ya no vale, y los
-    // marcadores de la página tienen que enterarse.
-    forgetEntries()
-    scan().catch(() => {})
-  } else ui.sizeSavePrompt(e.data.h)
+  // De DÓNDE viene: en esta ventana cualquiera puede hacer `postMessage`, y sin el filtro
+  // la página podría cerrar el aviso, estirarlo hasta taparlo todo o mandar a rellenar.
+  const suyo = e.source === ui.promptWindow() || e.source === ui.fieldModalWindow()
+  if (e.origin !== EXT_ORIGIN && !suyo) return
+
+  switch (op) {
+    case 'close-save-prompt':
+      ui.closeSavePrompt()
+      // Puede que se acabe de guardar algo: lo que se sabía de la bóveda ya no vale, y
+      // los marcadores de la página tienen que enterarse.
+      forgetEntries()
+      scan().catch(() => {})
+      break
+    case 'size-save-prompt': ui.sizeSavePrompt(e.data.h); break
+    case 'field-modal-ready': sendModalContext(); break
+    case 'close-field-modal': ui.closeFieldModal(); abierto = null; break
+    case 'size-field-modal': ui.sizeFieldModal(e.data.h); break
+    case 'fill-field-modal': fillFromModal(e.data.values); break
+    case 'saved-field-modal': forgetEntries(); scan().catch(() => {}); break
+  }
 })
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

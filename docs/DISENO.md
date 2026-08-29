@@ -612,6 +612,42 @@ Lo que hay que leer ahí, dicho en palabras:
   formulario no es pedir que se guarde el código de un cupón. Y los libres **no cuentan**
   para el mínimo de dos datos que hace saltar el aviso solo.
 
+#### El modal del campo: dónde, rellenar y guardar
+
+> La forma la dio el dueño el 2026-08-28, y es **la misma idea que el aviso de después de
+> entrar** (§4.0.1): elegir la entrada arriba, filas con casilla en medio, botones abajo.
+
+Sale **pegado al marcador** —a su derecha, o a su izquierda si ahí no cabe—, no en el
+centro de la pantalla: se habla de ese campo, y el modal tiene que estar donde está el
+campo. Sigue al scroll y se recoloca si la ventana cambia.
+
+```
+   ‹   localhost · hace 3 días   ›     ← de qué entrada hablamos; sin ninguna, «nueva»
+   ─────────────────────────────
+   RELLENAR
+   [x] Correo            [Completar]   ← una fila por campo de la página que ESA tenga
+   [x] Teléfono          [Completar]
+   [     Completar todos          ]    ← los marcados, de una vez
+   ─────────────────────────────
+   GUARDAR
+       Correo            privado [ ]   ← lo que hay escrito en ESTE campo
+   [    Guardar    ]  [   Cerrar   ]
+```
+
+- **La cabecera manda sobre las dos secciones**: de esa entrada se rellena, y en esa
+  entrada se guarda. Las flechas recorren las entradas del sitio y terminan en **«una
+  entrada nueva»**, que es lo único que hay cuando no existe ninguna.
+- **Cada sección aparece solo si tiene sentido**: sin nada guardado no hay «rellenar»,
+  y con el campo vacío no hay «guardar».
+- **Es un iframe de la extensión**, como el aviso: el botón que escribe en la bóveda tiene
+  que pulsarse en el origen `chrome-extension://`. Lo que llega desde la página —los
+  nombres de sus campos— es **cosmético y se trata como tal**: el content script y el
+  sitio comparten ventana, así que nada de lo que venga por ahí decide nada. Los valores
+  salen de la bóveda dentro del marco, y lo que se guarda es lo que el service worker
+  tenga apuntado.
+- **Rellenar cruza el valor a la página**, que es literalmente lo que rellenar significa:
+  el marco pide la entrada, y le dice al content script qué escribir en qué campo.
+
 #### Las dos preguntas de la tabla se responden mirando dentro
 
 «¿Alguna entrada tiene este campo?» y «¿lo tiene con este mismo valor?» no se contestan
@@ -693,6 +729,17 @@ Dos reglas:
 - **`kind` es opcional y solo sirve para colocar el dato**: dice qué es (un correo, un
   teléfono) para saber en qué hueco va. Sin `kind` el campo se guarda y se copia
   igual — solo no aparece ofrecido en un campo del formulario.
+- **`private` marca lo que solo sale con confirmación** (dueño, 2026-08-28). Es la
+  distinción público/privado del §4.0.2 dicha campo a campo: el teléfono que rellenas en
+  veinte sitios no pide lo mismo que el número de tu documento. Se marca al guardar, con
+  la casilla del modal, y **una vez marcado no se quita solo**: guardar encima desde otro
+  formulario lo respeta.
+
+  ⚠️ **Hoy la marca se guarda y se respeta al escribir, pero NO la hace cumplir la
+  bóveda.** Que un campo privado exija aprobación para salir es cosa del protocolo
+  (`get` entrega la entrada entera), y eso toca la interfaz de bóveda (§6.1) y el
+  daemon. Deuda anotada: mientras no exista, `private` es una etiqueta honesta de la
+  intención del usuario, no un cerrojo.
 - **Sin `kind`, la etiqueta ES la identidad del campo.** Es por lo que se empareja con lo
   que ya hay guardado (para decir si cambia o si es nuevo), así que al actualizar una
   entrada **se conserva la etiqueta que ya tenía**: cambiarla no sería editar el campo,
