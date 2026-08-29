@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@dotrino/identity": "0.61.0",
-    "@dotrino/proxy-client": "0.13.0",
+    "@dotrino/proxy-client": "0.13.1",
     "@dotrino/vault": "0.35.0"
   }
 }

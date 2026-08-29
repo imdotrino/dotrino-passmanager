@@ -33,7 +33,7 @@
     "webauthn"
   ],
   "dependencies": {
-    "@dotrino/proxy-client": "0.13.0"
+    "@dotrino/proxy-client": "0.13.1"
   },
   "peerDependencies": {
     "@dotrino/identity": ">=0.61.0"
