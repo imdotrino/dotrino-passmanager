@@ -349,32 +349,43 @@ export function readUsername ({ form, username, password } = {}) {
 /**
  * QUÉ puede hacer el gestor en ESTE campo. De aquí sale si se marca o no (§4.1).
  *
- * **La regla es por CAMPO, no por formulario** (dueño, 2026-08-28), y es esta:
+ * **La regla es por CAMPO, no por formulario**, y desde el 2026-08-29 es UNA sola frase
+ * del dueño: *«el botón solo se esconde si el field está vacío y no existe un record con
+ * su valor»*.
  *
- * | | el campo está vacío | tiene algo escrito, distinto | tiene lo mismo que hay guardado |
- * |---|---|---|---|
- * | **nada guardado suyo** | sin botón | **guardar** | — |
- * | **algo guardado suyo** | **rellenar** | **guardar** | sin botón |
+ * | | el campo está vacío | tiene algo escrito |
+ * |---|---|---|
+ * | **nada guardado suyo** | sin botón | **guardar** |
+ * | **algo guardado suyo** | **rellenar** | **guardar** |
  *
- * Tres cosas que se leen ahí y conviene decir en voz alta:
+ * Lo que cambió, y por qué: antes el botón desaparecía cuando lo escrito ya estaba
+ * guardado igual. Con varias entradas eso escondía trabajo de verdad —**la otra entrada
+ * podría querer ese mismo dato y no tenerlo**—, así que el botón se iba justo cuando
+ * quedaba algo que hacer. Es lo que el dueño vio: guardó un campo en un registro y el
+ * botón se apagó, con los demás registros sin ese valor.
+ *
+ * Y de paso desaparece un rastro: comparar lo escrito con lo guardado dejaba que la
+ * página propusiera un valor y mirara si el botón se apagaba. Ahora lo que se marca no
+ * depende de ningún valor guardado, así que no hay nada que leer ahí. La comparación
+ * sigue existiendo, pero **dentro** —en el modal y en el aviso, que son pantallas de la
+ * extensión (§4.0.2)—, que es donde de verdad hace falta.
+ *
+ * Dos cosas más que se leen en la tabla:
  *
  * - Con **una sola letra** escrita ya hay botón. Antes el de un acceso miraba la
  *   contraseña del formulario, así que escribir el usuario no encendía nada y parecía
  *   que había que llenarlo todo.
  * - **Rellenar solo en un campo vacío**: escribir encima de lo que puso el usuario sería
  *   decidir por él, y lo que quiere ahí es guardar lo suyo.
- * - **Lo que ya está guardado igual no se ofrece.** Es el caso de después de rellenar:
- *   el campo tiene el valor de la bóveda, y un botón que solo puede volver a guardarlo
- *   es un botón que no hace nada.
  *
- * Pura a propósito: `stored` y `same` los calcula el service worker, que es el único que
- * puede mirar la bóveda. Aquí está la regla y nada más.
+ * Pura a propósito: `stored` lo calcula el service worker, que es el único que puede
+ * mirar la bóveda. Aquí está la regla y nada más.
  *
- * @param {object} f `{ value, stored, same }`
+ * @param {object} f `{ value, stored }`
  */
-export function fieldOffers ({ value, stored, same } = {}) {
+export function fieldOffers ({ value, stored } = {}) {
   const lleno = !!String(value ?? '').trim()
-  return { fill: !lleno && !!stored, save: lleno && !same }
+  return { fill: !lleno && !!stored, save: lleno }
 }
 
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */

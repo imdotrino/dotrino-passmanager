@@ -699,16 +699,17 @@ Tres decisiones que lo hacen seguro, y el porqué de cada una:
 valor anterior sigue exigiendo abrir la entrada, y eso sigue siendo «Ver qué cambia» con su
 autorización.
 
-#### Y el freno, porque comparar deja rastro
+#### Y quién compara: solo las pantallas de la extensión
 
-Comparar dice un bit sobre lo guardado, y la página puede leerlo: propone un valor, mira si
-el marcador desaparece y así prueba si acertó. Con una entrada **sin sitios** —tu correo,
-tu teléfono, tu documento (§4.2)— eso vale desde CUALQUIER página, no solo desde la suya.
+Comparar dice un bit sobre lo guardado, así que importa quién puede pedirlo. **La página
+no.** Lo que se le contesta —los dos booleanos del marcador— no depende de ningún valor
+guardado desde el 2026-08-29 (§4.1), así que proponer un valor y mirar el botón no dice
+nada. Los resúmenes los usan `pendingDetail` y quien lo llama: el modal de un campo y el
+aviso de guardar, los dos en el origen `chrome-extension://`.
 
-El freno lo vuelve inútil sin estorbar a nadie: **1200 comparaciones por sitio y minuto**,
-veinte por segundo. Una persona escribiendo genera una por tecla —60 palabras por minuto
-son 300 pulsaciones—; adivinar un teléfono son cientos de millones. Pasado el tope, ese sitio deja de comparar durante un
-rato y el marcador vuelve a salir de más, que es el fallo seguro.
+Hubo un freno —1200 comparaciones por sitio y minuto— mientras el marcador comparaba. Se
+quitó al quitarle la comparación: un tope que ya no protege de nada es una pieza más que
+mantener.
 
 De ahí sale cómo se pinta el aviso, que es la parte que importa:
 
@@ -732,7 +733,8 @@ De ahí sale cómo se pinta el aviso, que es la parte que importa:
 **pájaro de la marca** dentro y traslúcido— y espera.
 
 **Y solo los que puede ayudar, que no son todos.** El botón es **por campo**, y cuándo
-sale es una tabla, no una impresión (dueño, 2026-08-28):
+sale lo dice **una sola frase** (dueño, 2026-08-29): *«el botón solo se esconde si el
+field está vacío y no existe un record con su valor»*.
 
 | ¿hay entradas del sitio? | ¿alguna tiene ESTE campo? | el campo está… | ¿botón? | al pulsarlo |
 |---|---|---|---|---|
@@ -741,12 +743,32 @@ sale es una tabla, no una impresión (dueño, 2026-08-28):
 | sí | ninguna | vacío | **no** | — |
 | sí | ninguna | con algo escrito | **sí** | guardar → en una de las que hay, o en una nueva |
 | sí | alguna | vacío | **sí** | **rellenar** (de cuál, si hay varias) + **rellenar todo** |
-| sí | alguna | escrito **igual** a lo guardado | **no** | — |
-| sí | alguna | escrito **distinto** | **sí** | guardar → en esa entrada, o en una nueva |
+| sí | alguna | con algo escrito | **sí** | guardar → en esa entrada, en otra, o en una nueva |
 
-La última fila se contesta **sin abrir nada**, con los resúmenes del §4.0.2: la bóveda
-manda un hash por campo y aquí se hashea lo escrito. Estuvo unas horas retirada el
-2026-08-29 —comparar exigía abrir la entrada— y volvió con los resúmenes y su freno.
+#### Por qué el botón NO mira lo guardado
+
+Hubo una fila más: *«escrito igual a lo guardado → sin botón»*. Se cayó el 2026-08-29 y no
+por un detalle técnico, sino porque **escondía trabajo de verdad**. Lo que el dueño vio:
+guardó un dato en un registro y el botón se apagó, con los otros registros sin ese dato.
+Pero guardarlo también en el otro es justo lo que quedaba por hacer.
+
+Ahí estaba el error de fondo: *«ya lo tengo guardado»* no es una propiedad del campo, es una
+propiedad de **cada entrada**. Con varias cuentas del mismo sitio la pregunta no tiene una
+sola respuesta, y el marcador —que es uno— no puede darla. Quien puede es el modal, que
+habla de una entrada concreta: ahí sí desaparece la fila de guardar cuando ese registro ya
+lo tiene igual, y se ve en el mismo sitio dónde sí cambia (§4.0.2).
+
+Dos cosas se caen con esa fila, y las dos sobraban:
+
+- **El freno de comparaciones.** Existía porque comparar dejaba un rastro que la página
+  podía leer —propone un valor, mira si el botón se apaga—. Si el botón no depende de
+  ningún valor guardado, no hay nada que leer y no hace falta ningún tope.
+- **La mitad de las vueltas.** El marcador ya no hashea nada en cada pasada; los resúmenes
+  (§4.0.2) se usan solo donde hacen falta, que es dentro.
+
+**Lo que NO se cae: los resúmenes.** Siguen siendo cómo se sabe qué cambia sin abrir una
+entrada, y es lo que hace que el modal y el aviso acierten. Lo que cambia es quién los
+mira: solo las pantallas de la extensión, nunca lo que se le contesta a la página.
 
 Lo que hay que leer ahí, dicho en palabras:
 
@@ -755,13 +777,9 @@ Lo que hay que leer ahí, dicho en palabras:
   que escribir el usuario no encendía nada — y parecía que había que llenarlo todo.)
 - **Rellenar solo en un campo vacío.** Escribir encima de lo que puso el usuario sería
   decidir por él; lo que quiere ahí es guardar lo suyo.
-- **Lo que ya está guardado igual no se ofrece.** Es el caso de justo después de
-  rellenar: el campo tiene el valor de la bóveda y el botón desaparece solo. Pero «igual»
-  quiere decir **igual en TODAS las entradas que tienen ese campo** (dueño, 2026-08-28):
-  con dos entradas, coincidir con una y diferir de la otra deja algo que hacer
-  —reemplazar el de la otra—, y **el botón solo desaparece cuando no queda ninguna opción
-  posible**. En un acceso se miran **las dos mitades**: cambiar solo la contraseña
-  enciende también el botón del usuario, porque lo que se guarda es la credencial.
+- **Con algo escrito, siempre hay botón.** Aunque ese dato ya esté guardado igual: lo que
+  no cabe en una entrada puede caber en otra, o en una nueva. Quien dice si cambia algo, y
+  dónde, es el modal.
 - **Nada se rellena solo, tampoco aquí.** Rellenar es siempre un botón que se pulsa, y
   hay dos: **«Rellenar este valor»** (eliges de qué entrada) y **«Rellenar todos los
   valores»**, que pone en la página todo lo que esa entrada tenga. El segundo existe para

@@ -48,14 +48,14 @@ node bin/passmanager.js import claves.csv     # de 1Password, Bitwarden o Chrome
 Los **sitios vacíos** significan que la entrada sirve en cualquier parte — así se
 guardan el correo, el teléfono o la cédula. En la contraseña, **`g` genera una**.
 
-En la página, el gestor pone un botón en la esquina de un campo **solo cuando puede
-hacer algo ahí**: si el campo está vacío y tienes algo guardado suyo, **rellenar**; si
-tiene algo escrito que no está ya guardado igual, **guardar**. Con una sola letra ya
-aparece, y desaparece cuando no queda nada que hacer — para saber que es el mismo valor no
-hace falta abrir nada: la bóveda manda un **resumen** de cada campo y se comparan
-resúmenes. **Nada se rellena solo**: al pulsar sale un modal pegado al campo donde eliges
-**de qué entrada**, rellenas ese dato o **todos** de una vez, y guardas lo que escribiste
-— marcándolo **privado** si quieres.
+En la página, el gestor pone un botón en la esquina de un campo **solo cuando puede hacer
+algo ahí**, y la regla es una frase: **solo se esconde si el campo está vacío y no hay
+ninguna entrada con ese dato.** Vacío y con algo guardado, **rellenar**; con algo escrito,
+**guardar**, con una sola letra basta. **Nada se rellena solo**: al pulsar sale un modal
+pegado al campo donde eliges **de qué entrada**, rellenas ese dato o **todos** de una vez,
+y guardas lo que escribiste — marcándolo **privado** si quieres. Ahí sí se dice qué cambia
+en cada entrada, sin abrir ninguna: la bóveda manda un **resumen** de cada campo y se
+comparan resúmenes.
 
 **Y la bóveda pregunta antes de soltar nada.** También la que la extensión lleva dentro:
 sacar una contraseña de ahí abre una confirmación en la pantalla de la extensión, igual que

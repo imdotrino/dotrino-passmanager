@@ -1023,6 +1023,11 @@ async function findFor (url) {
  * comparaba mirando el valor y lo privado no se comparaba: dos caminos que acababan
  * diciendo cosas distintas del mismo formulario.
  *
+ * **Solo lo usan las pantallas de la extensión** —el modal y el aviso, por
+ * `pendingDetail`—, nunca lo que se le contesta a la página. El marcador ya no compara
+ * nada (ver `fieldOffers`), así que la página no puede proponer un valor y leer en el
+ * botón si acertó.
+ *
  * Devuelve un `Set` con las claves `id|key` que coinciden.
  */
 async function sameAs (metas, pares) {
@@ -1049,80 +1054,27 @@ async function sameAs (metas, pares) {
 }
 
 /**
- * EL FRENO de la comparación, y la razón de que exista.
- *
- * Comparar deja un rastro que la página puede leer: propone un valor, mira si el
- * marcador desaparece y así prueba si acertó. Con una entrada sin sitios —tu correo, tu
- * teléfono, tu documento (§4.2)— eso vale desde CUALQUIER página, no solo desde la suya.
- *
- * El freno lo vuelve inútil sin estorbar a nadie: una persona escribiendo genera una
- * comparación por tecla, unas decenas por formulario; adivinar un teléfono son cientos de
- * millones. Pasado el tope, este sitio deja de comparar durante un rato y el marcador
- * vuelve a salir de más, que es el fallo seguro.
- */
-const COMPARE_WINDOW_MS = 60 * 1000
-// 1200 por minuto: veinte por segundo, muy por encima de lo que teclea nadie —60 palabras
-// por minuto son 300 pulsaciones— y muy por debajo de lo que haría falta para adivinar
-// algo (un teléfono son cientos de millones de intentos, o siglos a este ritmo).
-const COMPARE_MAX = 1200
-const compareCount = new Map()   // host → { desde, n }
-
-function canCompare (host) {
-  if (!host) return false
-  const ahora = Date.now()
-  const c = compareCount.get(host)
-  if (!c || ahora - c.desde > COMPARE_WINDOW_MS) {
-    compareCount.set(host, { desde: ahora, n: 1 })
-    return true
-  }
-  c.n++
-  return c.n <= COMPARE_MAX
-}
-
-/**
  * QUÉ OFRECER en cada campo de la página, y desde qué entradas.
  *
  * Lo pregunta el content script en cada pasada. Devuelve **dos booleanos y una lista de
- * ids** por campo: nada de la bóveda cruza al proceso de la página, y la comparación
- * —que necesita el valor guardado— se hace aquí, que es donde vive.
+ * ids** por campo, y ninguno de los dos depende de un valor guardado: la regla del
+ * marcador es «hay algo escrito» o «hay algo que poner aquí» (`fieldOffers`).
  *
- * Lo escrito sí viaja hacia aquí, pero es del propio formulario: la página ya lo tiene.
+ * Lo escrito ni siquiera hace falta mirarlo contra la bóveda, así que de aquí no sale
+ * nada que la página no supiera ya.
  */
 async function offersFor ({ url, fields } = {}) {
   let metas = []
   try { metas = await findFor(url) } catch (_) { metas = [] }
 
-  const lista = Array.isArray(fields) ? fields : []
-  // LAS DOS MITADES de un acceso: el usuario y la contraseña son botones distintos, pero
-  // una sola credencial —«es la misma si coinciden las dos mitades que haya» (dueño,
-  // 2026-08-28)—, así que las dos hay que hashearlas aunque solo una esté en la lista.
-  const mitades = (f) => [
-    ...(f.username ? [{ key: 'username', value: f.username }] : []),
-    ...(f.secret ? [{ key: 'secret', value: f.secret }] : []),
-  ]
-  const pares = []
-  const suma = (par) => {
-    if (!par.value) return
-    if (!pares.some(x => x.key === par.key && x.value === par.value)) pares.push(par)
-  }
-  for (const f of lista) {
-    const acceso = f.key === 'username' || f.key === 'secret'
-    if (acceso) mitades(f).forEach(suma)
-    else suma({ key: f.key, value: f.value || '' })
-  }
-  const iguales = canCompare(hostOf(url))
-    ? await sameAs(metas, pares).catch(() => new Set())
-    : new Set()
-
   const out = []
-  for (const f of lista) {
+  for (const f of Array.isArray(fields) ? fields : []) {
     const acceso = f.key === 'username' || f.key === 'secret'
     const libre = !acceso && !KINDS.includes(f.key)
-    const value = f.value || ''
 
     // La vista pública dice QUÉ campos lleva cada entrada, por su nombre y sin un solo
-    // valor (§4.0.2): con eso el marcador es exacto también en un campo que el gestor no
-    // reconoce —el número de socio del §4.2—, sin abrir nada.
+    // valor (§4.0.2): con eso se sabe si hay algo que poner aquí, también en un campo que
+    // el gestor no reconoce —el número de socio del §4.2—, sin abrir nada.
     const conNombres = metas.filter(m => Array.isArray(m.fieldKeys))
     const ids = conNombres.length === metas.length
       ? metas.filter(m => m.fieldKeys.includes(f.key)).map(m => m.id)
@@ -1130,18 +1082,11 @@ async function offersFor ({ url, fields } = {}) {
       // de antes, y un campo libre se queda sin oferta.
       : libre ? [] : metas.filter(m => acceso ? (m.hasSecret || m.type === 'login') : m.hasFields).map(m => m.id)
 
-    // «Ya está guardado igual» solo cuenta si lo está en TODAS las entradas que tienen
-    // ese campo (dueño, 2026-08-28): con dos entradas, coincidir con una y diferir de la
-    // otra deja algo que hacer —reemplazar el de la otra—, y el botón no puede
-    // desaparecer cuando queda una opción posible.
-    //
-    // En un acceso se miran LAS DOS mitades: cambiar solo la contraseña tiene que
-    // encender también el botón del usuario, porque lo que se guarda es la credencial.
-    const aComprobar = acceso ? mitades(f) : [{ key: f.key, value }]
-    const same = !!value && ids.length > 0 &&
-      ids.every(id => aComprobar.every(m => iguales.has(`${id}|${m.key}`)))
-
-    out.push({ id: f.id, ids, ...fieldOffers({ value, stored: ids.length > 0, same }) })
+    // Y nada más: la regla del marcador no mira valores guardados (ver `fieldOffers`).
+    // Si hay algo escrito, hay botón — aunque esa entrada ya lo tenga igual, porque las
+    // otras pueden no tenerlo. Qué cambia de verdad lo dice el modal, que es de la
+    // extensión y no lo lee la página.
+    out.push({ id: f.id, ids, ...fieldOffers({ value: f.value || '', stored: ids.length > 0 }) })
   }
   return out
 }

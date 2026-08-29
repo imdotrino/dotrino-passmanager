@@ -136,12 +136,12 @@ try {
   ok(r[0].fill && !r[0].save, 'fila 5 · vacío con algo guardado → rellenar')
   ok(r[0].ids.length === 1, 'y dice de qué entrada sale')
 
-  // La fila 6 se contesta con los RESÚMENES, sin abrir nada: la bóveda manda el hash de
-  // cada campo y aquí se hashea lo escrito (§4.0.2).
+  // El marcador NO mira lo guardado (dueño, 2026-08-29): con algo escrito hay botón,
+  // valga lo mismo o no, porque otra entrada puede querer ese dato y no tenerlo.
   r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
-  ok(!r[0].fill && !r[0].save, 'fila 6 · escrito IGUAL a lo guardado → sin botón')
+  ok(!r[0].fill && r[0].save, 'escrito igual a lo guardado → sigue habiendo botón')
   r = await que([{ id: 0, key: 'secret', value: 'clave-buena', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
-  ok(!r[0].fill && !r[0].save, 'y también en la contraseña, que nunca sale de la bóveda')
+  ok(!r[0].fill && r[0].save, 'y en la contraseña, igual')
 
   r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'otra' }])
   ok(!r[0].fill && r[0].save, 'fila 7 · escrito distinto → guardar')
@@ -199,9 +199,12 @@ try {
   ok(puesto.member === 'SOC-4471', 'incluido el que el gestor no reconoce')
   ok(puesto.city === '', 'y no se inventa el que no estaba guardado')
 
-  // Y con todo puesto, ya no queda nada que ofrecer: es la fila 6.
+  // Con el campo lleno ya no se ofrece RELLENAR —hay algo escrito—, pero sí guardar: el
+  // marcador solo se esconde con el campo vacío y sin nada guardado suyo.
   r = await que([{ id: 0, key: 'email', value: 'ana@datos.com' }])
-  ok(!r[0].fill && !r[0].save, 'después de rellenar, el botón desaparece')
+  ok(!r[0].fill && r[0].save, 'después de rellenar ya no se ofrece rellenar, pero sí guardar')
+  r = await que([{ id: 0, key: 'label:Nada de nada', value: '' }])
+  ok(!r[0].fill && !r[0].save, 'y el botón se esconde solo si está vacío y no hay nada suyo')
 
   console.log('\nguardar un campo desde su modal, y marcarlo privado')
   await page.goto(`${SITE}/profile.html`)
@@ -288,6 +291,7 @@ try {
   ok(r[0].save, 'con «Quito» sigue habiendo qué hacer (reemplazar el de la otra)')
   r = await que([{ id: 0, key: 'city', value: 'Cuenca' }])
   ok(r[0].save, 'y con «Cuenca», lo mismo')
+  ok(r[0].ids.length >= 2, 'y el modal ofrece las dos entradas (' + r[0].ids.length + ')')
 
   // Y EN EL MODAL, entrada por entrada: con «Quito» escrito, la que ya tiene Quito no
   // ofrece nada que guardar y la que tiene Cuenca ofrece reemplazar. Es lo que el dueño
@@ -312,6 +316,8 @@ try {
     }
     ok(vistos.includes('nada'), 'en la entrada que ya tiene «Quito» no ofrece guardar nada')
     ok(vistos.includes('ofrece'), 'y en la otra sí, porque ahí sí cambia')
+    // Que es justo lo que el marcador ya no intenta decidir: el botón está para que se
+    // pueda abrir esto y ver dónde cambia algo.
     await page.mouse.click(200, 120)
     await page.waitForTimeout(400)
   }

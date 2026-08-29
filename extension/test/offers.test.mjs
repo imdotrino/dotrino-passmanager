@@ -1,8 +1,8 @@
 // La regla del semicírculo, campo a campo.
 //
 // Es la decisión que hace que el gestor no ponga un botón en cada casilla de la web, y
-// se prueba aquí y no en el navegador porque es pura: entra qué hay escrito, si hay algo
-// guardado de ese campo y si es lo mismo; sale qué se puede ofrecer.
+// se prueba aquí y no en el navegador porque es pura: entra qué hay escrito y si hay algo
+// guardado de ese campo; sale qué se puede ofrecer.
 //
 //   npm run test:offers      (necesita el vendor: npm --prefix extension run build)
 import { test } from 'node:test'
@@ -11,13 +11,13 @@ import { fieldOffers, fieldKey } from '../src/detect.js'
 // La gemela de la librería: la bóveda la usa para decir QUÉ campos lleva una entrada.
 import { fieldKey as fieldKeyLib, entryFieldKeys } from '../../lib/src/fields.js'
 
-// La tabla del §4.1, fila por fila.
+// La tabla del §4.1, fila por fila. Desde el 2026-08-29 son cuatro filas: *«el botón solo
+// se esconde si el field está vacío y no existe un record con su valor»*.
 const casos = [
   { que: 'vacío y sin nada guardado', f: { value: '', stored: false }, fill: false, save: false },
   { que: 'con algo escrito y sin nada guardado', f: { value: 'a', stored: false }, fill: false, save: true },
   { que: 'vacío y con algo guardado', f: { value: '', stored: true }, fill: true, save: false },
-  { que: 'escrito distinto de lo guardado', f: { value: 'otra', stored: true, same: false }, fill: false, save: true },
-  { que: 'escrito IGUAL a lo guardado', f: { value: 'la misma', stored: true, same: true }, fill: false, save: false },
+  { que: 'con algo escrito y algo guardado', f: { value: 'otra', stored: true }, fill: false, save: true },
 ]
 
 for (const c of casos) {
@@ -34,17 +34,30 @@ test('los espacios no son contenido', () => {
   assert.deepEqual(fieldOffers({ value: '   ', stored: true }), { fill: true, save: false })
 })
 
-// El «ya está guardado igual» lo decide el service worker mirando TODAS las entradas que
-// tienen ese campo: con dos, coincidir con una y diferir de la otra deja algo que hacer.
-test('con dos entradas, coincidir con una no apaga el botón', () => {
-  const conEsteCampo = [{ valor: 'x' }, { valor: 'y' }]
-  const igualEnTodas = (v) => conEsteCampo.length > 0 && conEsteCampo.every(e => e.valor === v)
-  assert.equal(fieldOffers({ value: 'x', stored: true, same: igualEnTodas('x') }).save, true)
-  assert.equal(fieldOffers({ value: 'z', stored: true, same: igualEnTodas('z') }).save, true)
-  // Y si las dos tienen lo mismo que hay escrito, ahí sí no queda nada que hacer.
-  const iguales = [{ valor: 'x' }, { valor: 'x' }]
-  const todasX = iguales.every(e => e.valor === 'x')
-  assert.equal(fieldOffers({ value: 'x', stored: true, same: todasX }).save, false)
+// Lo que el dueño vio el 2026-08-29: guardó un campo en un registro y el botón se apagó,
+// con los demás registros sin ese valor. El botón escondía trabajo de verdad —guardarlo
+// también en el otro—, así que ya no se apaga por eso.
+test('guardarlo en un registro no apaga el botón: los demás siguen sin tenerlo', () => {
+  assert.equal(fieldOffers({ value: 'Quito', stored: true }).save, true)
+})
+
+// Y la regla completa, dicha como la dijo el dueño.
+test('solo se esconde si está vacío y no hay nada guardado suyo', () => {
+  for (const value of ['', '   ']) {
+    assert.deepEqual(fieldOffers({ value, stored: false }), { fill: false, save: false })
+  }
+  for (const f of [{ value: 'algo', stored: false }, { value: 'algo', stored: true }, { value: '', stored: true }]) {
+    const { fill, save } = fieldOffers(f)
+    assert.equal(fill || save, true, JSON.stringify(f) + ' se escondió y no debía')
+  }
+})
+
+// Lo escrito NO se compara con lo guardado para decidir esto, y es a propósito: si el
+// botón dependiera del valor, la página podría proponer uno y leer en el botón si acertó.
+test('el marcador no depende de lo que haya guardado', () => {
+  const a = fieldOffers({ value: 'la misma', stored: true })
+  const b = fieldOffers({ value: 'otra distinta', stored: true })
+  assert.deepEqual(a, b)
 })
 
 test('sin decirle nada, no ofrece nada', () => {
