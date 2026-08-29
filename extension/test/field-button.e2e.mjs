@@ -69,9 +69,10 @@ try {
   const m0 = await modal()
   ok(!!m0, 'el modal sale con solo el usuario escrito')
   if (m0) {
-    // Sin entradas del sitio no hay lista que elegir, pero SÍ buscador: es como se trae
-    // la cuenta de otro dominio cuando cambia el subdominio.
-    ok(await m0.locator('[data-testid=field-modal-search]').isVisible(), 'sale el buscador')
+    // El buscador viene recogido, pero su lupa está: es como se trae la cuenta de otro
+    // dominio cuando cambia el subdominio.
+    ok(!(await m0.locator('[data-testid=field-modal-search]').isVisible()), 'el buscador, recogido')
+    ok(await m0.locator('[data-testid=field-modal-search-toggle]').isVisible(), 'y su lupa, a la vista')
     await page.mouse.click(200, 120)     // fuera: así se cierra
     await page.waitForTimeout(400)
     ok(!page.frames().find((x) => x.url().includes('field-modal.html')), 'y se cierra al pulsar fuera')
@@ -245,6 +246,41 @@ try {
   await page.fill('input[name=city]', '')
   await page.waitForTimeout(500)
 
+  console.log('\ncon muchas entradas: cinco y un «más»')
+  // Se guardan unas cuantas más para pasar de cinco.
+  for (const n of [1, 2, 3, 4, 5]) {
+    await page.goto(`${SITE}/login.html`)
+    await page.waitForTimeout(500)
+    await page.fill('input[name=user]', `cuenta${n}@ejemplo.com`)
+    await page.fill('input[name=password]', `clave-${n}`)
+    await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
+    const p2 = await aviso()
+    if (p2) {
+      const nueva = p2.locator('[data-testid=save-prompt-target-new]')
+      if (await nueva.count()) { await nueva.check(); await page.waitForTimeout(300) }
+      await p2.locator('[data-testid=save-prompt-save]').click()
+      await page.waitForTimeout(1000)
+    }
+  }
+  await page.goto(`${SITE}/login.html`)
+  await page.waitForTimeout(1400)
+  const cajaU = await page.locator('input[name=user]').boundingBox()
+  await page.mouse.click(cajaU.x + cajaU.width - 10, cajaU.y + 8)
+  const mm = await modal()
+  if (mm) {
+    const filas = mm.locator('[data-testid=field-modal-target]')
+    ok(await filas.count() > 5, 'salen todas (' + (await filas.count()) + ')')
+    ok(await mm.locator('#targets').evaluate(el => el.scrollHeight > el.clientHeight),
+      'y la lista se desplaza en vez de crecer sin fin')
+    ok(!(await mm.locator('[data-testid=field-modal-search]').isVisible()),
+      'y el buscador viene recogido')
+    // La fila de rellenar un acceso dice lo que rellena: las dos casillas.
+    const nombreFila = await mm.locator('[data-testid=field-modal-fill-row] .name').first().textContent()
+    ok(/contraseña|password/i.test(nombreFila), 'y la fila de rellenar nombra la contraseña: ' + nombreFila)
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+
   console.log('\nbuscar la cuenta de OTRO dominio (el subdominio que cambió)')
   // 127.0.0.1 es otro sitio que localhost, aunque sirvan lo mismo: sirve de subdominio
   // nuevo sin montar otro servidor.
@@ -260,7 +296,9 @@ try {
   const mo = await modal()
   ok(!!mo, 'el modal sale')
   if (mo) {
-    ok(await mo.locator('[data-testid=field-modal-search]').isVisible(), 'con el buscador')
+    await mo.locator('[data-testid=field-modal-search-toggle]').click()
+    await page.waitForTimeout(300)
+    ok(await mo.locator('[data-testid=field-modal-search]').isVisible(), 'la lupa abre el buscador')
     await mo.locator('[data-testid=field-modal-search]').fill('ana@ejemplo.com')
     await page.waitForTimeout(900)
     const traidos = mo.locator('[data-testid=field-modal-target]')

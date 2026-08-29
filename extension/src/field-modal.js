@@ -155,6 +155,7 @@ function renderTargets () {
     li.append(label)
     ul.append(li)
   }
+
 }
 
 /** Los campos de la página que la entrada elegida puede rellenar. */
@@ -177,15 +178,14 @@ async function porDefecto () {
 /** Lo que hay escrito en el buscador. Con texto, la lista es el resultado. */
 let buscando = ''
 /**
- * ¿Está desplegado el buscador?
+ * ¿Está desplegado el buscador? **Cerrado al abrir el modal, siempre.**
  *
- * `null` = lo decide la situación: con más de cinco entradas la lista tapa el modal, y
- * sin ninguna es la única forma de traerse la del subdominio que cambió. En cuanto el
- * usuario toca la lupa, manda él — si no, cerrarlo en esos casos no serviría de nada.
+ * Lo abría solo en algunos casos —muchas entradas, o ninguna— y el dueño lo cortó el
+ * 2026-08-28: un modal que se abre con una caja de texto ya escrita pide teclear, y lo
+ * que se quiere casi siempre está en la lista de debajo. Se abre pulsando la lupa.
  */
-let forzado = null
-const conviene = () => records.length > 5 || records.length <= 1
-const buscadorAbierto = () => forzado !== null ? forzado : (conviene() || !!buscando)
+let abierto = false
+const buscadorAbierto = () => abierto || !!buscando
 
 /** Las entradas del sitio —o las que casen con la búsqueda—, y la nueva al final. */
 async function loadRecords (elegir) {
@@ -393,8 +393,8 @@ async function fill (keys) {
  * queda, y si ya no queda nada que hacer el modal se va.
  */
 $('qBtn').onclick = async () => {
-  forzado = !buscadorAbierto()
-  if (!forzado && buscando) {
+  abierto = !buscadorAbierto()
+  if (!abierto && buscando) {
     // Cerrarlo con algo escrito vuelve a lo de este sitio: dejar el resultado de una
     // búsqueda con la caja escondida sería enseñar una lista que no se sabe de dónde sale.
     buscando = ''
@@ -402,7 +402,7 @@ $('qBtn').onclick = async () => {
     await loadRecords('')
   }
   render()
-  if (forzado) $('q').focus()
+  if (abierto) $('q').focus()
 }
 
 // El buscador, con freno: cada tecla no puede ser un viaje a la bóveda.

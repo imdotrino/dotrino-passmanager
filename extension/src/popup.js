@@ -227,6 +227,19 @@ function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
   const marca = el('input', { type: 'checkbox', checked: !!isDefault })
   marca.onchange = () => onDefault(e, marca.checked)
 
+  // La confirmación sale AQUÍ, debajo de su tarjeta, no en otra pantalla (dueño,
+  // 2026-08-28): irse a una ventana nueva para contestar «sí» hace perder de vista cuál
+  // de las tres entradas se estaba borrando, que es justo el dato que importa.
+  const si = el('button', { className: 'danger', textContent: t(lang, 'del') })
+  const no = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
+  const confirmar = el('div', { className: 'confirm', hidden: true }, [
+    el('span', { className: 'hint', textContent: t(lang, 'delConfirm') }),
+    si, no,
+  ])
+  del.onclick = () => { confirmar.hidden = false; si.focus() }
+  no.onclick = () => { confirmar.hidden = true; del.focus() }
+  si.onclick = () => onDelete(e)
+
   return el('li', { className: 'entry' }, [
     el('div', { className: 'who' }, [
       el('div', { className: 'name', textContent: e.title || e.sites?.[0] || '—' }),
@@ -237,6 +250,7 @@ function entryRow (e, { onFill, onCopy, onDelete, onDefault, isDefault }) {
       el('span', { className: 'sp' }),
       fill, copy, del,
     ]),
+    confirmar,
   ])
 }
 
@@ -268,27 +282,15 @@ async function renderSite (estado0) {
   }
 
   /**
-   * Borrar. Con aviso, y el aviso es UI nuestra: nada de `confirm()` del navegador
-   * (CONVENCIONES §5). Se dice qué se borra y que no hay vuelta atrás.
+   * Borrar de verdad, ya confirmado en la propia tarjeta. Nada de `confirm()` del
+   * navegador (CONVENCIONES §5): el aviso es UI nuestra y vive donde vive la entrada.
    */
-  const onDelete = (e) => {
-    const nombre = e.title || e.hint || e.sites?.[0] || '—'
-    const si = el('button', { className: 'primary danger', textContent: t(lang, 'del') })
-    const no = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
-    si.onclick = async () => {
-      try {
-        await ask('remove', { id: e.id, url })
-        toast(t(lang, 'deleted'))
-        render()
-      } catch (err) { toast(humanError(err), 'error') }
-    }
-    no.onclick = render
-    view.replaceChildren(
-      el('h2', { textContent: `${t(lang, 'del')}: ${nombre}` }),
-      el('p', { className: 'hint', textContent: t(lang, 'delAsk') }),
-      si, no,
-    )
-    si.focus()
+  const onDelete = async (e) => {
+    try {
+      await ask('remove', { id: e.id, url })
+      toast(t(lang, 'deleted'))
+      render()
+    } catch (err) { toast(humanError(err), 'error') }
   }
 
   /** Cuál sale elegida al abrir un campo. Una por sitio: marcar una suelta la otra. */

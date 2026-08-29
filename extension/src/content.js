@@ -282,7 +282,15 @@ async function sendModalContext () {
     const k = keyOf(f)
     if (vistos.has(k)) continue
     vistos.add(k)
-    page.push({ key: k, name: nameOf(f), ids: f.offers?.ids || [] })
+    // Un acceso es UNA fila que rellena las dos casillas, así que se llama por lo que
+    // hace: «usuario y contraseña». Con `nameOf` se quedaba con el nombre del primer
+    // input que se hubiera detectado —«Usuario»— y la contraseña no aparecía por
+    // ninguna parte, aunque se rellenara igual.
+    page.push({
+      key: k,
+      name: k === 'login' ? t('credential') : nameOf(f),
+      ids: f.offers?.ids || [],
+    })
   }
   try {
     w.postMessage({

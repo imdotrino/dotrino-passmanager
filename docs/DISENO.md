@@ -436,7 +436,9 @@ lo mismo que los otros dos, más escondido y con más pasos. **No lo reintroduzc
 **Lo que sí hace el popup**, además de listar lo que hay para el sitio (2026-08-28):
 
 - **Borrar una entrada**, con aviso. El aviso es UI nuestra —nada de `confirm()`
-  (CONVENCIONES §5)— y dice qué se borra y que no hay vuelta atrás.
+  (CONVENCIONES §5)— y sale **debajo de su propia tarjeta**, no en otra pantalla: irse a
+  una ventana nueva para contestar «sí» hace perder de vista cuál de las tres entradas se
+  estaba borrando, que es justo el dato que importa.
 - **Marcar la predeterminada del sitio**, con una casilla por fila. Es la que sale elegida
   al abrir el botón de un campo (§4.1). Una por sitio: marcar una suelta la anterior, y si
   se borra esa entrada deja de estar marcada.
@@ -672,12 +674,15 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
   ninguna, esa es la única. Empezó con flechas `‹ ›` y el dueño lo cambió el 2026-08-28:
   *«la propuesta de "Save into" es mucho mejor»* — se ven todas de un vistazo en vez de
   desfilar de una en una.
-- **El buscador está siempre a mano, detrás de una lupa** (dueño, 2026-08-28). Y se
-  despliega solo cuando de verdad hace falta: con **más de cinco** entradas, porque a
-  partir de ahí la lista tapa el modal, y cuando el sitio **no tiene ninguna**, porque
-  entonces es la única salida. En cuanto se toca la lupa manda el usuario — si no,
-  recogerlo en esos casos no serviría de nada. No solo filtra: **busca en toda la
-  bóveda**, también fuera de este sitio (ver abajo).
+- **El buscador está siempre a mano, detrás de una lupa** (dueño, 2026-08-28), y **viene
+  recogido**: un modal que se abre con una caja de texto pide teclear, y lo que se quiere
+  casi siempre está en la lista de debajo. No solo filtra: **busca en toda la bóveda**,
+  también fuera de este sitio (ver abajo).
+- **Cinco filas y luego scroll**, en las tres listas —entradas, lo que se puede rellenar y
+  lo que se puede guardar— y también en el aviso de después de entrar. Un modal anclado a
+  un campo no puede crecer hasta tapar la página. (Se probó un botón «— más —» que abría
+  la lista entera; el dueño lo quitó el mismo día: una pulsación de más para llegar a lo
+  mismo.)
 - **La entrada predeterminada del sitio va primera y elegida.** Se marca en el popup, con
   su casilla. Sustituye a «recuerda la última elegida», que se probó el mismo día y se
   quitó: recordar adivina, y con tres cuentas del mismo sitio adivina mal la mitad de las

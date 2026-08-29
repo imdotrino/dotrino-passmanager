@@ -184,6 +184,7 @@ function renderTargets () {
     li.append(label)
     ul.append(li)
   }
+
 }
 
 function renderFields () {

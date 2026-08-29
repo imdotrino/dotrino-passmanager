@@ -61,6 +61,16 @@ li.entry {
 .entry .acts button { padding: 4px 8px; font-size: 12px; }
 .entry .def { display: flex; align-items: center; gap: 5px; font-size: 11px; opacity: .8; cursor: pointer; }
 .entry .def input { margin: 0; accent-color: var(--accent); }
+/* `hidden` tiene que ganar SIEMPRE: una regla con `display` lo anula sin avisar, y así
+   la confirmación de borrado salía en todas las tarjetas a la vez. */
+[hidden] { display: none !important; }
+/* La confirmación de borrado, pegada a su tarjeta: se ve cuál se está borrando. */
+.entry .confirm {
+  display: flex; align-items: center; gap: 6px;
+  border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px;
+}
+.entry .confirm .hint { flex: 1; }
+.entry .confirm button { padding: 4px 8px; font-size: 12px; }
 button.danger { color: var(--danger); border-color: var(--danger); }
 button.primary.danger { background: var(--danger); color: #2a0b0b; border-color: transparent; }
 .entry .name { font-weight: 600; }
