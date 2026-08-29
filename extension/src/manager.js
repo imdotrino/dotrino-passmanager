@@ -18,8 +18,10 @@
 //
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
-import { pickLang, t, kindLabel } from './i18n.js'
+import { pickLang, t, kindLabel, fieldLabel } from './i18n.js'
 import { KINDS } from './vendor/passmanager/fields.js'
+import { entryCard, byName } from './entry-card.js'
+import { profileBar } from './profiles.js'
 // La bóveda puede preguntar mientras esta pestaña está delante (no por editar —que no
 // saca nada—, pero sí si el usuario copia algo desde aquí más adelante): la pregunta sale
 // en esta misma página, como en el resto de pantallas de la extensión.
@@ -75,6 +77,36 @@ function el (tag, props = {}, children = []) {
 
 const hostOf = (u) => { try { return new URL(u).hostname } catch { return '' } }
 
+/**
+ * UN SITIO ESCRITO A MANO, en la forma en que lo guarda la bóveda.
+ *
+ * Se acepta pegar la dirección entera (`https://banco.com.ec/entrar`) porque es lo que
+ * uno tiene en el portapapeles, y se queda el dominio. El `*.` de delante se respeta: es
+ * un patrón válido para el emparejamiento (§4.2) y va en el propio campo para que se sepa
+ * que se puede — aunque casi nunca haga falta, porque un dominio a secas YA cubre sus
+ * subdominios. Lo único que cambia el comodín es que deja fuera el último recurso por
+ * dominio registrable: con `vault.dotrino.com` guardado, `pass.dotrino.com` empareja
+ * igual (son del mismo dominio); con `*.vault.dotrino.com`, no.
+ *
+ * Devuelve '' si no hay dominio dentro, y entonces no se añade nada: un sitio que no
+ * puede emparejar con ninguna página sería una fila que no hace nada y nadie lo sabría.
+ */
+function normalizarSitio (texto) {
+  let t = String(texto || '').trim().toLowerCase()
+  if (!t) return ''
+  const comodin = t.startsWith('*.')
+  if (comodin) t = t.slice(2)
+  if (!t.includes('://')) t = 'https://' + t
+  const h = hostOf(t)
+  // Vale cualquier host que el navegador sepa leer, **también sin punto**: `localhost`,
+  // el `nas` de tu casa o una IP son sitios de verdad. Exigir un punto los dejaba fuera.
+  if (!h) return ''
+  return comodin ? `*.${h}` : h
+}
+
+/** El dominio de un patrón, para poder abrir ese sitio: `*.x.com` → `x.com`. */
+const dominioDe = (patron) => String(patron || '').replace(/^\*\./, '')
+
 // --- la dirección: qué se está mirando ---------------------------------------
 //
 // Va en el `#fragment` para que un refresco no pierda la ficha abierta, y porque una
@@ -82,13 +114,14 @@ const hostOf = (u) => { try { return new URL(u).hostname } catch { return '' } }
 
 function ruta () {
   const p = new URLSearchParams(location.hash.slice(1))
-  return { site: p.get('site') || '', id: p.get('id') || '' }
+  return { site: p.get('site') || '', id: p.get('id') || '', only: p.get('only') || '' }
 }
 
-function ir ({ site, id }) {
+function ir ({ site, id, only }) {
   const p = new URLSearchParams()
   if (site) p.set('site', site)
   if (id) p.set('id', id)
+  if (only) p.set('only', only)
   location.hash = p.toString()
 }
 
@@ -104,8 +137,10 @@ function ir ({ site, id }) {
  * adivinar qué escribir.
  */
 async function renderList () {
-  const { site } = ruta()
+  const { site, only } = ruta()
   sectionEl.textContent = t(lang, 'managerTitle')
+
+  const ctx = () => ({ lang, ask, toast, humanError, pre: 'manager', onChanged: render })
 
   const buscador = el('input', {
     type: 'search',
@@ -114,34 +149,58 @@ async function renderList () {
   })
   buscador.dataset.testid = 'manager-search'
 
-  const lista = el('ul', { className: 'records' })
+  // DE QUÉ BÓVEDA se está hablando. Un perfil es una bóveda (§3.3) y aquí se administra
+  // todo, así que sin esta barra la pantalla no dice de quién es lo que enseña. Añadir un
+  // perfil no está: pide emparejar, y ese flujo vive en el popup.
+  const perfiles = el('div')
+  ask('status')
+    // Sale SIEMPRE, también con uno solo: con un perfil la barra no conmuta nada, pero
+    // dice en cuál estás, que es la mitad de para qué existe.
+    .then((st) => { if (st?.profiles?.length) perfiles.replaceChildren(profileBar(ctx(), st)) })
+    .catch(() => {})
+
+  const lista = el('ul', { className: 'entries' })
   const titulo = el('h2')
   const nota = el('p', { className: 'hint' })
   const tituloSitios = el('h2', { textContent: t(lang, 'whereLabel'), hidden: true })
   const sitios = el('div', { className: 'domains' })
 
-  const fila = (e) => {
-    const b = el('button', { className: 'record', type: 'button' })
-    b.dataset.testid = `manager-record-${e.id}`
-    b.append(
-      el('span', { className: 'who' }, [
-        el('div', { className: 'name', textContent: e.hint || e.title || '—' }),
-        el('div', { className: 'site', textContent: e.sites?.[0] || t(lang, 'noSite') }),
-      ]),
-      el('span', { className: 'go', textContent: '›' }),
-    )
-    b.onclick = () => ir({ site, id: e.id })
-    return b
-  }
+  // El sitio con el que se opera: el dominio que se pulsó arriba, o el de donde se vino.
+  // Hace falta para la casilla de predeterminada y para borrar, que son por sitio.
+  const sitioActivo = () => (only && only !== '*' ? `https://${dominioDe(only)}/` : site)
 
-  const pintar = (items, cabecera, vacio) => {
+
+
+  /**
+   * La MISMA tarjeta del popup (dueño, 2026-08-29: *«todas las acciones del modal
+   * principal deberían estar presentes en el manager, menos fill»*). Rellenar no se pasa:
+   * es de la página que tienes delante, y aquí no hay ninguna.
+   */
+  const fila = (e, porDefecto) => entryCard(ctx(), e, {
+    isDefault: e.id === porDefecto,
+    onEdit: (x) => ir({ site, id: x.id, only }),
+    onRenamed: () => render(),
+    onDefault: async (x, marcada) => {
+      try { await ask('default-set', { url: sitioActivo(), id: marcada ? x.id : null }); render() }
+      catch (err) { toast(humanError(err), 'error') }
+    },
+    onDelete: async (x) => {
+      try { await ask('remove', { id: x.id, url: sitioActivo() }); toast(t(lang, 'deleted')); render() }
+      catch (err) { toast(humanError(err), 'error') }
+    },
+  })
+
+  const pintar = async (items, cabecera, vacio) => {
     titulo.textContent = cabecera
-    lista.replaceChildren(...items.map(e => el('li', {}, [fila(e)])))
+    // Cuál es la predeterminada es del SITIO, así que se pregunta por el que se esté
+    // mirando: sin esto la casilla saldría siempre en blanco.
+    const porDefecto = await ask('default-get', { url: sitioActivo() }).catch(() => null)
+    lista.replaceChildren(...[...items].sort(byName).map(e => fila(e, porDefecto)))
     nota.textContent = items.length ? '' : vacio
     nota.hidden = !!items.length
   }
 
-  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota)
+  view.replaceChildren(perfiles, buscador, tituloSitios, sitios, titulo, lista, nota)
 
   /**
    * Los dominios donde hay algo. Pulsar uno es lo mismo que abrir el gestor desde esa
@@ -155,7 +214,7 @@ async function renderList () {
     tituloSitios.hidden = false
     sitios.replaceChildren(...hay.map(({ site: d, count }) => {
       const b = el('button', {
-        className: 'domain' + (d && site && hostOf(site) === d ? ' on' : ''),
+        className: 'domain' + ((d || '*') === only ? ' on' : ''),
         type: 'button',
       })
       b.dataset.testid = `manager-site-${d || 'anywhere'}`
@@ -165,12 +224,42 @@ async function renderList () {
       )
       // Sin dominio propio no hay página a la que ir: esas entradas salen en cualquiera,
       // así que se enseñan con el sitio que ya se estaba mirando.
-      b.onclick = () => ir({ site: d ? `https://${d}/` : site })
+      // Se lleva el PATRÓN, no el dominio a secas: `*.empresa.com` y `empresa.com` son
+      // dos formas de archivar y cada una tiene su botón, así que cada una filtra la suya.
+      b.onclick = () => ir({ site: d ? `https://${dominioDe(d)}/` : site, only: d || '*' })
       return b
     }))
   }
 
+  /**
+   * LOS REGISTROS DE UN DOMINIO, los archivados ahí y solo esos.
+   *
+   * No es lo mismo que «lo que serviría en esa página», y confundirlas fue un fallo real
+   * (dueño, 2026-08-29): *«presiono dotrino.com, dice 1 en el botón pero no filtra los
+   * resultados»*. `find` contesta lo segundo — y por eso mete también **todo lo que no
+   * tiene sitio**, que vale en cualquier parte, y los de un subdominio hermano. El número
+   * del botón contesta lo primero. Las dos son ciertas y no coinciden.
+   *
+   * En un gestor manda la primera: pulsar `dotrino.com` es «enséñame los de dotrino.com».
+   * La otra lectura se queda donde le toca — el popup, que sí habla de la página que
+   * tienes delante.
+   */
+  const soloDe = async () => {
+    const donde = only === '*' ? (site || 'https://dotrino.invalid/') : site
+    const todos = await ask('find', { url: donde })
+    const suyos = only === '*'
+      ? todos.filter(e => !e.sites?.length)
+      : todos.filter(e => (e.sites || []).includes(only))
+    await pintar(suyos, only === '*' ? t(lang, 'noSite') : only, t(lang, 'noneHere'))
+  }
+
   const delSitio = async () => {
+    if (only) {
+      titulo.hidden = false
+      lista.hidden = false
+      try { await soloDe() } catch (e) { nota.hidden = false; nota.textContent = humanError(e) }
+      return
+    }
     if (!site) {
       // Sin sitio de partida no hay nada que listar: se elige un dominio de arriba, o se
       // busca. Una sección de registros vacía solo estorbaría.
@@ -183,7 +272,7 @@ async function renderList () {
     titulo.hidden = false
     lista.hidden = false
     try {
-      pintar(await ask('find', { url: site }), `${t(lang, 'onThisSite')} · ${hostOf(site)}`, t(lang, 'noneHere'))
+      await pintar(await ask('find', { url: site }), `${t(lang, 'onThisSite')} · ${hostOf(site)}`, t(lang, 'noneHere'))
       if (!nota.hidden) return
       nota.hidden = false
       nota.textContent = t(lang, 'searchRest')
@@ -200,7 +289,7 @@ async function renderList () {
       sitios.hidden = true
       tituloSitios.hidden = true
       try {
-        pintar(await ask('search', { q }), t(lang, 'all'), t(lang, 'noneFound'))
+        await pintar(await ask('search', { q }), t(lang, 'all'), t(lang, 'noneFound'))
       } catch (e) { nota.hidden = false; nota.textContent = humanError(e) }
     }, 250)
   }
@@ -212,12 +301,8 @@ async function renderList () {
 
 // --- la ficha de un registro --------------------------------------------------
 
-/** El nombre visible de una clave: la etiqueta guardada si la hay, y si no su clase. */
-function nombreDe (key, label) {
-  if (label) return label
-  if (key.startsWith('label:')) return key.slice(6)
-  return kindLabel(lang, key)
-}
+/** El nombre visible de una clave. La pieza es de `i18n`: la comparte con el popup. */
+const nombreDe = (key, label) => fieldLabel(lang, key, label)
 
 /**
  * LAS FILAS de una ficha, a partir de lo público.
@@ -253,10 +338,10 @@ function filasDe (vista) {
 }
 
 async function renderRecord (id) {
-  const { site } = ruta()
+  const { site, only } = ruta()
   const volver = el('button', { type: 'button', textContent: `‹ ${t(lang, 'backToList')}` })
   volver.dataset.testid = 'manager-back'
-  volver.onclick = () => ir({ site })
+  volver.onclick = () => ir({ site, only })
   const migas = el('div', { className: 'crumbs' }, [volver])
 
   view.replaceChildren(migas, el('p', { className: 'hint', textContent: t(lang, 'waiting') }))
@@ -272,6 +357,10 @@ async function renderRecord (id) {
   sectionEl.textContent = vista.hint || vista.title || t(lang, 'managerTitle')
 
   const filas = filasDe(vista)
+  // Los sitios donde vale este registro. Sin ninguno vale en cualquiera, que es lo que
+  // la ausencia de sitios ha significado siempre (§4.2).
+  const sitios0 = [...(vista.sites || [])]
+  let sitios = [...sitios0]
   // Las filas nuevas se numeran solas. Por el índice del array no vale: quitar una fila de
   // arriba renumeraría a las de abajo, y con ellas su sitio en el DOM.
   let nuevas = 0
@@ -312,6 +401,7 @@ async function renderRecord (id) {
   /** ¿Hay algo que guardar? Con un valor privado, lo dice el resumen y nada más. */
   function sucio () {
     if (nombre.trim() !== nombre0.trim()) return true
+    if (sitios.length !== sitios0.length || sitios.some((x, i) => x !== sitios0[i])) return true
     return filas.some(f => {
       if (f.quitada) return true
       if (f.nueva) return !!(f.valor.trim() && (f.label.trim() || f.kind))
@@ -456,16 +546,66 @@ async function renderRecord (id) {
   }
   paint()
 
+  /**
+   * LOS SITIOS DONDE VALE, editables (dueño, 2026-08-29).
+   *
+   * Una lista enumerada, porque es lo que una persona puede leer y comprobar: «esta
+   * cuenta vale en estos sitios». El comodín se admite escrito —el emparejamiento lo
+   * entiende—, pero no es lo normal y por eso no hay un control para ponerlo: un dominio
+   * a secas ya cubre sus subdominios, y decirlo es más útil que ofrecer el asterisco.
+   */
+  const listaSitios = el('div', { className: 'sites' })
+  const cajaSitio = el('input', { type: 'text', placeholder: t(lang, 'sitePh'), autocomplete: 'off' })
+  cajaSitio.dataset.testid = 'manager-site-input'
+  const errSitio = el('p', { className: 'error', hidden: true })
+
+  const anadirSitio = () => {
+    const limpio = normalizarSitio(cajaSitio.value)
+    if (!limpio) {
+      errSitio.textContent = t(lang, 'badSite')
+      errSitio.hidden = false
+      return
+    }
+    errSitio.hidden = true
+    cajaSitio.value = ''
+    if (!sitios.includes(limpio)) { sitios.push(limpio); pintarSitios() }
+    sync()
+  }
+
+  const masSitio = el('button', { className: 'ghost', textContent: `+ ${t(lang, 'addSite')}` })
+  masSitio.dataset.testid = 'manager-site-add'
+  masSitio.onclick = anadirSitio
+  cajaSitio.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); anadirSitio() } }
+
+  const notaSitios = el('p', { className: 'hint' })
+
+  function pintarSitios () {
+    listaSitios.replaceChildren(...sitios.map((d) => {
+      const chip = el('span', { className: 'site-chip' })
+      chip.dataset.testid = `manager-site-chip-${d}`
+      const x = el('button', { className: 'x', type: 'button', textContent: '✕', title: t(lang, 'removeSite') })
+      x.setAttribute('aria-label', `${t(lang, 'removeSite')}: ${d}`)
+      x.dataset.testid = `manager-site-remove-${d}`
+      x.onclick = () => { sitios = sitios.filter(o => o !== d); pintarSitios(); sync() }
+      chip.append(el('span', { textContent: d }), x)
+      return chip
+    }))
+    // Sin ninguno vale en cualquier sitio: eso no es un hueco, es una decisión, y hay que
+    // decirlo. Con alguno, lo que hay que saber es que el dominio ya trae sus subdominios.
+    notaSitios.textContent = t(lang, sitios.length ? 'sitesCover' : 'sitesAnywhere')
+  }
+  pintarSitios()
+
   const cancelar = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
   cancelar.dataset.testid = 'manager-cancel'
-  cancelar.onclick = () => ir({ site })
+  cancelar.onclick = () => ir({ site, only })
 
   guardar.onclick = async () => {
     guardar.disabled = true
     try {
-      await aplicar({ id, site, filas, original, estado, nombre, nombre0 })
+      await aplicar({ id, site, filas, original, estado, nombre, nombre0, sitios, sitios0 })
       toast(t(lang, 'saved'))
-      ir({ site })
+      ir({ site, only })
     } catch (e) {
       toast(humanError(e), 'error')
       sync()
@@ -481,10 +621,11 @@ async function renderRecord (id) {
     el('h2', { textContent: t(lang, 'values') }),
     lista,
     anadir,
-    ...(vista.sites?.length
-      ? [el('h2', { textContent: t(lang, 'sites') }),
-         el('div', { className: 'sites' }, vista.sites.map(s => el('span', { textContent: s })))]
-      : []),
+    el('h2', { textContent: t(lang, 'sites') }),
+    listaSitios,
+    el('div', { className: 'siteadd' }, [cajaSitio, masSitio]),
+    errSitio,
+    notaSitios,
     el('div', { className: 'actions' }, [guardar, cancelar, el('span', { className: 'sp' })]),
   )
   pedirDiff()
@@ -497,7 +638,7 @@ async function renderRecord (id) {
  * lo que ya había NO se escribe. Es lo que hace que reescribir una contraseña con la
  * misma no cuente como un cambio.
  */
-async function aplicar ({ id, site, filas, original, estado, nombre, nombre0 }) {
+async function aplicar ({ id, site, filas, original, estado, nombre, nombre0, sitios, sitios0 }) {
   const escritas = filas.filter(f => !f.quitada && f.valor && !f.nueva).map(f => ({ key: f.key, value: f.valor }))
   let dice = estado
   if (escritas.length) {
@@ -512,6 +653,8 @@ async function aplicar ({ id, site, filas, original, estado, nombre, nombre0 }) 
   const removeFields = []
 
   if (nombre.trim() !== nombre0.trim()) changes.name = nombre.trim()
+  // La lista entera, no un «añade este»: aquí el usuario la está escribiendo.
+  if (sitios.length !== sitios0.length || sitios.some((x, i) => x !== sitios0[i])) changes.sites = sitios
 
   for (const f of filas) {
     if (f.quitada) {

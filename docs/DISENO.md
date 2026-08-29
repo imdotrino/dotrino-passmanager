@@ -1128,6 +1128,11 @@ Dos reglas:
 - **«Sirve en cualquier sitio» es no tener `sites`**, no un tipo aparte. Con sitios,
   la entrada solo vale ahí; sin ellos, vale en todas partes y siempre por debajo de lo
   que sí es de ese sitio. Una sola regla de emparejamiento, no dos.
+- **Un registro puede valer en VARIOS dominios** (dueño, 2026-08-29: *«lo que quiero es un
+  record que cruce dominios»*). `sites` siempre fue una lista y el emparejamiento siempre
+  las recorrió todas; lo que faltaba era poder **escribirla**, y eso lo trajo el gestor
+  (§4.3) junto con `patch({ sites })`. Crece sola además por el camino de siempre: te
+  traes la cuenta de otro dominio buscándola, guardas ahí, y `addSite` suma ese dominio.
 - **`kind` es opcional y solo sirve para colocar el dato**: dice qué es (un correo, un
   teléfono) para saber en qué hueco va. Sin `kind` el campo se guarda y se copia
   igual — solo no aparece ofrecido en un campo del formulario.
@@ -1150,6 +1155,32 @@ Dos reglas:
 Para reconocer el hueco se mira primero el **`autocomplete` que declara el sitio**
 (cuando está, no hay nada que adivinar, y se respeta `off`), y solo si no lo declara
 se recurre a las pistas del nombre. Un buscador nunca se toma por un dato personal.
+
+#### Un sitio cubre HACIA ABAJO, nunca hacia los lados
+
+> Corregido el 2026-08-29 con un fallo del dueño en la mano: *«en r.dotrino.com me salen
+> records de pass.dotrino.com, cosa que no debería suceder»*.
+
+Un patrón de `sites` empareja con **el host y lo que cuelga de él**:
+
+| Guardado | Página | |
+|---|---|---|
+| `empresa.com` | `empresa.com` | exacto |
+| `empresa.com` | `login.empresa.com` | subdominio — **entra** |
+| `login.empresa.com` | `otra.empresa.com` | **NO** |
+| `login.empresa.com` | `empresa.com` | **NO** |
+| `empresa.com` | `evil-empresa.com` | NO (se compara por etiquetas, no por texto) |
+
+Había un tercer nivel, `MATCH.DOMAIN`, que emparejaba **por dominio registrable**: con
+`pass.dotrino.com` guardado, `r.dotrino.com` recibía sus credenciales. Se puso pensando en
+«el subdominio cambió y la clave es la misma», pero para eso no hacía falta —guardar
+`empresa.com` a secas ya cubre todos sus subdominios, y traerse la cuenta de otro dominio
+tiene su camino explícito (§4.1), que además lo decide una persona—. Lo único que aportaba
+era el sentido contrario, y ese sentido era la fuga. **Se quitó.**
+
+De ahí sale otra cosa que conviene saber: **el comodín `*.empresa.com` cubre hoy
+exactamente lo mismo que `empresa.com`**. Se sigue admitiendo escrito, porque es lo que
+mucha gente espera poder poner, pero no hace falta.
 
 **Esto no tiene que ver con el perfil de Dotrino.** El perfil es tu identidad en el
 ecosistema, con sus flags de visibilidad y su reputación; esto son datos que rellenas
@@ -1213,6 +1244,48 @@ uno de los de siempre (`username`, `secret`, `totp`, `notes`) se queda vacío, q
 mismo— y **un campo sin valor no es un campo**, así que vaciarlo es quitarlo y no queda una
 fila fantasma dentro de la entrada.
 
+### La MISMA tarjeta que el popup, menos rellenar
+
+> Dueño, 2026-08-29: *«todas las acciones del modal principal deberían estar presentes en
+> el manager, menos fill que no tiene sentido»*.
+
+La tarjeta de un registro es **una sola pieza** (`entry-card.js` + `entry-card.css`) que
+dibujan las dos pantallas. Dos copias parecidas se separan a la primera corrección, y
+entonces la misma entrada se administra distinto según por dónde entres. Lo único que
+cambia son las acciones que se le pasan: **sin `onFill`, no hay botón de rellenar** —
+rellenar es de la página que tienes delante, y el gestor no tiene ninguna.
+
+Lo mismo con el **conmutador de perfiles** (`profiles.js`), que el gestor no tenía (dueño:
+*«en el manager no veo el switch de perfiles»*): un perfil es una bóveda (§3.3), así que
+la pantalla donde se administra todo tiene que decir de cuál está hablando. Añadir un
+perfil sí se queda en el popup: pide emparejar, que es un flujo con su pantalla.
+
+#### El chevron, y copiar UN campo
+
+Había un botón **Copiar** por tarjeta que copiaba la contraseña, y para eso se traía la
+**entrada entera** —contraseña, código de dos pasos, notas y todo lo demás— aunque solo
+fuera a usar un campo. Se cambió por un **chevron** que despliega lo que guarda, con un
+**Copiar por campo** (dueño, 2026-08-29).
+
+Así cada copia pide **ese** campo y ninguno más: los públicos salen sin molestar a nadie y
+**solo el privado pide autorización, y solo al copiarlo**. Los valores públicos del panel
+se piden de una vez al desplegarlo; los privados no se piden — salen tapados.
+
+El panel va **debajo de los botones**: los botones son de la tarjeta entera y tienen que
+quedar donde están siempre, no bailar según cuántos campos tenga lo que se acaba de
+desplegar. Y `Rellenar` del popup pasó también a pedir solo `username` y `secret`.
+
+#### El orden es alfabético, y un blur no escribe
+
+Las listas van **por nombre** (dueño, 2026-08-29: *«el orden de los records debe ser
+alfabético y ya»*). Antes salían como las devuelve `find` —por lo bien que emparejan y, a
+igualdad, por lo último tocado—, que está bien para ELEGIR una (el modal de un campo) y
+mal para LEER una lista.
+
+Y lo que destapó eso era un fallo aparte: **abrir el lápiz y salir del campo sin tocar
+nada reescribía la entrada**, le subía la fecha y la mandaba a la primera fila. Un blur no
+es una decisión: si el nombre no cambió, no se escribe.
+
 ### Cómo se llega a un registro
 
 Con lo mismo de siempre, porque **no hay «verlos todos»**:
@@ -1226,7 +1299,25 @@ Con lo mismo de siempre, porque **no hay «verlos todos»**:
 El popup gana además un **segundo botón** que abre el gestor entero (dueño, 2026-08-29):
 el de la tarjeta es de un registro, este es la puerta a buscar y a ver dónde hay algo.
 
-La dirección va en el `#fragment` (`#site=…&id=…`) para que un refresco no pierda la ficha
+#### Pulsar un dominio filtra por lo ARCHIVADO ahí
+
+El botón de un dominio y la lista contestaban preguntas distintas, y se notaba (dueño:
+*«presiono dotrino.com, dice 1 en el botón pero no filtra los resultados»*): el número
+viene de `sites` —lo archivado con ese dominio escrito— y la lista venía de `find`, que es
+*qué serviría en esa página* y por tanto incluye **todo lo que no tiene sitio**. En un
+gestor manda la primera lectura: pulsar `dotrino.com` es «enséñame los de dotrino.com». La
+otra se queda donde le toca, en el popup, que sí habla de la página que tienes delante.
+
+#### Los sitios de un registro se editan aquí
+
+Una lista enumerada con su ✕ y un campo para añadir. Enumerada y no un campo de texto con
+comas, para que quitar uno sea un clic. Vale pegar la dirección entera —se queda el
+dominio—, vale un host sin punto (`localhost`, el `nas` de tu casa) y vale el comodín,
+aunque no haga falta (§4.2). Vaciar la lista es decir **«sirve en cualquier sitio»**, que
+es lo que la ausencia de sitios ha significado siempre, y la pantalla lo dice en vez de
+dejar un hueco.
+
+La dirección va en el `#fragment` (`#site=…&id=…&only=…`) para que un refresco no pierda la ficha
 abierta; con solo el id la vista se vuelve a pedir con `entry-view`, que es `find` del
 sitio quedándose con una — no es `list` disfrazado, porque el id ya lo tenía quien pregunta.
 

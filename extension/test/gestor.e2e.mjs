@@ -48,12 +48,22 @@ page.on('pageerror', (e) => console.log('   [error de página]', e.message))
 const URLSITIO = `${SITE}/profile.html`
 
 /** Abrir una entrada ENTERA desde una pantalla de la extensión, diciendo que sí. */
+/**
+ * Abrir una entrada ENTERA, diciendo que sí.
+ *
+ * La pregunta sale en **la pantalla de la extensión que haya** (§3.3.2), y con el gestor
+ * abierto esa puede ser su pestaña y no el popup — en `--headless=new` todas se declaran
+ * visibles, así que no se puede predecir cuál. Se contesta en la que salga.
+ */
 async function abrir (entryId) {
   await popup()
   await ext.bringToFront()
   await ext.waitForTimeout(250)
   const p = pedir('get', { id: entryId })
-  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 10000 }) } catch (_) {}
+  const si = (pg) => pg && !pg.isClosed()
+    ? pg.locator('[data-testid=approval-yes]').click({ timeout: 12000 })
+    : new Promise(() => {})
+  try { await Promise.race([si(ext), si(gestor)]) } catch (_) {}
   return (await p)?.result || null
 }
 
@@ -79,6 +89,9 @@ async function abrirGestor (id) {
   if (!gestor) { gestor = await ctx.newPage(); gestor.on('pageerror', (e) => console.log('   [error del gestor]', e.message)) }
   const p = new URLSearchParams({ site: URLSITIO, ...(id ? { id } : {}) })
   await gestor.goto(`chrome-extension://${extId}/src/manager.html#${p}`)
+  // Ir a la MISMA dirección no dispara `hashchange` ni recarga: sin esto, la pantalla
+  // anterior se quedaba puesta (con su buscador escrito) y el test miraba lo de antes.
+  await gestor.reload()
   await gestor.waitForTimeout(1200)
   return gestor
 }
@@ -198,7 +211,8 @@ try {
   await g.locator('[data-testid=manager-cancel]').click()
   await g.waitForTimeout(1200)
   const igual = await abrir(id)
-  ok(campo(igual, 'Teléfono')?.value === '0999111222', 'el teléfono no se tocó')
+  ok(campo(igual, 'Teléfono')?.value === '0999111222',
+    'el teléfono no se tocó')
 
   // --- 6. quitar la marca de privado SIN tener el valor delante ------------------
   console.log('\nquitar la marca de privado, sin traerse el valor')
@@ -215,7 +229,60 @@ try {
   ok(await g.locator('[data-testid="manager-value-label:Número de socio"]').inputValue() === 'SOC-0001',
     'y ahora sí sale su valor, porque ya es público')
 
-  // --- 7. la lista y el buscador -------------------------------------------------
+  // --- 7. UN REGISTRO QUE CRUZA DOMINIOS ------------------------------------------
+  //
+  // Lo que el dueño pidió el 2026-08-29: *«un record que cruce dominios»*. La misma
+  // cuenta en dos sitios que no se parecen en nada — el emparejamiento ya recorría toda
+  // la lista, lo que faltaba era poder escribirla.
+  console.log('\nun registro en varios dominios')
+  await abrirGestor(id)
+  ok(await g.locator('[data-testid="manager-site-chip-localhost"]').count() === 1,
+    'la ficha enseña el sitio que tenía')
+  await g.locator('[data-testid=manager-site-input]').fill('https://otro-dominio.example/entrar')
+  await g.locator('[data-testid=manager-site-add]').click()
+  await g.waitForTimeout(300)
+  ok(await g.locator('[data-testid="manager-site-chip-otro-dominio.example"]').count() === 1,
+    'se pega la dirección entera y queda el dominio')
+  await g.locator('[data-testid=manager-save]').click()
+  await g.waitForTimeout(1800)
+
+  const enOtro = ((await pedir('find', { url: 'https://otro-dominio.example/algo' }))?.result || [])
+    .find((e) => e.id === id)
+  ok(!!enOtro, 'el MISMO registro sale en el dominio nuevo')
+  ok(((await pedir('find', { url: URLSITIO }))?.result || []).some((e) => e.id === id),
+    'y sigue saliendo en el de siempre')
+  ok(enOtro?.sites?.length === 2, 'con sus dos sitios (' + enOtro?.sites?.join(' · ') + ')')
+
+  // Un subdominio del nuevo entra sin escribir ningún comodín.
+  ok(((await pedir('find', { url: 'https://intranet.otro-dominio.example/' }))?.result || [])
+    .some((e) => e.id === id), 'y un subdominio suyo también, sin comodín')
+
+  await abrirGestor(null)
+  await g.locator('[data-testid=manager-search]').fill('otro-dominio')
+  await g.waitForTimeout(900)
+  const linea = await g.locator(`[data-testid=manager-record-${id}] .who .hint`).textContent()
+  ok(/localhost/.test(linea) && /otro-dominio\.example/.test(linea),
+    'y la lista enseña los dos sitios, uno al lado de otro: ' + linea)
+
+  // Quitarlos todos: entonces vale en cualquier sitio, que es lo que significa la lista
+  // vacía desde siempre.
+  await abrirGestor(id)
+  for (const d of ['localhost', 'otro-dominio.example']) {
+    await g.locator(`[data-testid="manager-site-remove-${d}"]`).click()
+  }
+  await g.waitForTimeout(300)
+  await g.locator('[data-testid=manager-save]').click()
+  await g.waitForTimeout(1800)
+  ok(((await pedir('find', { url: 'https://cualquier-cosa.example/' }))?.result || [])
+    .some((e) => e.id === id), 'sin ningún sitio, vale en cualquiera')
+  // Y se deja como estaba, que abajo se sigue usando.
+  await abrirGestor(id)
+  await g.locator('[data-testid=manager-site-input]').fill('localhost')
+  await g.locator('[data-testid=manager-site-add]').click()
+  await g.locator('[data-testid=manager-save]').click()
+  await g.waitForTimeout(1800)
+
+  // --- 8. la lista y el buscador -------------------------------------------------
   console.log('\nla lista del gestor')
   await abrirGestor(null)
   ok(await g.locator(`[data-testid=manager-record-${id}]`).count() === 1, 'salen los del sitio de donde se vino')
@@ -225,9 +292,47 @@ try {
   ok(await g.locator(`[data-testid=manager-record-${id}]`).count() === 0, 'y el buscador filtra de verdad')
   await g.locator('[data-testid=manager-search]').fill('localhost')
   await g.waitForTimeout(900)
-  ok(await g.locator('.record').count() > 0, 'buscando por el sitio, aparece')
+  ok(await g.locator('.entry').count() > 0, 'buscando por el sitio, aparece')
   ok(!(await g.locator('[data-testid=manager-site-localhost]').isVisible()),
     'y mientras se busca, los dominios se apartan')
+
+  // --- 9. pulsar un dominio filtra DE VERDAD ---------------------------------------
+  //
+  // El fallo que vio el dueño: el botón decía «1» y la lista enseñaba de todo. Eran dos
+  // preguntas distintas — lo archivado ahí, y lo que serviría en esa página, que incluye
+  // todo lo que no tiene sitio.
+  console.log('\npulsar un dominio filtra de verdad')
+  const suelta = (await pedir('put', { entry: {
+    type: 'data', title: 'sin sitio', name: 'Vale en cualquier parte',
+    fields: [{ kind: 'email', label: 'Correo', value: 'suelta@ejemplo.com' }],
+  } }))?.result
+  await abrirGestor(null)
+  ok(await g.locator('[data-testid=manager-site-anywhere]').isVisible(),
+    'las que no tienen sitio tienen su propio botón')
+  ok(await g.locator(`[data-testid=manager-peek-${id}]`).count() === 1,
+    'la tarjeta del gestor es la del popup: su chevron')
+  ok(await g.locator(`[data-testid=manager-del-${id}]`).count() === 1, 'su borrar')
+  ok(await g.locator(`[data-testid=manager-default-${id}]`).count() === 1, 'su predeterminada')
+  ok(await g.locator(`[data-testid=manager-fill-${id}]`).count() === 0,
+    'y SIN rellenar, que es de la página que tienes delante')
+  ok(await g.locator('[data-testid^=profile-]').first().isVisible(),
+    'y arriba, de qué bóveda se está hablando')
+
+  await g.locator('[data-testid=manager-site-localhost]').click()
+  await g.waitForTimeout(1200)
+  ok(await g.locator(`[data-testid=manager-record-${id}]`).count() === 1,
+    'pulsando localhost sale la suya')
+  ok(await g.locator(`[data-testid=manager-record-${suelta.id}]`).count() === 0,
+    'y NO se cuela la que no tiene sitio')
+  const cuantas = await g.locator('.entry').count()
+  const boton = await g.locator('[data-testid=manager-site-localhost]').textContent()
+  ok(boton.endsWith(String(cuantas)), `el número del botón y la lista coinciden (${boton} / ${cuantas})`)
+
+  await g.locator('[data-testid=manager-site-anywhere]').click()
+  await g.waitForTimeout(1200)
+  ok(await g.locator(`[data-testid=manager-record-${suelta.id}]`).count() === 1,
+    'y en «en cualquier sitio» está la suelta')
+  ok(await g.locator(`[data-testid=manager-record-${id}]`).count() === 0, 'y solo ella')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

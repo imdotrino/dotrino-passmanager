@@ -1,0 +1,80 @@
+/* LA TARJETA DE UN REGISTRO. La misma en el popup y en el gestor (dueño, 2026-08-29:
+   *«todas las acciones del modal principal deberían estar presentes en el manager»*), así
+   que sus estilos viven aquí y no en la hoja de una de las dos pantallas. Dos copias se
+   habrían separado a la primera.
+
+   Usa las variables de la pantalla que la aloja (`--panel`, `--line`, `--dim`…), que son
+   las mismas en las dos. */
+ul.entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+li.entry {
+  display: grid; gap: 6px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+}
+/* La cabecera: el chevron a la izquierda, y a su lado quién es. */
+.entry .head { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.entry .head .who { flex: 1; min-width: 0; }
+.entry .chev {
+  flex: none; background: none; border: 0; color: var(--dim); cursor: pointer;
+  padding: 0 4px; font: inherit; font-size: 15px; line-height: 1.3;
+}
+.entry .chev:hover, .entry .chev:focus-visible { color: var(--fg); }
+
+.entry .acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.entry .acts .btns { display: flex; gap: 6px; margin-left: auto; }
+.entry .acts button { padding: 4px 8px; font-size: 12px; }
+.entry .def { display: flex; align-items: center; gap: 5px; font-size: 11px; opacity: .8; cursor: pointer; }
+.entry .def input { margin: 0; accent-color: var(--accent); width: auto; }
+
+/* LO QUE GUARDA, campo a campo. Va DEBAJO de los botones (dueño, 2026-08-29): los
+   botones son de la tarjeta entera y tienen que quedar donde están siempre, no bailar
+   según cuántos campos tenga lo que se acaba de desplegar. */
+.entry .peek {
+  display: grid; gap: 2px; margin: 2px 0 2px;
+  border-top: 1px solid var(--line); padding-top: 6px;
+}
+.entry .peek .f {
+  display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  align-items: center; gap: 8px; padding: 2px 0;
+}
+.entry .peek .fk { font-size: 11px; color: var(--dim); white-space: nowrap; }
+.entry .peek .fv {
+  font-size: 12px; text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.entry .peek .mini { padding: 2px 7px; font-size: 11px; }
+.entry .peek .hint { padding: 2px 0; }
+
+/* La confirmación de borrado, pegada a su tarjeta: se ve cuál se está borrando. */
+.entry .confirm {
+  display: flex; align-items: center; gap: 6px;
+  border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px;
+}
+.entry .confirm .hint { flex: 1; }
+.entry .confirm button { padding: 4px 8px; font-size: 12px; }
+
+.entry .name { font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.entry .nametext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* El lápiz: al lado del nombre, tenue hasta que lo buscas. El nombre de una entrada lo
+   pone el usuario; lo que se calcula del contenido es solo el punto de partida. */
+.entry .pencil {
+  flex: none; background: none; border: 0; color: inherit; opacity: .35;
+  padding: 0 2px; font: inherit; font-size: .9rem; line-height: 1; cursor: pointer; font-weight: 400;
+}
+.entry .pencil:hover, .entry .pencil:focus-visible { opacity: 1; }
+/* Escribiendo el nombre: el campo y su visto, que es lo que se ve. Enter y salir del
+   campo hacen lo mismo, pero no se anuncian. */
+.entry .editing { display: flex; align-items: center; gap: 6px; width: 100%; }
+.entry .newname {
+  flex: 1; min-width: 0; padding: 3px 6px; font: inherit; font-weight: 400;
+  background: rgba(255,255,255,.06); color: inherit;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
+}
+.entry .newname:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.entry .ok {
+  flex: none; background: none; color: #7fc6e6; cursor: pointer; font: inherit; font-weight: 400;
+  border: 1px solid rgba(127,198,230,.35); border-radius: 6px; padding: 2px 8px;
+}
+.entry .ok:hover { background: rgba(127,198,230,.12); }
+.entry .hint { font-size: 11px; }
+.entry .who { min-width: 0; }
+.entry .who > .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -100,9 +100,13 @@ permiso, y por qué es el mínimo:
 | Permiso | Por qué |
 |---|---|
 | `storage` | Guardar a qué bóveda está enlazada y su llave de aparato. Las credenciales entregadas van en `storage.session` (memoria, se borra al cerrar el navegador). |
-| `activeTab` / `scripting` | Rellenar el campo que el usuario elige, solo en la pestaña que tiene delante. |
-| `host_permissions` (`http/https`) | El gestor tiene que reconocer formularios en cualquier sitio. No hay forma de acotarlo sin que deje de servir donde el usuario lo necesita. |
+| `host_permissions` (`https://*/*`) | El gestor tiene que reconocer formularios en cualquier sitio, y no hay forma de acotarlo sin que deje de servir donde el usuario lo necesita. **Solo sitios cifrados**: `http://*/*` se quitó el 2026-08-29 — un gestor de contraseñas no tiene nada que hacer en una página que viaja en claro. Las dos excepciones, `http://localhost` y `http://127.0.0.1`, son la máquina de quien lo desarrolla: ahí corren las pruebas. |
 | `world: "MAIN"` (passkeys) | Chrome no da API de proveedor de credenciales a las extensiones; la única vía en escritorio es reemplazar `navigator.credentials` en la página. Es lo mismo que hacen 1Password y Bitwarden. |
+
+**Quitados el 2026-08-29: `activeTab` y `scripting`.** Estaban declarados y no los
+usaba una sola línea del código: quien escribe en el campo es el content script, que ya
+entra por `content_scripts`. Un permiso que no se usa es una objeción regalada en la
+revisión, y una línea de más en el aviso que ve el usuario al instalar.
 
 **Uso de datos que hay que declarar:** «Información de autenticación» — recogida sí,
 pero **no se transmite a terceros ni se vende**; viaja cifrada solo entre los aparatos
@@ -128,7 +132,7 @@ También hecho:
       `input.files` vuelve a cero. Los archivos listos están en `store/capturas/`, sin
       canal alfa (la tienda lo rechaza y Chromium captura con él).
 - [x] **pestaña Privacy** entera: propósito único, justificación de cada permiso
-      (`storage`, `activeTab`, `scripting`, host), las tres certificaciones y la URL de
+      (`storage` y host), las tres certificaciones y la URL de
       la política.
 - [x] **«No, I am not using remote code»** — venía marcado en «Sí» POR DEFECTO, y es
       falso: la extensión lleva todo dentro del paquete (por eso `build.mjs` vendoriza

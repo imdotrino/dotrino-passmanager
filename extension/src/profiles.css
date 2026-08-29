@@ -1,0 +1,11 @@
+/* Perfiles: uno activo, los demás a un clic. Como el resto del ecosistema. La hoja es
+   compartida porque la barra sale en las dos pantallas (popup y gestor). */
+.profiles { display: flex; gap: 4px; flex-wrap: wrap; }
+.profile {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; font: inherit; font-size: 11px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--dim); cursor: pointer;
+}
+.profile.on { border-color: var(--accent); color: var(--fg); }
+.profile.add { padding: 4px 8px; font-weight: 700; }
+.profile .face { width: 14px; height: 14px; border-radius: 50%; }

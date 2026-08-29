@@ -66,20 +66,6 @@ button.ghost {
 button.ghost:hover { color: var(--fg); border-color: var(--dim); }
 button.danger { color: var(--danger); border-color: rgba(255,107,107,.4); }
 
-/* LA LISTA. Una fila por registro: su nombre y de qué sitio es. */
-ul.records { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.record {
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
-  width: 100%; text-align: left; cursor: pointer;
-  padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px;
-  background: var(--panel); color: var(--fg);
-}
-.record:hover { border-color: var(--dim); }
-.record .who { min-width: 0; }
-.record .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.record .site { color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.record .go { color: var(--dim); flex: none; }
-
 /* LOS DOMINIOS: dónde hay algo guardado. Pulsar uno abre ese sitio como si se viniera
    de su página. Con el número al lado, que es lo que dice si vale la pena entrar. */
 .domains { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -135,11 +121,25 @@ ul.values { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   align-items: center; gap: 10px;
   padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px;
 }
+/* LOS SITIOS: una etiqueta por cada uno, con su ✕. Enumerados y no un campo de texto
+   con comas, para que quitar uno sea un clic y no una edición a mano. */
 .sites { display: flex; flex-wrap: wrap; gap: 6px; }
-.sites span {
-  font-size: 12px; color: var(--dim);
-  padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px;
+.sites:empty { display: none; }
+.site-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--fg);
+  padding: 4px 6px 4px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel);
 }
+.site-chip .x {
+  background: none; border: 0; color: var(--dim); cursor: pointer;
+  padding: 1px 5px; border-radius: 999px; line-height: 1; font-size: 12px;
+}
+.site-chip .x:hover { color: var(--danger); background: rgba(255,107,107,.12); }
+/* El campo de añadir: ancho, con su botón al lado. */
+.siteadd { display: flex; gap: 8px; align-items: center; }
+.siteadd input { flex: 1; min-width: 0; }
+.siteadd button { flex: none; white-space: nowrap; }
 /* Los botones se quedan a la vista al bajar por una ficha larga: guardar es de la ficha
    entera, no del trozo que se está mirando. */
 .actions {

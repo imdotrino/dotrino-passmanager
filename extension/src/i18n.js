@@ -122,6 +122,15 @@ const STRINGS = {
     fieldSame: 'igual',
     noSite: 'en cualquier sitio',
     whereLabel: 'Dónde tienes algo guardado',
+    showFields: 'Ver lo que guarda',
+    hideFields: 'Cerrar',
+    copyValue: 'Copiar',
+    addSite: 'Añadir sitio',
+    removeSite: 'Quitar este sitio',
+    sitePh: 'banco.com.ec  ·  *.banco.com.ec',
+    badSite: 'Escribe un dominio, como banco.com.ec. Con *.banco.com.ec vale cualquier subdominio.',
+    sitesAnywhere: 'Sin ningún sitio, este registro sirve en cualquiera.',
+    sitesCover: 'Cada sitio cubre también sus subdominios.',
     notesLabel: 'Notas',
   },
   en: {
@@ -240,6 +249,15 @@ const STRINGS = {
     fieldSame: 'same',
     noSite: 'anywhere',
     whereLabel: 'Where you have something saved',
+    showFields: 'See what it keeps',
+    hideFields: 'Close',
+    copyValue: 'Copy',
+    addSite: 'Add site',
+    removeSite: 'Remove this site',
+    sitePh: 'bank.example  ·  *.bank.example',
+    badSite: 'Type a domain, like bank.example. With *.bank.example any subdomain works.',
+    sitesAnywhere: 'With no site at all, this record works anywhere.',
+    sitesCover: 'Each site covers its subdomains too.',
     notesLabel: 'Notes',
   },
 }
@@ -309,6 +327,21 @@ export const KIND_LABEL = {
 /** El nombre de una clase de dato en el idioma activo; si no se conoce, la clave. */
 export function kindLabel (lang, key) {
   return (KIND_LABEL[lang] || KIND_LABEL.es)[key] || KIND_LABEL.es[key] || key
+}
+
+/**
+ * CÓMO SE LLAMA un campo de una entrada, para enseñarlo.
+ *
+ * La etiqueta guardada si se tiene; si no, la que viaja dentro de la propia clave
+ * (`label:Número de socio`); y si tampoco, el nombre de su clase. Vive aquí, con
+ * `kindLabel`, porque lo preguntan el popup y el gestor y dos respuestas distintas
+ * serían el mismo campo llamado de dos formas según la pantalla.
+ */
+export function fieldLabel (lang, key, label) {
+  if (label) return label
+  const k = String(key || '')
+  if (k.startsWith('label:')) return k.slice(6)
+  return kindLabel(lang, k)
 }
 
 export { STRINGS }

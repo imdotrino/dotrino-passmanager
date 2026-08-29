@@ -33,6 +33,19 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   args: ['--headless=new', `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, '--no-sandbox'],
   viewport: { width: 720, height: 760 },
 })
+// Chrome no concede permisos de papelera a un origen `chrome-extension://`, así que se
+// anota lo que se manda a copiar. Lo que se comprueba es lo que está en juego —QUÉ valor
+// se elige y CUÁNDO pregunta la bóveda—; que la papelera del sistema funcione es de Chrome.
+await ctx.addInitScript(() => {
+  window.__copiado = null
+  try {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (t) => { window.__copiado = String(t) } },
+    })
+  } catch (_) {}
+})
+
 const fallos = []
 const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
 
@@ -464,12 +477,55 @@ try {
     await caja.fill('Mis datos de aquí')
     await ext.locator(`[data-testid=popup-name-ok-${entryId}]`).click()
     await ext.waitForTimeout(1800)
-    ok(await ext.locator('.entry .nametext').first().textContent() === 'Mis datos de aquí',
+    // Por su id, no «la primera»: la lista va en orden alfabético (dueño, 2026-08-29) y
+    // renombrar la mueve de sitio, que es justo lo que se quería.
+    ok(await ext.locator(`[data-testid=popup-record-${entryId}] .nametext`).textContent() === 'Mis datos de aquí',
       'y el visto lo confirma')
   }
   const renombrada = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
     .find((e) => e.id === entryId)
   ok(renombrada?.hint === 'Mis datos de aquí', 'queda en la bóveda: ' + renombrada?.hint)
+  // --- 8. el chevron de la tarjeta, y copiar UN campo -------------------------
+  //
+  // Sustituye al botón «Copiar» de antes (dueño, 2026-08-29), que copiaba la contraseña
+  // trayéndose la ENTRADA ENTERA. Ahora cada campo tiene el suyo y se pide ese y nada
+  // más: los públicos no molestan a nadie, y el privado pregunta al copiarlo.
+  console.log('\nel chevron: lo que guarda, campo a campo')
+  await ext.bringToFront()
+  await ext.waitForTimeout(300)
+  const chevron = ext.locator(`[data-testid=popup-peek-${entryId}]`)
+  ok(await chevron.count() === 1, 'cada tarjeta lleva su chevron')
+  ok(await ext.locator('.entry .acts').first().textContent().then(x => !/copiar|copy/i.test(x)),
+    'y ya no hay un «Copiar» suelto que se lleve la entrada entera')
+  await chevron.click()
+  await ext.waitForTimeout(1500)
+
+  const filaPublica = ext.locator(`[data-testid="popup-field-${entryId}-tel"]`)
+  ok(await filaPublica.count() === 1, 'sale una fila por campo')
+  ok(/0999111222/.test(await filaPublica.textContent()), 'el público enseña su valor')
+  const filaPrivada = ext.locator(`[data-testid="popup-field-${entryId}-label:Número de socio"]`)
+  ok(/••••/.test(await filaPrivada.textContent()), 'y el privado sale tapado')
+
+  const leer = () => ext.evaluate(() => window.__copiado)
+  await ext.evaluate(() => { window.__copiado = 'nada' })
+
+  await ext.locator(`[data-testid="popup-copy-${entryId}-tel"]`).click()
+  ok(!(await preguntó(ext, 1800)), 'copiar un dato PÚBLICO no pide autorización')
+  await ext.waitForTimeout(500)
+  ok(await leer() === '0999111222', 'y es ESE valor el que va a la papelera')
+
+  const copiaPrivada = ext.locator(`[data-testid="popup-copy-${entryId}-label:Número de socio"]`)
+  await copiaPrivada.click()
+  ok(await preguntó(ext), 'copiar uno PRIVADO sí la pide')
+  await decir(ext, false)
+  await ext.waitForTimeout(400)
+  ok(await leer() === '0999111222', 'con un «ahora no», no se copia nada')
+
+  await copiaPrivada.click()
+  ok(await preguntó(ext), 'vuelve a preguntar: una negativa no se recuerda')
+  await decir(ext, true)
+  await ext.waitForTimeout(700)
+  ok(/^SOC-/.test(await leer()), 'y con el sí, el valor privado se copia')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

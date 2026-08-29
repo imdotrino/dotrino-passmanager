@@ -8,6 +8,8 @@
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
 import { pickLang, t } from './i18n.js'
+import { entryCard, byName } from './entry-card.js'
+import { profileBar } from './profiles.js'
 // La bóveda puede pedir autorización mientras el popup está abierto (una contraseña que
 // se copia o se rellena desde aquí): la pregunta sale AQUÍ, no en una ventana suelta, que
 // cerraría el popup y con él lo que estabas haciendo.
@@ -176,36 +178,6 @@ function renderLink () {
   )
 }
 
-/**
- * El selector de perfiles. Igual que en el resto del ecosistema: los perfiles no se ven
- * entre ellos, se elige uno y lo que ves es lo suyo. Cambiar no es reactivo en ninguna
- * otra app; aquí sí, porque el popup se vuelve a dibujar entero.
- */
-function profileBar (s) {
-  const bar = el('div', { className: 'profiles' })
-
-  for (const p of s.profiles) {
-    const activo = p.id === s.active
-    const b = el('button', {
-      className: 'profile' + (activo ? ' on' : ''),
-      title: p.kind === 'own' ? t(lang, 'ownVault') : t(lang, 'linkedTo'),
-    })
-    if (p.avatar) b.append(el('img', { className: 'face', src: p.avatar, alt: '' }))
-    b.append(el('span', { textContent: p.label || (p.kind === 'own' ? t(lang, 'thisBrowser') : t(lang, 'aVault')) }))
-    b.setAttribute('aria-pressed', String(activo))
-    b.onclick = async () => {
-      if (activo) return
-      try { await ask('profile-use', { id: p.id }); render() } catch (e) { toast(humanError(e), 'error') }
-    }
-    bar.append(b)
-  }
-
-  const add = el('button', { className: 'profile add', textContent: '+', title: t(lang, 'addProfile') })
-  add.onclick = () => renderAdd(s)
-  bar.append(add)
-  return bar
-}
-
 /** Un perfil más: con su bóveda aquí, o conectando una que ya tienes. */
 function renderAdd (s) {
   const name = el('input', { type: 'text', placeholder: t(lang, 'profileName') })
@@ -234,122 +206,11 @@ function renderAdd (s) {
 }
 
 /**
- * Una entrada de la lista: quién es, y qué se puede hacer con ella.
- *
- * La casilla **predeterminada** no es un adorno: marca cuál sale elegida al abrir el
- * botón de un campo en la página (§4.1), que con tres cuentas del mismo sitio es la
- * diferencia entre elegir siempre o no elegir nunca. Solo puede haber una por sitio, así
- * que marcar una desmarca la anterior.
+ * La tarjeta la dibuja la pieza compartida: la misma que usa el gestor (§4.3). Aquí solo
+ * se dice qué acciones tiene, y el popup es el único que tiene `onFill` — rellenar es de
+ * la página que tienes delante.
  */
-/** El sitio de una entrada, y nada si es lo mismo que ya dice el nombre de arriba. */
-function sitioDe (e) {
-  const sitio = e.title || e.sites?.[0] || ''
-  return sitio && sitio !== (e.hint || '') ? sitio : ''
-}
-
-/**
- * EL NOMBRE DE LA ENTRADA, y su lápiz.
- *
- * Aquí también, no solo en los modales de la página (dueño, 2026-08-29: *«en el modal de
- * la extensión no veo el botón de editar»*). Y es donde más falta hace: esta es la lista
- * donde se administra lo guardado, así que es el primer sitio donde alguien va a buscar
- * cómo renombrar algo.
- *
- * El **visto** confirma. Enter y salir del campo hacen lo mismo, pero no se anuncian.
- */
-function nameCell (e, onRenamed) {
-  const nombre = e.hint || e.title || e.sites?.[0] || '—'
-  const linea = el('div', { className: 'name' })
-  const texto = el('span', { className: 'nametext', textContent: nombre })
-
-  const lapiz = el('button', {
-    className: 'pencil',
-    type: 'button',
-    textContent: '✎',
-    title: t(lang, 'renameEntry'),
-  })
-  lapiz.setAttribute('aria-label', t(lang, 'renameEntry'))
-  lapiz.dataset.testid = `popup-rename-${e.id}`
-
-  lapiz.onclick = () => {
-    const caja = el('input', { type: 'text', className: 'newname', value: nombre === '—' ? '' : nombre })
-    caja.placeholder = t(lang, 'entryName')
-    caja.dataset.testid = `popup-name-${e.id}`
-    const visto = el('button', { className: 'ok', type: 'button', textContent: '✓', title: t(lang, 'confirmName') })
-    visto.setAttribute('aria-label', t(lang, 'confirmName'))
-    visto.dataset.testid = `popup-name-ok-${e.id}`
-
-    let cerrado = false
-    const guardar = async (aplicar) => {
-      if (cerrado) return
-      cerrado = true
-      if (!aplicar) return onRenamed(false)
-      try { await ask('rename', { id: e.id, name: caja.value }) } catch (err) { toast(humanError(err), 'error') }
-      onRenamed(true)
-    }
-    caja.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') { ev.preventDefault(); guardar(true) }
-      if (ev.key === 'Escape') { ev.preventDefault(); guardar(false) }
-    })
-    caja.addEventListener('blur', () => guardar(true))
-    visto.onclick = (ev) => { ev.preventDefault(); guardar(true) }
-
-    linea.replaceChildren(el('span', { className: 'editing' }, [caja, visto]))
-    caja.focus()
-    caja.select()
-  }
-
-  linea.append(texto, lapiz)
-  return linea
-}
-
-function entryRow (e, { onFill, onCopy, onDelete, onDefault, onRenamed, onEdit, isDefault }) {
-  const fill = el('button', { className: 'ghost', textContent: t(lang, 'fill') })
-  const copy = el('button', { className: 'ghost', textContent: t(lang, 'copy') })
-  const del = el('button', { className: 'ghost danger', textContent: t(lang, 'del') })
-  // EDITAR no tiene nada que ver con la página que tienes delante (dueño, 2026-08-29):
-  // se sale del popup y se abre la ficha en el gestor, que es donde se administra.
-  const edit = el('button', { className: 'ghost', textContent: t(lang, 'edit') })
-  edit.dataset.testid = `popup-edit-${e.id}`
-  edit.onclick = () => onEdit(e)
-  fill.onclick = () => onFill(e)
-  copy.onclick = () => onCopy(e)
-  del.onclick = () => onDelete(e)
-
-  const marca = el('input', { type: 'checkbox', checked: !!isDefault })
-  marca.onchange = () => onDefault(e, marca.checked)
-
-  // La confirmación sale AQUÍ, debajo de su tarjeta, no en otra pantalla (dueño,
-  // 2026-08-28): irse a una ventana nueva para contestar «sí» hace perder de vista cuál
-  // de las tres entradas se estaba borrando, que es justo el dato que importa.
-  const si = el('button', { className: 'danger', textContent: t(lang, 'del') })
-  const no = el('button', { className: 'ghost', textContent: t(lang, 'cancel') })
-  const confirmar = el('div', { className: 'confirm', hidden: true }, [
-    el('span', { className: 'hint', textContent: t(lang, 'delConfirm') }),
-    si, no,
-  ])
-  del.onclick = () => { confirmar.hidden = false; si.focus() }
-  no.onclick = () => { confirmar.hidden = true; del.focus() }
-  si.onclick = () => onDelete(e)
-
-  return el('li', { className: 'entry' }, [
-    // ARRIBA el nombre de la entrada, ABAJO el sitio (dueño, 2026-08-29: «debería ser al
-    // revés»). Y tiene razón: en una lista de un solo sitio, el sitio es lo que todas
-    // tienen en común y el nombre es lo único que las distingue.
-    el('div', { className: 'who' }, [
-      nameCell(e, onRenamed),
-      el('div', { className: 'hint', textContent: sitioDe(e) }),
-    ]),
-    // Con cuatro botones ya no caben en la misma línea que la casilla: los botones van
-    // en su propio grupo, que baja entero cuando no cabe. Cuatro medio partidos serían
-    // peor que dos líneas limpias.
-    el('div', { className: 'acts' }, [
-      el('label', { className: 'def' }, [marca, el('span', { textContent: t(lang, 'byDefault') })]),
-      el('div', { className: 'btns' }, [edit, fill, copy, del]),
-    ]),
-    confirmar,
-  ])
-}
+const cardCtx = () => ({ lang, ask, toast, humanError, pre: 'popup', onChanged: render })
 
 async function renderSite (estado0) {
   const propia = estado0.profile.kind === 'own'
@@ -361,8 +222,9 @@ async function renderSite (estado0) {
   const list = el('ul', { className: 'entries' })
   const estado = el('p', { className: 'hint', textContent: t(lang, 'waiting') })
 
-  // Cada credencial sale de una petición aparte: la lista de arriba nunca las llevó.
-  const askForOne = async (e) => ask('get', { id: e.id })
+  // Cada credencial sale de una petición aparte, Y SOLO LOS CAMPOS QUE SE VAN A USAR: un
+  // `get` a secas se trae la entrada entera, que era lo que hacía copiar antes.
+  const askForOne = async (e, keys) => ask('get', { id: e.id, keys })
 
   // Aquí había un «guardar la contraseña de esta página». Se quitó el 2026-08-28, dicho
   // por el dueño: *«no le encuentro sentido»*. Y no lo tiene desde que el botón del propio
@@ -371,7 +233,7 @@ async function renderSite (estado0) {
 
   const onFill = async (e) => {
     try {
-      const full = await askForOne(e)
+      const full = await askForOne(e, ['username', 'secret'])
       const r = await tellPage('page-fill', { username: full.username, secret: full.secret })
       if (r?.filled) window.close()
       else toast(t(lang, 'noForm'), 'error')
@@ -398,14 +260,6 @@ async function renderSite (estado0) {
     } catch (err) { toast(humanError(err), 'error') }
   }
 
-  const onCopy = async (e) => {
-    try {
-      const full = await askForOne(e)
-      await navigator.clipboard.writeText(full.secret)
-      toast(t(lang, 'copied'))
-    } catch (err) { toast(humanError(err), 'error') }
-  }
-
   // El pie dice DÓNDE están tus contraseñas, y es lo único que distingue las dos vías
   // a ojos del usuario. Quien no enlazó nada no está a medio configurar: está usando la
   // suya, y se le dice así.
@@ -417,17 +271,20 @@ async function renderSite (estado0) {
   abrirGestor.onclick = () => openManager({ url })
   const pie = el('p', { className: 'hint foot', textContent: propia ? t(lang, 'ownVault') : t(lang, 'linkedVault') })
 
+  // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es
+  // de la bóveda entera, como los perfiles, y no una acción más de la última tarjeta.
   view.replaceChildren(
-    profileBar(estado0),
+    profileBar(cardCtx(), estado0, { onAdd: renderAdd }),
+    abrirGestor,
     el('h2', { textContent: t(lang, 'onThisSite') }),
-    list, estado, abrirGestor, pie,
+    list, estado, pie,
   )
 
   try {
     const items = await ask('find', { url })
     const porDefecto = await ask('default-get', { url }).catch(() => null)
-    list.replaceChildren(...items.map(e => entryRow(e, {
-      onFill, onCopy, onDelete, onDefault, isDefault: e.id === porDefecto,
+    list.replaceChildren(...[...items].sort(byName).map(e => entryCard(cardCtx(), e, {
+      onFill, onDelete, onDefault, isDefault: e.id === porDefecto,
       onEdit: (x) => openManager({ url, id: x.id }),
       // Renombrar cambia lo que dice la lista entera —el nombre visible sale de dentro—,
       // así que se vuelve a pintar en vez de parchear la fila.

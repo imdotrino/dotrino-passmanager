@@ -2,17 +2,16 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "short_name": "__MSG_extShortName__",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "__MSG_extDescription__",
   "default_locale": "es",
   "permissions": [
-    "storage",
-    "activeTab",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
     "https://*/*",
-    "http://*/*"
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "background": {
     "service_worker": "src/background.js",
@@ -26,7 +25,8 @@
     {
       "matches": [
         "https://*/*",
-        "http://*/*"
+        "http://localhost/*",
+        "http://127.0.0.1/*"
       ],
       "js": [
         "src/content.js"
@@ -37,7 +37,8 @@
     {
       "matches": [
         "https://*/*",
-        "http://*/*"
+        "http://localhost/*",
+        "http://127.0.0.1/*"
       ],
       "js": [
         "src/webauthn-bridge.js"
@@ -48,7 +49,8 @@
     {
       "matches": [
         "https://*/*",
-        "http://*/*"
+        "http://localhost/*",
+        "http://127.0.0.1/*"
       ],
       "js": [
         "src/webauthn-page.js"
@@ -76,7 +78,8 @@
       ],
       "matches": [
         "https://*/*",
-        "http://*/*"
+        "http://localhost/*",
+        "http://127.0.0.1/*"
       ]
     }
   ]
