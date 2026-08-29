@@ -158,6 +158,25 @@ Google avisó de que **la revisión será más lenta por los permisos de host am
 sugirió acotarlos. No se acotan y el motivo está en la tabla de permisos de más abajo:
 un gestor de contraseñas tiene que reconocer formularios donde el usuario tenga cuenta,
 y esa lista no se sabe de antemano. La justificación que se envió lo dice así.
+## Instrucciones para quien revisa (Access → Test instructions)
+
+Estaban **vacías** hasta el 2026-08-28, y eso es media revisión perdida: quien la abre no
+tiene forma de saber que **no hace falta cuenta**. Lo que hay escrito ahora (en inglés,
+que es lo que lee el equipo de revisión; 492 de 500 caracteres):
+
+> No account or login is required. The extension works as soon as it is installed: it
+> creates its own encrypted vault inside the browser.
+>
+> To review it:
+> 1. Open any page with a sign-in form.
+> 2. Type a username and a password. A small blue marker appears in the corner of each field.
+> 3. Submit the form. On the next page a prompt offers to save it.
+> 4. Go back to the form: the marker now offers to fill it in.
+>
+> It can optionally connect to a self-hosted vault, but that is not needed to test it.
+
+**Usuario y contraseña de prueba: vacíos, y es correcto.** No hay inicio de sesión que dar.
+
 - [ ] repasar la pestaña **Privacy** (declaración de uso de datos: «información de
       autenticación», recogida sí, **no** vendida ni cedida)
 - [ ] pulsar **Submit for review**
