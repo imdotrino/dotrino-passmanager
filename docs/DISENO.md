@@ -630,15 +630,27 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
    [     Completar todos          ]    ← los marcados, de una vez
    ─────────────────────────────
    GUARDAR
-       Correo            privado [ ]   ← lo que hay escrito en ESTE campo
-   [    Guardar    ]  [   Cerrar   ]
+   [ ] Nombre           privado [ ]    ← todos los campos escritos del formulario…
+   [x] Teléfono         privado [ ]    ← …y marcado el que se pulsó
+   [           Guardar            ]
 ```
 
 - **La cabecera manda sobre las dos secciones**: de esa entrada se rellena, y en esa
   entrada se guarda. Las flechas recorren las entradas del sitio y terminan en **«una
-  entrada nueva»**, que es lo único que hay cuando no existe ninguna.
+  entrada nueva»**, que es lo único que hay cuando no existe ninguna — y entonces **no
+  hay flechas**: apagadas y a la vista prometen algo que no existe.
+- **Las dos secciones listan todo lo que califica**, no solo el campo que se pulsó:
+  arriba, cada campo de la página que esa entrada puede rellenar; abajo, cada campo
+  escrito que le añadiría o le cambiaría algo. El pulsado viene marcado y los demás no,
+  igual que en el aviso de después de entrar. Lo que ya está guardado igual no sale en
+  ninguna de las dos: no hay nada que decidir en él.
+- **Cada fila dice la etiqueta con la que se va a guardar**, nunca un genérico como «este
+  campo»: lo que se enseña tiene que ser lo que quede escrito en la entrada, o el usuario
+  está aceptando algo distinto de lo que ve.
+- **No hay botón de cerrar**: se cierra al pulsar fuera —como cualquier menú— y con
+  Escape. Un botón que solo cierra ocupa el sitio del que sí hace algo.
 - **Cada sección aparece solo si tiene sentido**: sin nada guardado no hay «rellenar»,
-  y con el campo vacío no hay «guardar».
+  y sin nada escrito que añadir no hay «guardar».
 - **Es un iframe de la extensión**, como el aviso: el botón que escribe en la bóveda tiene
   que pulsarse en el origen `chrome-extension://`. Lo que llega desde la página —los
   nombres de sus campos— es **cosmético y se trata como tal**: el content script y el

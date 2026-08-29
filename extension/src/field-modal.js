@@ -9,6 +9,9 @@
 // por la misma razón: el botón que escribe en la bóveda tiene que pulsarse en el origen
 // `chrome-extension://`. La página no puede pulsarlo ni fingirlo.
 //
+// **No tiene botón de cerrar**: se cierra al pulsar fuera, como cualquier menú (y con
+// Escape). Un botón que solo cierra ocupa el sitio del que sí hace algo.
+//
 // Lo que llega DESDE la página (los nombres de sus campos) es cosmético y se trata como
 // tal: el content script y el sitio comparten ventana, así que nada de lo que venga por
 // ahí decide nada. Los valores salen de la bóveda, y lo que se guarda es lo que el
@@ -20,6 +23,8 @@ const lang = pickLang()
 const p = new URLSearchParams(location.search)
 const key = p.get('key') || ''
 const name = p.get('name') || ''
+// El campo del que se habla, para quien lea la pestaña con un lector de pantalla.
+if (name) document.title = `Dotrino · ${name}`
 
 const $ = (id) => document.getElementById(id)
 const post = (msg) => { try { window.parent.postMessage({ _dotrino: msg.op, ...msg }, '*') } catch (_) {} }
@@ -36,13 +41,11 @@ const ask = (op, payload) => new Promise((resolve, reject) => {
 })
 
 document.documentElement.lang = lang
-$('close').textContent = t(lang, 'close')
 $('save').textContent = t(lang, 'save')
 $('fillTitle').textContent = t(lang, 'fillSection')
 $('saveTitle').textContent = t(lang, 'saveSection')
 $('fillAll').textContent = t(lang, 'fillAllChecked')
-$('privLabel').textContent = t(lang, 'private')
-$('saveName').textContent = name || kindLabel(lang, key)
+
 
 function fail (e) {
   $('err').textContent = e?.code === 'denied'
@@ -61,6 +64,7 @@ function fail (e) {
 let ctx = { page: [], canSave: false }
 let records = []      // [{ id, name, when }] y al final, la entrada nueva
 let at = 0
+let detail = null     // lo que hay apuntado por guardar, campo a campo
 
 addEventListener('message', (e) => {
   if (e.data?._dotrino !== 'field-modal-context') return
@@ -89,6 +93,12 @@ function ago (ts) {
 async function start () {
   let hay = []
   try { hay = await ask('find', { url: ctx.url }) } catch (_) { hay = [] }
+  // Lo apuntado por guardar: TODOS los campos escritos del formulario, no solo el que se
+  // pulsó. El que se pulsó viene marcado y los demás no, que es lo mismo que hace el
+  // aviso de después de entrar.
+  if (ctx.canSave) {
+    try { detail = await ask('pending-detail') } catch (_) { detail = null }
+  }
 
   // Solo las entradas que pintan algo aquí: las que pueden rellenar alguno de los campos
   // de esta página, o —si se va a guardar— cualquiera del sitio.
@@ -109,6 +119,11 @@ function render () {
   const r = actual()
   $('recName').textContent = r.name
   $('recWhen').textContent = r.when || ''
+  // Con una sola opción no hay a dónde ir: las flechas se van. Apagadas y a la vista
+  // prometen algo que no existe — y la única que queda entonces es «una entrada nueva».
+  const solaUna = records.length <= 1
+  $('prev').hidden = solaUna
+  $('next').hidden = solaUna
   $('prev').disabled = at <= 0
   $('next').disabled = at >= records.length - 1
 
@@ -141,14 +156,72 @@ function render () {
     ul.append(li)
   }
 
-  $('saveBox').hidden = !ctx.canSave
-  $('save').hidden = !ctx.canSave
+  // Guardar: todos los campos escritos que hagan algo en ESTA entrada. El que se pulsó
+  // viene marcado; los demás, a un clic.
+  const filas = rowsToSave()
+  $('saveBox').hidden = !filas.length
+  $('save').hidden = !filas.length
+  const sl = $('saveList')
+  sl.textContent = ''
+  for (const row of filas) {
+    const li = document.createElement('li')
+    li.dataset.testid = 'field-modal-save-row'
+    li.dataset.field = row.key
+    const d = document.createElement('div')
+    d.className = 'row'
+
+    const box = document.createElement('input')
+    box.type = 'checkbox'
+    box.checked = row.key === key ? true : row.pick !== false
+    box.dataset.testid = `field-modal-pick-${row.key}`
+    box.addEventListener('change', () => { $('save').disabled = !marcadas().length })
+
+    const n = document.createElement('span')
+    n.className = 'name'
+    n.textContent = row.label || kindLabel(lang, row.key)
+    n.title = n.textContent
+
+    const priv = document.createElement('label')
+    priv.className = 'priv'
+    const pb = document.createElement('input')
+    pb.type = 'checkbox'
+    pb.dataset.testid = `field-modal-private-${row.key}`
+    // La contraseña es privada por naturaleza: no se pregunta.
+    if (row.secret) { pb.checked = true; pb.disabled = true }
+    const pt = document.createElement('span')
+    pt.textContent = t(lang, 'private')
+    priv.append(pb, pt)
+
+    d.append(box, n, priv)
+    li.append(d)
+    sl.append(li)
+  }
+  $('save').disabled = !marcadas().length
   resize()
 }
 
+/** Lo que se escribiría en la entrada elegida: lo apuntado, menos lo que ya está igual. */
+function rowsToSave () {
+  if (!detail?.has) return []
+  const target = actual().id
+  const diff = target ? detail.diffs?.[target] : null
+  return (detail.typed || []).filter((f) => {
+    if (!target) return true          // entrada nueva: todo es nuevo
+    const d = diff?.find(x => x.key === f.key)
+    return !d || d.status !== 'same'
+  })
+}
+
+const marcadas = () => [...document.querySelectorAll('#saveList input[type=checkbox]')]
+  .filter(b => b.checked && b.dataset.testid.startsWith('field-modal-pick-'))
+  .map(b => b.dataset.testid.replace('field-modal-pick-', ''))
+
+const privadas = () => [...document.querySelectorAll('#saveList input[type=checkbox]')]
+  .filter(b => b.checked && b.dataset.testid.startsWith('field-modal-private-'))
+  .map(b => b.dataset.testid.replace('field-modal-private-', ''))
+
 $('prev').onclick = () => { if (at > 0) { at--; render() } }
 $('next').onclick = () => { if (at < records.length - 1) { at++; render() } }
-$('close').onclick = close
 
 $('fillAll').onclick = () => {
   const marcados = [...document.querySelectorAll('#fillList input[type=checkbox]')]
@@ -189,13 +262,16 @@ async function fill (keys) {
 }
 
 $('save').onclick = async () => {
+  const pick = marcadas()
+  if (!pick.length) return
+  const priv = privadas().filter(k => pick.includes(k))
   for (const b of document.querySelectorAll('button')) b.disabled = true
   try {
     const r = actual()
     await ask('save-pending', {
       ...(r.id ? { id: r.id } : {}),
-      pick: [key],
-      ...($('private').checked ? { privateKeys: [key] } : {}),
+      pick,
+      ...(priv.length ? { privateKeys: priv } : {}),
     })
     post({ op: 'saved-field-modal' })
     close()

@@ -175,10 +175,22 @@ const keyOf = (f) => (!f.kind && !f.free)
   ? 'login'
   : (cache.detect ? cache.detect.fieldKey({ kind: f.kind, label: f.label }) : 'other')
 
-/** El nombre del campo tal como se le enseña al usuario. */
+/**
+ * El nombre del campo, que es **la etiqueta con la que se va a guardar**.
+ *
+ * Nada de «este campo»: lo que el modal enseña tiene que ser exactamente lo que quedará
+ * escrito en la entrada, o el usuario está aceptando una cosa distinta de la que ve.
+ */
 function nameOf (field) {
-  if (field.kind) return cache.i18n ? cache.i18n.kindLabel(lang, field.kind) : field.kind
-  return field.label || t('otherField')
+  const kl = (k) => cache.i18n ? cache.i18n.kindLabel(lang, k) : k
+  if (!field.kind && !field.free) {
+    // Un acceso: al pulsar la contraseña se guarda la credencial entera; al pulsar el
+    // usuario, solo él. El nombre dice cuál de las dos cosas.
+    return field.el === field.form?.password ? t('credential') : kl('username')
+  }
+  if (field.kind) return kl(field.kind)
+  // Un campo libre sin etiqueta ninguna se guarda como «otro dato», y eso es lo que dice.
+  return field.label || kl('other')
 }
 
 /**
@@ -483,6 +495,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   return false
 })
+
+// El modal se cierra al pulsar fuera, como cualquier menú: es de un campo, y en cuanto
+// tocas otra cosa ya no habla de lo que estás mirando. Pulsar DENTRO no llega hasta aquí
+// —es un iframe, y sus clics se quedan en él—, así que basta con mirar los de la página.
+addEventListener('mousedown', async (e) => {
+  const { ui } = cache
+  if (!ui?.fieldModalOpen?.()) return
+  // El anfitrión de nuestra UI no es «fuera»: ahí viven el marcador y el propio modal.
+  if (e.target?.id === ui.HOST_ID) return
+  ui.closeFieldModal()
+  abierto = null
+}, true)
+
+// Y con Escape, que es lo que hace todo el mundo antes de buscar el botón de cerrar.
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return
+  const { ui } = cache
+  if (!ui?.fieldModalOpen?.()) return
+  ui.closeFieldModal()
+  abierto = null
+}, true)
 
 // Las SPA remontan el formulario después de cargar; sin esto el gestor funciona en la
 // primera visita y deja de funcionar al navegar dentro del sitio.

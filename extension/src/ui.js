@@ -8,7 +8,7 @@
 // Nada de `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
 const BRAND = '#00658c'
-const HOST_ID = 'dotrino-passmanager-ui'
+export const HOST_ID = 'dotrino-passmanager-ui'
 
 /**
  * DOS medidas, y son distintas a propósito:
@@ -418,6 +418,10 @@ export function closeFieldModal () {
 
 export function fieldModalWindow () {
   return fieldModal?.contentWindow || null
+}
+
+export function fieldModalOpen () {
+  return !!fieldModal
 }
 
 export function sizeFieldModal (h) {

@@ -52,13 +52,10 @@
     width: 100%; margin-top: 6px; padding: 7px;
     background: none; color: inherit; border: 1px solid rgba(255,255,255,.22);
   }
-  /* En fila, y el de guardar crece. Cuando no hay nada que guardar se queda solo
-     «Cerrar», y entonces ocupa el ancho él: con una rejilla de dos columnas quedaba
-     descolgado a la izquierda. */
+  /* No hay botón de cerrar: el modal se cierra al pulsar fuera, como cualquier menú.
+     Un botón que solo cierra ocupa el sitio de lo que sí hace algo. */
   .buttons { display: flex; gap: 8px; margin-top: 10px; }
   .buttons > button { flex: 1; }
-  .buttons > button.ghost { flex: 0 0 auto; }
-  .buttons > button.ghost:only-child { flex: 1; }
   .primary { border: 0; padding: 8px; background: #00658c; color: #fff; font-weight: 600; }
   .ghost { border: 1px solid rgba(255,255,255,.22); background: none; color: inherit; padding: 8px 12px; }
   button:disabled { opacity: .45; cursor: default; }
@@ -84,17 +81,12 @@
   <div id="saveBox" hidden>
     <hr>
     <h2 id="saveTitle"></h2>
-    <div class="row">
-      <span></span>
-      <span class="name" id="saveName"></span>
-      <label class="priv"><input type="checkbox" id="private" data-testid="field-modal-private"><span id="privLabel"></span></label>
-    </div>
+    <ul id="saveList"></ul>
   </div>
 
   <p class="err" id="err" hidden></p>
   <div class="buttons">
     <button class="primary" id="save" data-testid="field-modal-save"></button>
-    <button class="ghost" id="close" data-testid="field-modal-close"></button>
   </div>
   <script type="module" src="field-modal.js"></script>
 </body>

@@ -609,16 +609,21 @@ async function pendingDetail ({ id, reveal } = {}) {
   // el aviso la enseña tapada.
   // `pick`: si viene marcado de entrada. Lo decide `focus` — lo que el usuario pulsó.
   const marca = (key) => !p.focus?.length || p.focus.includes(key)
+  const lang = pickLang()
   const typed = []
-  if (p.username) typed.push({ key: 'username', value: p.username, secret: false, pick: marca('username') })
-  if (p.secret) typed.push({ key: 'secret', value: null, secret: true, pick: marca('secret') })
+  if (p.username) {
+    typed.push({ key: 'username', label: KIND_LABEL[lang]?.username, value: p.username, secret: false, pick: marca('username') })
+  }
+  if (p.secret) {
+    typed.push({ key: 'secret', label: KIND_LABEL[lang]?.secret, value: null, secret: true, pick: marca('secret') })
+  }
   for (const f of p.fields || []) {
     const key = fieldKey(f)
     typed.push({
       key,
-      // Los campos con clase los nombra el aviso en su idioma; los libres se llaman como
-      // los llama el sitio, que es todo lo que se sabe de ellos.
-      ...(f.kind ? {} : { label: f.label || '' }),
+      // La etiqueta con la que se va a GUARDAR, no una descripción: lo que se enseña
+      // tiene que ser lo que quede escrito en la entrada.
+      label: f.label || KIND_LABEL[lang]?.[f.kind || key] || key,
       value: f.value,
       secret: false,
       pick: marca(key),
@@ -666,7 +671,10 @@ async function savePending ({ id, pick, privateKeys } = {}) {
     const i = fields.findIndex(x => fieldKey(x) === key)
     // La etiqueta que ya tenía manda: es la identidad del campo libre, y cambiarla sería
     // crear otro. Si no había, la del sitio; y si el campo tiene clase, su nombre.
-    const label = (i >= 0 && fields[i].label) || f.label || KIND_LABEL[lang]?.[f.kind] || f.kind || ''
+    // La misma que enseña el modal: la que ya tenía, la del sitio, o el nombre de su
+    // clase. Nunca vacía — un campo sin nombre no se puede volver a encontrar.
+    const label = (i >= 0 && fields[i].label) || f.label ||
+      KIND_LABEL[lang]?.[f.kind || key] || f.kind || key
     const fila = {
       label,
       value: f.value,

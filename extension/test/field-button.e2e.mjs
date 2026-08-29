@@ -40,7 +40,8 @@ const que = async (campos) => (await pedir('offers', { url: page.url(), fields: 
 async function modal () {
   for (let i = 0; i < 40; i++) {
     const f = page.frames().find((x) => x.url().includes('field-modal.html'))
-    if (f) { await f.locator('[data-testid=field-modal-close]').waitFor({ timeout: 8000 }); return f }
+    // Pintado = ya sabe de qué entrada habla. No hay botón de cerrar por el que esperar.
+    if (f) { await f.locator('#recName').filter({ hasNotText: /^$/ }).waitFor({ timeout: 8000 }); return f }
     await page.waitForTimeout(200)
   }
   return null
@@ -60,6 +61,22 @@ try {
   console.log('\nla tabla, con la bóveda vacía')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(1000)
+  // Sin nada guardado, el modal de un campo escrito no tiene entre qué elegir.
+  await page.fill('input[name=user]', 'ana@ejemplo.com')
+  await page.waitForTimeout(800)
+  const cajaUser = await page.locator('input[name=user]').boundingBox()
+  await page.mouse.click(cajaUser.x + cajaUser.width - 10, cajaUser.y + 8)
+  const m0 = await modal()
+  ok(!!m0, 'el modal sale con solo el usuario escrito')
+  if (m0) {
+    ok((await m0.locator('#recName').textContent()).match(/nueva|new/i), 'y dice «una entrada nueva»')
+    ok(!(await m0.locator('[data-testid=field-modal-next]').isVisible()), 'sin flechas: no hay a dónde ir')
+    await page.mouse.click(200, 120)     // fuera: así se cierra
+    await page.waitForTimeout(400)
+    ok(!page.frames().find((x) => x.url().includes('field-modal.html')), 'y se cierra al pulsar fuera')
+  }
+  await page.fill('input[name=user]', '')
+  await page.waitForTimeout(600)
   let r = await que([{ id: 0, key: 'login', value: '', username: '', secret: '' }])
   ok(!r[0].fill && !r[0].save, 'fila 1 · vacío y sin nada guardado → sin botón')
 
@@ -153,13 +170,38 @@ try {
   const m2 = await modal()
   ok(!!m2, 'el modal sale en un campo con algo escrito')
   if (m2) {
+    // Hay una entrada de datos del sitio, así que la nueva es la ÚLTIMA de la cabecera y
+    // las flechas están a la vista.
+    ok(await m2.locator('[data-testid=field-modal-next]').isVisible(), 'con flechas, que hay más de una')
+    // Hasta el final de la lista: la entrada nueva es la última, nunca la primera.
+    const next = m2.locator('[data-testid=field-modal-next]')
+    for (let i = 0; i < 8 && !(await next.isDisabled()); i++) await next.click()
+    ok((await m2.locator('#recName').textContent()).match(/nueva|new/i),
+      'y la entrada nueva es la última: ' + (await m2.locator('#recName').textContent()))
+    const prev = m2.locator('[data-testid=field-modal-prev]')
+    for (let i = 0; i < 8 && !(await prev.isDisabled()); i++) await prev.click()
     ok(!(await m2.locator('#saveBox').isHidden()), 'con su sección de guardar')
-    ok((await m2.locator('#saveName').textContent()) === 'City' ||
-      (await m2.locator('#saveName').textContent()) === 'Ciudad', 'que dice qué campo es')
-    await m2.locator('[data-testid=field-modal-private]').check()
+    const fila = m2.locator('[data-testid=field-modal-save-row][data-field=city]')
+    const nombre = await fila.locator('.name').textContent()
+    ok(nombre === 'City' || nombre === 'Ciudad', 'con la etiqueta con la que se guardará: ' + nombre)
+    ok(await m2.locator('[data-testid=field-modal-pick-city]').isChecked(), 'y ese campo marcado')
+    await m2.locator('[data-testid=field-modal-private-city]').check()
     await m2.locator('[data-testid=field-modal-save]').click()
     await page.waitForTimeout(1500)
   }
+  console.log('\ny se cierra al pulsar fuera')
+  await page.fill('input[name=member]', 'SOC-1')
+  await page.waitForTimeout(700)
+  const cajaSocio = await page.locator('input[name=member]').boundingBox()
+  await page.mouse.click(cajaSocio.x + cajaSocio.width - 10, cajaSocio.y + 8)
+  const m3 = await modal()
+  ok(!!m3, 'el modal está abierto')
+  const suNombre = await m3.locator('[data-testid=field-modal-save-row][data-field="label:Número de socio"] .name').textContent()
+  ok(suNombre === 'Número de socio', 'y dice la etiqueta con la que se va a guardar: ' + suNombre)
+  await page.mouse.click(200, 120)   // en cualquier sitio de la página
+  await page.waitForTimeout(500)
+  ok(!page.frames().find((x) => x.url().includes('field-modal.html')), 'y se cierra al pulsar fuera')
+
   const guardadas = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
     .filter((e) => e.type === 'data')
   const abierta = guardadas[0] ? (await pedir('get', { id: guardadas[0].id }))?.result : null
