@@ -47,6 +47,37 @@ async function modal () {
   return null
 }
 
+/**
+ * ABRIR una entrada desde la pantalla de la extensión, diciendo que sí.
+ *
+ * La bóveda pide autorización antes de soltar nada (DISENO §3.3.2) y la pregunta se
+ * dibuja donde el usuario está mirando: hay que traer la pantalla de la extensión al
+ * frente para que le toque a ella y no se abra la ventana suelta.
+ */
+async function abrir (entryId) {
+  await ext.bringToFront()
+  await ext.waitForTimeout(250)
+  const p = pedir('get', { id: entryId })
+  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 10000 }) } catch (_) {}
+  const r = await p
+  await page.bringToFront()
+  await page.waitForTimeout(150)
+  return r
+}
+
+/**
+ * DECIR QUE SÍ. La bóveda de la extensión pide autorización antes de soltar nada
+ * (DISENO §3.3.1), y la pregunta se dibuja en la misma pantalla que la pidió. Sin esto,
+ * rellenar y reemplazar se quedan a medias — que es exactamente lo que tiene que pasar.
+ */
+async function autorizar (f, ms = 6000) {
+  const si = f.locator('[data-testid=approval-yes]')
+  try { await si.waitFor({ state: 'visible', timeout: ms }) } catch (_) { return false }
+  await si.click()
+  await f.page().waitForTimeout(400)
+  return true
+}
+
 /** El aviso de guardar, ya pintado. */
 async function aviso () {
   for (let i = 0; i < 40; i++) {
@@ -92,7 +123,11 @@ try {
   await page.fill('input[name=password]', 'clave-buena')
   await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   let f = await aviso()
-  if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1200) }
+  if (f) {
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f, 2500)
+    await page.waitForTimeout(1200)
+  }
 
   console.log('\nla tabla, con una credencial guardada')
   await page.goto(`${SITE}/login.html`)
@@ -101,8 +136,11 @@ try {
   ok(r[0].fill && !r[0].save, 'fila 5 · vacío con algo guardado → rellenar')
   ok(r[0].ids.length === 1, 'y dice de qué entrada sale')
 
+  // La fila 6 («escrito igual a lo guardado → sin botón») se retiró el 2026-08-29: saber
+  // que es igual exige abrir la entrada, abrir pide autorización, y hacerlo a espaldas del
+  // usuario era un oráculo —la página propone un valor y mira si el botón desaparece—.
   r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
-  ok(!r[0].fill && !r[0].save, 'fila 6 · escrito IGUAL a lo guardado → sin botón')
+  ok(!r[0].fill && r[0].save, 'fila 6 · escrito igual a lo guardado → el botón sale de más, no de menos')
 
   r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'otra' }])
   ok(!r[0].fill && r[0].save, 'fila 7 · escrito distinto → guardar')
@@ -132,6 +170,7 @@ try {
     for (const c of await f.locator('[data-testid=save-prompt-field] input[type=checkbox]').all()) await c.check()
     await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f, 2500)
     await page.waitForTimeout(1500)
   }
 
@@ -150,6 +189,7 @@ try {
   ok(await filas.count() >= 2, 'y la lista de lo que puede rellenar (' + (await filas.count()) + ')')
   ok(await m.locator('[data-testid=field-modal-check-email]').isChecked(), 'con las casillas marcadas')
   await m.locator('[data-testid=field-modal-fill-all]').click()
+  ok(await autorizar(m), 'y la bóveda pide permiso antes de soltar nada')
   await page.waitForTimeout(1200)
   const puesto = await page.evaluate(() =>
     Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
@@ -158,9 +198,10 @@ try {
   ok(puesto.member === 'SOC-4471', 'incluido el que el gestor no reconoce')
   ok(puesto.city === '', 'y no se inventa el que no estaba guardado')
 
-  // Y con todo puesto, ya no queda nada que ofrecer: es la fila 6.
+  // Y con todo puesto ya no se ofrece rellenar —el campo tiene algo—, pero sí guardar:
+  // sin abrir la entrada no se sabe que es el mismo valor (fila 6, retirada).
   r = await que([{ id: 0, key: 'email', value: 'ana@datos.com' }])
-  ok(!r[0].fill && !r[0].save, 'después de rellenar, el botón desaparece')
+  ok(!r[0].fill && r[0].save, 'después de rellenar ya no se ofrece rellenar')
 
   console.log('\nguardar un campo desde su modal, y marcarlo privado')
   await page.goto(`${SITE}/profile.html`)
@@ -199,6 +240,9 @@ try {
     ok(/todos|all/i.test(abajo), 'y el de abajo, todos: ' + abajo)
     await m2.locator('[data-testid=field-modal-private-city]').check()
     await m2.locator('[data-testid=field-modal-save-city]').click()
+    // Guardar en una entrada que ya existe la lee para no perderle lo que no se toca, y
+    // leerla también pasa por la puerta.
+    await autorizar(m2)
     await page.waitForTimeout(1500)
   }
   console.log('\ny cuando ya existe, el botón dice reemplazar')
@@ -233,6 +277,7 @@ try {
     await mn.locator('[data-testid=field-modal-target-new]').check()
     await page.waitForTimeout(300)
     await mn.locator('[data-testid=field-modal-save-city]').click()
+    await autorizar(mn)
     await page.waitForTimeout(1500)
     await page.mouse.click(200, 120)
     await page.waitForTimeout(400)
@@ -259,6 +304,7 @@ try {
       const nueva = p2.locator('[data-testid=save-prompt-target-new]')
       if (await nueva.count()) { await nueva.check(); await page.waitForTimeout(300) }
       await p2.locator('[data-testid=save-prompt-save]').click()
+      await autorizar(p2, 2500)
       await page.waitForTimeout(1000)
     }
   }
@@ -280,6 +326,7 @@ try {
     ok(nombres.some(n => /contraseña|password/i.test(n)), 'y la de la contraseña, aparte')
     // Y cada una rellena lo suyo.
     await mm.locator('[data-testid=field-modal-fill-secret]').click()
+    await autorizar(mm)
     await page.waitForTimeout(900)
     const soloClave = await page.evaluate(() =>
       Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
@@ -315,6 +362,7 @@ try {
     ok(await mo.locator('[data-testid=field-modal-fill-row]').count() >= 1,
       'ofrece rellenar con ella aunque sea de otro sitio')
     await mo.locator('[data-testid=field-modal-fill-all]').click()
+    await autorizar(mo)
     await page.waitForTimeout(1200)
   }
   const puesto2 = await page.evaluate(() =>
@@ -342,12 +390,22 @@ try {
     .filter((e) => e.type === 'data')
   const ciudades = []
   for (const g of guardadas) {
-    const abierta = (await pedir('get', { id: g.id }))?.result
+    const abierta = (await abrir(g.id))?.result
     const c = JSON.parse(abierta?.fields || '[]').find((x) => x.kind === 'city')
     if (c) ciudades.push(c)
   }
   ok(ciudades.some((c) => c.value === 'Quito'), 'el campo queda guardado')
   ok(ciudades.find((c) => c.value === 'Quito')?.private === true, 'y marcado como privado')
+
+  // La pregunta cuando NO hay ninguna pantalla de la extensión delante (un sitio pidiendo
+  // una passkey) sale en una ventana propia, y eso **no se puede simular aquí**: en
+  // `--headless=new` todas las pestañas dicen `visible` y `hasFocus` a la vez, así que la
+  // pregunta siempre encuentra a esta página de la extensión y la ventana no llega a
+  // abrirse. Comprobado a mano que `chrome.windows.create` abre `src/approve.html`; lo
+  // que esa ventana dibuja y cómo contesta es el MISMO módulo que aloja el popup y los
+  // modales, y eso sí lo cubre `abrir()` en todo este archivo. Sin cubrir quedan dos
+  // líneas suyas: anunciarse como ventana y cerrarse al contestar.
+
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

@@ -13,6 +13,7 @@
 // contraseña, tapada.
 
 import { t, pickLang, kindLabel } from './i18n.js'
+import { hostApprovals } from './approval.js'
 
 const lang = pickLang()
 const p = new URLSearchParams(location.search)
@@ -50,6 +51,11 @@ const resize = () => requestAnimationFrame(() => {
   post({ op: 'size-save-prompt', h: Math.ceil(document.documentElement.getBoundingClientRect().height) + 2 })
 })
 
+// Ver lo que ya estaba guardado («esto cambia, antes decía…») lo saca de la bóveda, y la
+// bóveda pregunta antes (§3.3.1). La pregunta se dibuja dentro de este mismo iframe: es
+// del origen de la extensión, y así el aviso no pierde lo que el usuario ya marcó.
+hostApprovals({ resize })
+
 /** «hace 3 días». Para distinguir dos entradas que por fuera se ven iguales. */
 function ago (ts) {
   if (!ts) return ''
@@ -64,10 +70,12 @@ function ago (ts) {
 function fail (e) {
   $('err').textContent = e?.code === 'unknown-op'
     ? t(lang, 'staleWorker')
-    : e?.code === 'denied'
-      ? t(lang, 'denied')
-      : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink')
-          : (e?.message || String(e))
+    : e?.code === 'not-approved'
+      ? t(lang, 'askDenied')
+      : e?.code === 'denied'
+        ? t(lang, 'denied')
+        : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink')
+            : (e?.message || String(e))
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
   resize()
@@ -85,8 +93,9 @@ function fail (e) {
 //
 // La frontera de lo privado está en el medio: la LISTA de candidatas es pública (es lo
 // que se ve sin la llave), pero saber si un dato *cambia* obliga a abrir lo guardado.
-// Con la bóveda propia eso no cuesta nada; con una conectada cuesta una aprobación, y
-// entonces no se hace solo — se ofrece «Ver qué cambia».
+// Eso cuesta una autorización en CUALQUIER bóveda desde el §3.3.2, así que no se hace
+// solo en ninguna: se ofrece «Ver qué cambia». Lo que sí sale de balde es si el dato
+// **existe** en la entrada elegida, que es lo que separa «nuevo» de «cambia».
 
 let detail = null
 let target = ''        // '' = una entrada nueva
@@ -95,12 +104,20 @@ let picked = new Set()
 /** Las filas de lo que se escribiría en el destino elegido. */
 function rowsFor (id) {
   const diff = id ? detail.diffs?.[id] : null
+  // Los NOMBRES de lo que lleva la entrada elegida vienen en la vista pública, sin abrir
+  // nada (§4.0.2): con eso ya se sabe si un dato **existe** ahí, que es lo que separa
+  // «nuevo» de «cambia». Lo que sigue sin saberse es si vale lo mismo — para eso hay que
+  // abrirla, y eso es «Ver qué cambia».
+  const dentro = id ? detail.candidates?.find((c) => c.id === id) : null
+  const keys = Array.isArray(dentro?.fieldKeys) ? dentro.fieldKeys : null
   return detail.typed
     .map((f) => {
       const d = diff?.find((x) => x.key === f.key)
-      // Sin destino, todo es nuevo. Con destino y sin diff (no se ha abierto lo
-      // guardado), no se sabe: no se dice nada en vez de decir algo falso.
-      const status = !id ? 'new' : (d ? d.status : 'unknown')
+      // Sin destino, todo es nuevo. Con destino y sin diff, lo que digan los nombres; y
+      // si tampoco hay nombres, no se sabe: no se dice nada en vez de decir algo falso.
+      const status = !id
+        ? 'new'
+        : d ? d.status : (keys ? (keys.includes(f.key) ? 'changed' : 'new') : 'unknown')
       return { ...f, status, before: d?.before || '' }
     })
     .filter((r) => r.status !== 'same')

@@ -8,6 +8,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fieldOffers, fieldKey } from '../src/detect.js'
+// La gemela de la librería: la bóveda la usa para decir QUÉ campos lleva una entrada.
+import { fieldKey as fieldKeyLib, entryFieldKeys } from '../../lib/src/fields.js'
 
 // La tabla del §4.1, fila por fila.
 const casos = [
@@ -55,4 +57,31 @@ test('la clave de un campo es su clase, y si no la tiene, su etiqueta', () => {
   assert.equal(fieldKey({ label: 'Número de socio' }), 'label:Número de socio')
   assert.equal(fieldKey({ label: '  ' }), 'other')
   assert.equal(fieldKey({}), 'other')
+})
+
+test('la clave del campo dice lo mismo en las dos puntas', () => {
+  // Una en la página y otra en la bóveda: si dijeran cosas distintas, cada guardado
+  // crearía un campo duplicado y el relleno nunca encontraría lo que hay guardado.
+  for (const f of [
+    { kind: 'email', label: 'Tu correo' },
+    { label: 'Número de socio' },
+    { label: '  ' },
+    {},
+  ]) assert.equal(fieldKey(f), fieldKeyLib(f), JSON.stringify(f))
+})
+
+test('los nombres de los campos salen, los valores no', () => {
+  const keys = entryFieldKeys({
+    username: 'ana@ejemplo.com',
+    secret: 'clave-buena',
+    fields: JSON.stringify([
+      { label: 'Número de socio', value: 'SOC-4471' },
+      { kind: 'city', label: 'Ciudad', value: 'Quito' },
+      { label: 'Vacío', value: '' },
+    ]),
+  })
+  assert.deepEqual(keys, ['username', 'secret', 'label:Número de socio', 'city'])
+  // Lo que NO puede pasar: que un valor se cuele en la vista pública.
+  assert.equal(JSON.stringify(keys).includes('SOC-4471'), false)
+  assert.equal(JSON.stringify(keys).includes('clave-buena'), false)
 })

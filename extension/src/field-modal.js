@@ -18,6 +18,7 @@
 // service worker tenga apuntado.
 
 import { t, pickLang, kindLabel } from './i18n.js'
+import { hostApprovals } from './approval.js'
 
 const lang = pickLang()
 const p = new URLSearchParams(location.search)
@@ -40,6 +41,11 @@ const ask = (op, payload) => new Promise((resolve, reject) => {
   })
 })
 
+// Rellenar un campo saca algo de la bóveda, y la bóveda pregunta antes (§3.3.1). Se
+// dibuja DENTRO de este iframe a propósito: una ventana aparte quitaría el foco, el modal
+// se cerraría solo (se cierra al pulsar fuera) y el relleno se perdería a medio camino.
+hostApprovals({ resize })
+
 document.documentElement.lang = lang
 $('save').textContent = t(lang, 'save')
 $('whereTitle').textContent = t(lang, 'saveWhere')
@@ -51,9 +57,11 @@ $('fillAll').textContent = t(lang, 'fillAllChecked')
 function fail (e) {
   $('err').textContent = e?.code === 'unknown-op'
     ? t(lang, 'staleWorker')
-    : e?.code === 'denied'
-      ? t(lang, 'denied')
-      : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink') : (e?.message || String(e))
+    : e?.code === 'not-approved'
+      ? t(lang, 'askDenied')
+      : e?.code === 'denied'
+        ? t(lang, 'denied')
+        : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink') : (e?.message || String(e))
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
   resize()
@@ -162,6 +170,7 @@ function renderTargets () {
 function puedeRellenar () {
   const r = actual()
   if (!r.id) return []
+  if (r.keys) return ctx.page.filter(f => r.keys.includes(f.key))
   return r.fuera ? ctx.page : ctx.page.filter(f => (f.ids || []).includes(r.id))
 }
 
@@ -208,9 +217,13 @@ async function loadRecords (elegir) {
       id: e.id,
       name: e.hint || e.title || t(lang, 'noUser'),
       when: ago(e.updatedAt),
+      // LOS NOMBRES de lo que lleva dentro, sin un solo valor: la bóveda los manda en la
+      // vista pública (§4.0.2), así que la lista es exacta sin abrir nada ni pedir
+      // autorización — también para la que se trae de otro dominio.
+      keys: Array.isArray(e.fieldKeys) ? e.fieldKeys : null,
       // De fuera: la que se trae BUSCANDO y no es de este sitio — la del dominio que
-      // cambió. Con ella se ofrece rellenar todo, porque averiguar qué lleva dentro
-      // exigiría abrirla solo para pintar la lista.
+      // cambió. Sin nombres no hay forma de saber qué lleva, así que con ella se ofrece
+      // rellenar todo; es el respaldo para una bóveda que aún no los manda.
       //
       // Ojo con lo que NO es: una entrada de este sitio que no puede rellenar nada (una
       // credencial en un formulario de datos, por ejemplo) no es «de fuera», es una que
@@ -323,16 +336,19 @@ function render () {
  */
 function rowsToSave () {
   if (!detail?.has) return []
-  const target = actual().id
+  const r = actual()
+  const target = r.id
   const diff = target ? detail.diffs?.[target] : null
   const out = []
   for (const f of detail.typed || []) {
     if (!target) { out.push({ ...f, status: 'new' }); continue }
     const d = diff?.find(x => x.key === f.key)
     if (d?.status === 'same') continue
-    // Sin diff (bóveda conectada, sin abrir nada) no se sabe: se dice «guardar», que es
-    // lo prudente — prometer «reemplazar» lo que quizá no existe es peor.
-    out.push({ ...f, status: d?.status === 'changed' ? 'changed' : 'new' })
+    // Con los nombres de los campos ya se sabe si ese dato EXISTE en la entrada, que es
+    // lo que separa «guardar» de «reemplazar». Lo que no se sabe sin abrirla es si vale
+    // lo mismo; ahí se dice «reemplazar» y reemplazar por lo mismo no rompe nada.
+    const existe = r.keys ? r.keys.includes(f.key) : false
+    out.push({ ...f, status: (d?.status === 'changed' || existe) ? 'changed' : 'new' })
   }
   return out
 }

@@ -8,6 +8,13 @@
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
 import { pickLang, t } from './i18n.js'
+// La bóveda puede pedir autorización mientras el popup está abierto (una contraseña que
+// se copia o se rellena desde aquí): la pregunta sale AQUÍ, no en una ventana suelta, que
+// cerraría el popup y con él lo que estabas haciendo.
+import { hostApprovals } from './approval.js'
+
+hostApprovals()
+
 
 let lang = pickLang()
 const view = document.getElementById('view')
@@ -39,6 +46,9 @@ function humanError (e) {
   // worker que le contesta sigue siendo el de antes, sin las operaciones que le pide. El
   // código a secas («unknown-op») no le dice nada a nadie.
   if (e.code === 'unknown-op') return t(lang, 'staleWorker')
+  // «No lo autoricé» y «esta bóveda no me deja pedir» son dos cosas distintas: una se
+  // arregla volviendo a pulsar, la otra dando permiso al aparato (§2.0).
+  if (e.code === 'not-approved') return t(lang, 'askDenied')
   if (e.code === 'denied') return t(lang, 'denied')
   if (e.code === 'approval-timeout') return t(lang, 'noAnswer')
   if (e.code === 'unreachable' || e.code === 'no-link') return t(lang, 'noLink')

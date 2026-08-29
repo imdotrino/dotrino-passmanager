@@ -35,6 +35,36 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('   [error de página]', e.message))
 
 /**
+ * DECIR QUE SÍ en el aviso. Guardar sobre una entrada que ya existe la lee antes para no
+ * perderle lo que el formulario no toca, y leerla pasa por la puerta (DISENO §3.3.2).
+ */
+async function autorizar (f, ms = 3000) {
+  const si = f.locator('[data-testid=approval-yes]')
+  try { await si.waitFor({ state: 'visible', timeout: ms }) } catch (_) { return false }
+  await si.click()
+  await page.waitForTimeout(400)
+  return true
+}
+
+/**
+ * ABRIR una entrada desde la pantalla de la extensión, diciendo que sí.
+ *
+ * La bóveda pide autorización antes de soltar nada (DISENO §3.3.2) y la pregunta se
+ * dibuja donde el usuario está mirando: hay que traer la pantalla de la extensión al
+ * frente para que le toque a ella y no se abra la ventana suelta.
+ */
+async function abrir (entryId) {
+  await ext.bringToFront()
+  await ext.waitForTimeout(250)
+  const p = pedir('get', { id: entryId })
+  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 10000 }) } catch (_) {}
+  const r = await p
+  await page.bringToFront()
+  await page.waitForTimeout(150)
+  return r
+}
+
+/**
  * El aviso, YA PINTADO.
  *
  * Se espera a que haya una fila de campo, no a que exista el botón: el botón viene en el
@@ -64,7 +94,11 @@ try {
   let f = await aviso()
   ok(!!f, 'el aviso sale aunque no haya submit')
   if (f) ok((await f.locator('#who').textContent()).startsWith('ana@ejemplo.com'), 'con el usuario correcto')
-  if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
+  if (f) {
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
+    await page.waitForTimeout(1000)
+  }
 
   // --- caso 3: dos pasos ---
   console.log('\ncaso 3 · acceso en dos pasos')
@@ -79,7 +113,11 @@ try {
   ok(!!f, 'el aviso sale en el segundo paso')
   if (f) ok((await f.locator('#who').textContent()).startsWith('beto@ejemplo.com'),
     'lleva el usuario del PRIMER paso: ' + (f ? await f.locator('#who').textContent() : '—'))
-  if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
+  if (f) {
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
+    await page.waitForTimeout(1000)
+  }
 
   // --- caso 6: registro con confirmación ---
   console.log('\ncaso 6 · registro con confirmación')
@@ -91,10 +129,14 @@ try {
   await Promise.all([page.waitForURL(/inside/), page.click('button[type=submit]')])
   f = await aviso()
   ok(!!f, 'el aviso sale al registrarse')
-  if (f) { await f.locator('[data-testid=save-prompt-save]').click(); await page.waitForTimeout(1000) }
+  if (f) {
+    await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
+    await page.waitForTimeout(1000)
+  }
   const reg = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
   const suya = reg.find((e) => e.hint === 'caro@ejemplo.com')
-  const full = suya ? (await pedir('get', { id: suya.id }))?.result : null
+  const full = suya ? (await abrir(suya.id))?.result : null
   ok(full?.secret === 'la-buena', 'guarda la PRIMERA contraseña, no la de confirmar')
 
   // --- caso 4: la misma cuenta con otra contraseña ---
@@ -123,12 +165,13 @@ try {
     const boton = await f.locator('[data-testid=save-prompt-save]').textContent()
     ok(/actualizar|update/i.test(boton), 'y el botón dice actualizar: ' + boton)
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const tras = (await pedir('find', { url: `${SITE}/inside.html` }))?.result || []
   const deAna = tras.filter((e) => e.hint === 'ana@ejemplo.com')
   ok(deAna.length === 1, 'actualizar NO duplica la cuenta (hay ' + deAna.length + ')')
-  const anaFull = deAna[0] ? (await pedir('get', { id: deAna[0].id }))?.result : null
+  const anaFull = deAna[0] ? (await abrir(deAna[0].id))?.result : null
   ok(anaFull?.secret === 'clave-nueva', 'y se quedó la contraseña nueva')
 
   // --- caso 5: dos contraseñas del mismo correo, y elegir cuál se pisa ---
@@ -152,6 +195,7 @@ try {
     // no ve ese movimiento, así que sin esta pausa el clic puede caer en otro botón.
     await page.waitForTimeout(400)
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   let deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
@@ -178,13 +222,14 @@ try {
     await f.locator(`[data-testid=save-prompt-target-${otraId}]`).check()
     await page.waitForTimeout(400)
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   deAna2 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
     .filter((e) => e.hint === 'ana@ejemplo.com')
   ok(deAna2.length === 2, 'sigue habiendo dos: se reemplazó, no se sumó')
-  const laElegida = (await pedir('get', { id: otraId }))?.result
-  const laOtra = (await pedir('get', { id: anaId }))?.result
+  const laElegida = (await abrir(otraId))?.result
+  const laOtra = (await abrir(anaId))?.result
   ok(laElegida?.secret === 'clave-tercera', 'la elegida se actualizó')
   ok(laOtra?.secret === 'clave-nueva', 'y la otra se quedó como estaba: ' + laOtra?.secret)
 
@@ -213,12 +258,13 @@ try {
     await f.locator('[data-testid=save-prompt-pick-city]').uncheck()
     await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const guardados = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
     .filter((e) => e.type === 'data')
   ok(guardados.length === 1, 'queda UNA entrada de datos (hay ' + guardados.length + ')')
-  const abierta = guardados[0] ? (await pedir('get', { id: guardados[0].id }))?.result : null
+  const abierta = guardados[0] ? (await abrir(guardados[0].id))?.result : null
   const campos = JSON.parse(abierta?.fields || '[]')
   ok(campos.length === 5, 'guarda solo lo marcado (5 de 6): ' + campos.length)
   ok(!campos.some((c) => c.kind === 'city'), 'la ciudad desmarcada NO entra')
@@ -235,10 +281,22 @@ try {
   f = await aviso()
   ok(!!f, 'el aviso vuelve a salir')
   if (f) {
+    // Sin abrir la entrada solo se sabe qué datos EXISTEN en ella, no cuáles valen lo
+    // mismo: salen los cinco escritos, los cinco marcados como que cambian.
     const filas = f.locator('[data-testid=save-prompt-field]')
-    ok(await filas.count() === 1, 'solo sale lo que cambia (hay ' + (await filas.count()) + ')')
+    ok(await filas.count() === 5, 'salen los datos escritos (hay ' + (await filas.count()) + ')')
+    const tel = f.locator('[data-testid="save-prompt-field"][data-field="tel"]')
+    ok(await tel.count() === 1, 'entre ellos el teléfono')
+    ok(/cambia|change/i.test(await tel.locator('.tag').textContent()), 'marcado como «cambia»')
+
+    // Y para saber cuál cambia DE VERDAD hay que abrirla, que es una autorización: eso
+    // es «Ver qué cambia» (§3.3.2). Al pedirlo, la lista se queda en el que cambió.
+    ok(await f.locator('[data-testid=save-prompt-reveal]').isVisible(), 'se ofrece ver qué cambia')
+    await f.locator('[data-testid=save-prompt-reveal]').click()
+    ok(await autorizar(f), 'y pedirlo pide autorización')
+    await page.waitForTimeout(600)
+    ok(await filas.count() === 1, 'con eso, solo queda lo que cambia (hay ' + (await filas.count()) + ')')
     ok(await filas.first().getAttribute('data-field') === 'tel', 'y es el teléfono')
-    ok(/cambia|change/i.test(await filas.first().locator('.tag').textContent()), 'marcado como «cambia»')
     ok((await filas.first().locator('.old').textContent()) === '0999111222', 'con el número anterior tachado')
     const destinos = f.locator('[data-testid=save-prompt-target]')
     ok(await destinos.count() === 2, 'ofrece los datos que ya había, y crear otra entrada')
@@ -246,12 +304,13 @@ try {
     ok(await f.locator(`[data-testid=save-prompt-target-${datosId}]`).isChecked(),
       'con los de este sitio preseleccionados')
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const tras7 = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
     .filter((e) => e.type === 'data')
   ok(tras7.length === 1, 'actualizar NO duplica la entrada de datos (hay ' + tras7.length + ')')
-  const abierta7 = tras7[0] ? (await pedir('get', { id: tras7[0].id }))?.result : null
+  const abierta7 = tras7[0] ? (await abrir(tras7[0].id))?.result : null
   const campos7 = JSON.parse(abierta7?.fields || '[]')
   ok(campos7.find((c) => c.kind === 'tel')?.value === '0988000111', 'el teléfono nuevo entra')
   ok(campos7.find((c) => c.kind === 'email')?.value === 'ana@datos.com', 'y lo que no cambió sigue ahí')
@@ -283,11 +342,12 @@ try {
     await libre.locator('input[type=checkbox]').check()
     await page.waitForTimeout(300)
     await f.locator('[data-testid=save-prompt-save]').click()
+    await autorizar(f)
     await page.waitForTimeout(1200)
   }
   const conSocio = ((await pedir('find', { url: `${SITE}/inside.html` }))?.result || [])
     .filter((e) => e.type === 'data')
-  const abiertaSocio = conSocio[0] ? (await pedir('get', { id: conSocio[0].id }))?.result : null
+  const abiertaSocio = conSocio[0] ? (await abrir(conSocio[0].id))?.result : null
   const socio = JSON.parse(abiertaSocio?.fields || '[]').find((c) => c.label === 'Número de socio')
   ok(!!socio, 'y queda guardado por su etiqueta')
   ok(socio?.value === 'SOC-4471', 'con su valor: ' + socio?.value)

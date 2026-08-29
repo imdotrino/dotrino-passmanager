@@ -22,6 +22,8 @@
 import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { RemoteVault } from './vendor/passmanager/vault/remote.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
+import { GuardedVault } from './vendor/passmanager/vault/guard.js'
+import { ApprovalGate } from './vendor/passmanager/vault/approval.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
 import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
@@ -112,6 +114,151 @@ async function ownVault (id) {
   const v = new LocalVault(storeFor(id))
   v.unlock(await ownKey(id))
   return v
+}
+
+/**
+ * La propia CON LA PUERTA PUESTA, que es la única forma en que el gestor la ve.
+ *
+ * Las tres bóvedas del ecosistema tienen que funcionar igual (dueño, 2026-08-29), y esta
+ * era la excepción: entregaba una contraseña sin preguntarle a nadie, porque no hay
+ * transporte de por medio y por tanto no pasaba por `VaultResponder`, que es donde vive
+ * la política. Ahora pasa por la misma `ApprovalGate` y con el mismo criterio: `get` —lo
+ * que saca de la bóveda algo privado— pide autorización; buscar y guardar, no.
+ *
+ * **Se pregunta CADA VEZ, y es temporal.** El modelo del ecosistema es una aprobación
+ * por aparato (§2.0), pero aquí el aparato que pide es este mismo navegador: recordarla
+ * sería un solo clic que apaga la pregunta para siempre. Mientras el proceso no esté
+ * asentado, se ve; automatizarlo viene después, y cuando venga es en los permisos del
+ * aparato, no en una regla nueva de aquí.
+ */
+async function ownGuarded (id) {
+  const inner = await ownVault(id)
+  const gate = new ApprovalGate({
+    ask: ({ op, payload }) => askApproval({ op, payload, vault: inner }),
+    remember: false,
+  })
+  return new GuardedVault(inner, { gate })
+}
+
+// --- la pregunta de la bóveda -------------------------------------------------
+//
+// El daemon la hace en su consola y la pestaña del vault en su propia página. Aquí la
+// bóveda no tiene página propia, así que la pregunta sale en la pantalla de la extensión
+// que el usuario tenga delante —el popup, el modal de un campo, el aviso de guardar— y,
+// si no hay ninguna, en una ventana de la extensión abierta para eso.
+//
+// **Nunca en la página.** Todas esas pantallas son del origen `chrome-extension://`: si
+// la pregunta la pudiera dibujar el sitio, podría dibujarla cuando quisiera y
+// contestarse que sí solo.
+//
+// Quien decide sigue siendo esto: las pantallas dibujan y devuelven el clic.
+
+const APPROVAL_PORT = 'pm-approval'
+// Sin respuesta no se entrega nada. El tope existe para no dejar una petición colgada
+// para siempre si la pantalla que preguntaba se fue sin decir nada.
+const APPROVAL_TIMEOUT_MS = 3 * 60 * 1000
+
+const askHosts = []            // pantallas enchufadas que pueden dibujar la pregunta
+const askOpen = new Map()      // rid → { q, done, at, timer }
+let askSeq = 0
+let askWindow = null
+
+/** A quién se le pide que la dibuje: lo que el usuario está mirando, y la ventana al final. */
+function pickHost () {
+  const vivos = askHosts.filter(h => h.visible)
+  const pantallas = vivos.filter(h => !h.standalone)
+  return pantallas[pantallas.length - 1] || vivos[vivos.length - 1] || null
+}
+
+function offerAsk (rid) {
+  const p = askOpen.get(rid)
+  if (!p) return
+  const h = pickHost()
+  p.at = h || null
+  if (h) {
+    try { h.port.postMessage({ t: 'ask', rid, q: p.q }); return } catch (_) { p.at = null }
+  }
+  openAskWindow()
+}
+
+function settleAsk (rid, ok) {
+  const p = askOpen.get(rid)
+  if (!p) return
+  askOpen.delete(rid)
+  clearTimeout(p.timer)
+  // Las demás pantallas quitan la pregunta: contestada en una, contestada en todas.
+  for (const h of askHosts) { try { h.port.postMessage({ t: 'done', rid }) } catch (_) {} }
+  p.done(!!ok)
+}
+
+async function openAskWindow () {
+  if (askWindow != null) {
+    try { await chrome.windows.update(askWindow, { focused: true }); return } catch (_) { askWindow = null }
+  }
+  try {
+    const w = await chrome.windows.create({
+      url: chrome.runtime.getURL('src/approve.html'),
+      type: 'popup', width: 380, height: 300, focused: true,
+    })
+    askWindow = w.id
+  } catch (_) { /* sin ventana no hay a quién preguntar: caduca y se toma como un no */ }
+}
+
+chrome.windows.onRemoved.addListener(id => { if (id === askWindow) askWindow = null })
+
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== APPROVAL_PORT) return
+  const h = { port, visible: true, standalone: false }
+  askHosts.push(h)
+
+  port.onMessage.addListener(m => {
+    if (m?.t === 'hello' || m?.t === 'visible') {
+      h.visible = m.visible !== false
+      if (m.t === 'hello') h.standalone = !!m.standalone
+      // Solo recoge lo que NO tiene dónde dibujarse: es cómo llega la pregunta a la
+      // ventana recién abierta. Lo que ya está en pantalla se queda donde está — moverlo
+      // dejaría la pregunta pintada en un sitio y contestándose en otro.
+      for (const [rid, p] of askOpen) if (!p.at) offerAsk(rid)
+    }
+    if (m?.t === 'answer') settleAsk(m.rid, m.ok)
+    // `ping` no hace nada aquí a propósito: el tráfico por el puerto es lo que mantiene
+    // despierto al worker mientras la pregunta está en pantalla.
+  })
+
+  port.onDisconnect.addListener(() => {
+    const i = askHosts.indexOf(h)
+    if (i >= 0) askHosts.splice(i, 1)
+    // Irse sin contestar es decir que no. La pregunta NO persigue al usuario a la
+    // siguiente pantalla: aparecer sola en un modal que se abre después, preguntando por
+    // algo que se pidió hace rato, es la mejor forma de que la gente apruebe sin mirar.
+    for (const [rid, p] of askOpen) if (p.at === h) settleAsk(rid, false)
+  })
+})
+
+/**
+ * PREGUNTAR. Devuelve `true` solo si alguien pulsó que sí.
+ *
+ * La bóveda se lee a sí misma para saber CÓMO se llama lo que se le pide: sin un nombre,
+ * la pregunta es «¿autorizas algo?», que no es una pregunta. Lo que viaja a la pantalla
+ * es la mitad pública de la entrada (§4.0.2) — nunca el valor guardado.
+ */
+async function askApproval ({ op, payload, vault }) {
+  const q = { op, who: '', title: '', site: '' }
+  try {
+    const e = await vault.get(payload?.id)
+    q.who = entryWho(e)
+    q.title = e.title || ''
+    q.site = (e.sites || [])[0] || ''
+  } catch (_) { /* si no se puede nombrar, se pregunta igual */ }
+
+  const rid = `a${++askSeq}`
+  return new Promise(resolve => {
+    let listo = false
+    const done = (ok) => { if (!listo) { listo = true; resolve(ok) } }
+    const timer = setTimeout(() => settleAsk(rid, false), APPROVAL_TIMEOUT_MS)
+    askOpen.set(rid, { q, done, at: null, timer })
+    offerAsk(rid)
+  })
 }
 
 /**
@@ -234,9 +381,10 @@ async function connect () {
   const prof = await activeProfile()
   if (vault && vaultOf === prof.id && (prof.kind === 'own' || client?._connected)) return vault
 
-  // Perfil propio: la bóveda es esta extensión. Ni red, ni espera, ni aprobación.
+  // Perfil propio: la bóveda es esta extensión. Ni red ni espera — pero sí aprobación,
+  // como cualquier otra bóveda del ecosistema.
   if (prof.kind === 'own') {
-    vault = await ownVault(prof.id)
+    vault = await ownGuarded(prof.id)
     vaultOf = prof.id
     return vault
   }
@@ -522,6 +670,10 @@ async function candidatesFor (p, v) {
       title: h.title || (h.sites || [])[0] || '',
       hint: h.hint || '',
       updatedAt: h.updatedAt || 0,
+      // QUÉ campos lleva, por su nombre y sin un solo valor: es lo que deja decir «este
+      // dato ya está ahí» sin abrirla (§4.0.2). Sin esto el aviso no sabe si una fila es
+      // nueva o reemplaza, y lo dice todo como «no se sabe».
+      ...(Array.isArray(h.fieldKeys) ? { fieldKeys: h.fieldKeys } : {}),
       // Sin sitios sirve en cualquier parte (§4.2). Se ofrece, pero al final y dicho:
       // pisar tu dirección de siempre desde el formulario de una tienda cualquiera
       // tiene que ser una decisión, no un descuido.
@@ -601,8 +753,8 @@ async function pendingSave ({ host } = {}) {
  *   · **público** — la lista de candidatos, que es lo que `find` devuelve sin llave.
  *     Sale siempre, porque sin ella el usuario no puede elegir qué reemplaza.
  *   · **privado** — los valores guardados, o sea poder decir «esto cambia» y enseñar lo
- *     anterior. Con la bóveda propia no cuesta nada y va de una; con una conectada
- *     cuesta una confirmación, así que se espera a que el usuario la pida (`reveal`).
+ *     anterior. Cuesta una autorización en CUALQUIER bóveda —también en la propia, desde
+ *     que pregunta (§3.3.1)—, así que se espera a que el usuario la pida (`reveal`).
  */
 async function pendingDetail ({ id, reveal } = {}) {
   const p = await readPending()
@@ -755,8 +907,10 @@ async function dismissPending () {
 /**
  * UNA credencial abierta, pasando por lo ya entregado en esta sesión.
  *
- * La caché existe para no repetir aprobaciones en el teléfono. Con la bóveda propia no
- * hay aprobación que ahorrar, y guardar un secreto que no hace falta es peor.
+ * La caché existe para no repetir aprobaciones en el TELÉFONO, que es donde repetirlas
+ * cuesta de verdad. Con la bóveda propia se pregunta aquí mismo, así que no se guarda
+ * nada: cachearlo sería dejar un secreto en claro en la memoria de sesión para ahorrar
+ * un clic, y además apagaría la pregunta que el dueño pidió que se viera (§3.3.1).
  */
 async function getEntry (v, id) {
   if ((await activeProfile()).kind === 'own') return v.get(id)
@@ -793,18 +947,21 @@ async function findFor (url) {
 }
 
 /**
- * Lo guardado del sitio, ABIERTO, para poder decidir campo a campo.
+ * Lo guardado del sitio, ABIERTO, para poder comparar valores.
  *
- * La tabla del §4.1 pregunta dos cosas que solo se saben mirando dentro: si alguna
- * entrada tiene ESTE campo, y si lo tiene con ESTE mismo valor. Con la bóveda propia
- * —la de la extensión— abrir no cuesta nada ni sale de aquí, así que se hace y la
- * respuesta es exacta.
+ * **Hoy no lo hace ninguna bóveda, y es a propósito.** Abrir cuesta una autorización en
+ * todas desde el §3.3.2, y pedirla al cargar cada página sería insoportable; pero además,
+ * comparar lo escrito con lo guardado a espaldas del usuario era un **oráculo**: la página
+ * propone un valor, mira si el marcador desaparece y así prueba si acertó — y una entrada
+ * sin sitios (§4.2) vale para cualquier página, no solo para la suya.
  *
- * Con una bóveda **conectada** abrir cuesta una aprobación en el teléfono, y pedirla al
- * cargar cada página sería insoportable: ahí se devuelve `null` y quien pregunta se
- * queda con lo público (§4.0.2), que dice si hay entradas con campos pero no cuáles. El
- * botón sale de más en vez de faltar — de más es un aviso que dirá que no cambia nada;
- * de menos es un gestor que parece roto.
+ * Se devuelve `null` y quien pregunta se queda con lo público (§4.0.2), que ahora dice
+ * **qué campos** lleva cada entrada por su nombre. Así el marcador sigue siendo exacto en
+ * «¿hay algo que poner aquí?» y solo se queda corto en «¿es el mismo valor?»: sale de más
+ * en vez de faltar, que es lo que se prefiere.
+ *
+ * Sigue aquí porque es donde volverá a encenderse el día que haya forma de comparar sin
+ * ese oráculo.
  */
 async function openedFor (url) {
   const v = await connect()
@@ -868,10 +1025,18 @@ async function offersFor ({ url, fields } = {}) {
         ? (e) => e.secret === (f.secret || '') && e.username === (f.username || '')
         : (e) => e.keys.get(f.key) === (f.value || '')
       same = suyas.length > 0 && suyas.every(igual)
-    } else if (!libre) {
-      // Sin abrir solo se puede ir por lo grueso, y un campo que no se reconoce no tiene
-      // ni eso: su identidad es la etiqueta, y las etiquetas están dentro.
-      ids = metas.filter(m => acceso ? (m.hasSecret || m.type === 'login') : m.hasFields).map(m => m.id)
+    } else {
+      // Sin abrir nada: la vista pública dice QUÉ campos lleva cada entrada, por su
+      // nombre y sin un solo valor (§4.0.2). Con eso el marcador es exacto en «¿hay algo
+      // que poner aquí?» —también en un campo que el gestor no reconoce, que es el número
+      // de socio del §4.2— y solo se queda corto en «¿es el mismo valor?», que es lo
+      // único que de verdad exige abrir.
+      const conNombres = metas.filter(m => Array.isArray(m.fieldKeys))
+      ids = conNombres.length === metas.length
+        ? metas.filter(m => m.fieldKeys.includes(f.key)).map(m => m.id)
+        // Una bóveda que todavía no manda los nombres (un daemon sin actualizar): lo
+        // grueso de antes, y un campo libre se queda sin oferta.
+        : libre ? [] : metas.filter(m => acceso ? (m.hasSecret || m.type === 'login') : m.hasFields).map(m => m.id)
     }
 
     out.push({ id: f.id, ids, ...fieldOffers({ value, stored: ids.length > 0, same }) })

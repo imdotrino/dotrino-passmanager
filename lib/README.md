@@ -46,6 +46,22 @@ await remota.list()                                        // ✗ falla: no-key,
 `list()` no está para el aparato, y esa ausencia es el diseño: si pudiera listarlo todo,
 el «de a una» sería decorativo.
 
+```js
+import { LocalVault, GuardedVault, ApprovalGate } from '@dotrino/passmanager'
+
+// Una bóveda LOCAL que además pide autorización: es lo que usa la extensión, donde no
+// hay transporte de por medio y por tanto nadie le ponía la puerta.
+const gate = new ApprovalGate({ ask: ({ payload }) => preguntarleAlUsuario(payload) })
+const vault = new GuardedVault(new LocalVault(store), { gate })
+
+await vault.find(url)      // público: no pregunta
+await vault.get(id)        // pide autorización, o lanza `not-approved`
+```
+
+La puerta es **la misma pieza** que usa `VaultResponder`, y por eso las tres bóvedas del
+gestor se comportan igual: el sí se recuerda (o no, según con qué llave), el no nunca se
+recuerda, y dos peticiones a la vez producen un solo aviso.
+
 ## Qué más trae
 
 | | |
@@ -57,6 +73,8 @@ el «de a una» sería decorativo.
 | `generatePassword` | generador **sin sesgo** de reparto |
 | `normalizeFields` | campos libres `{ label, value, kind }` |
 | `SessionCache` | recuerdo en memoria de lo ya entregado |
+| `GuardedVault` / `ApprovalGate` | la puerta de autorización, delante de cualquier bóveda |
+| `entryFieldKeys` | qué campos lleva una entrada, por su nombre y sin un solo valor |
 
 ## Dos reglas que el código hace cumplir
 

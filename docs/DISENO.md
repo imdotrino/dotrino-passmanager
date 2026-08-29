@@ -101,6 +101,17 @@ Dos detalles que evitan que se degrade:
 - **Dos peticiones a la vez producen UN aviso**, no dos. Dos pestañas abriendo el
   mismo sitio no deben hacer sonar el teléfono dos veces.
 
+Las tres reglas —el sí recordado, el no nunca, y las simultáneas juntas— viven en **una
+sola pieza**, `ApprovalGate`, y de ahí la usan tanto la bóveda que responde por el proxio
+(`VaultResponder`) como la que la extensión lleva dentro (`GuardedVault`, §3.3.2). Estaban
+escritas dos veces y por eso una de las dos podía quedarse atrás; ahora no hay dos.
+
+**Lo que cambia según quién pregunta es una cosa y está a la vista: con qué llave se
+recuerda un sí.** El daemon y la pestaña del vault lo recuerdan por APARATO, que es lo que
+dice esta sección. La bóveda de dentro de la extensión no recuerda nada, porque el aparato
+que pide es ese mismo navegador y recordarlo sería un clic que apaga la pregunta para
+siempre (§3.3.2).
+
 ### 2.1. Por qué el teléfono es el caso normal, no el PC
 
 El PC se apaga; el teléfono no. Y el teléfono tiene almacenamiento respaldado por
@@ -353,19 +364,88 @@ Enlazar una bóveda (el daemon, o `vault.dotrino.com/vault`) sigue existiendo y 
 | Empezar | ya está | emparejar |
 | Dónde viven | en este navegador | en un solo sitio, para todos tus navegadores |
 | Si desinstalas | se van | siguen ahí |
-| Aprobación | no hay a quién pedírsela | por petición, en la bóveda o el teléfono |
+| Aprobación | **sí, aquí mismo** (§3.3.2) | por petición, en la bóveda o el teléfono |
 | Interfaz | **la misma** | **la misma** |
 
 `LocalVault` y `RemoteVault` cumplen el mismo contrato, así que de `connect()` para abajo
 casi nada del gestor distingue una vía de la otra: sin enlace se devuelve la propia y ya.
-Lo único que cambia a propósito es la caché de sesión, que se salta con la bóveda propia
-—existe para no repetir aprobaciones, y aquí no hay ninguna que ahorrar—.
+Lo único que cambia a propósito es la caché de sesión, que se salta con la bóveda propia:
+existe para no repetir aprobaciones **en el teléfono**, que es donde repetirlas cuesta, y
+cachear aquí sería dejar un secreto en claro en la memoria de sesión para ahorrar un clic.
 
 **Deuda anotada:** enlazar todavía usa un código propio (las dos públicas en base64), que
 son 700 caracteres para copiar entre dos pestañas del mismo navegador. El ecosistema ya
 tiene su emparejamiento —invitación corta + código de 6 dígitos, con el aparato quedando
 en el acta y saliendo en `vault.dotrino.com/vault`— y es ahí donde esto tiene que
 acabar: `identity.selfVaultPairing()` / `enrollDevice()`. El código propio se va con eso.
+
+## 3.3.2. La bóveda de dentro también pregunta
+
+> Pedido por el dueño el 2026-08-29: *«el vault embebido de la extensión, el vault de la
+> página y el vault demonio deben funcionar igual… al pedir una llave privada el vault
+> debe pedir autorización para enviarla»*.
+
+Hasta aquí eran tres bóvedas iguales con una excepción, y la excepción era la que más se
+usa. El daemon pregunta en su consola; la pestaña de `vault.dotrino.com/vault` pregunta en
+su página; **la de dentro de la extensión entregaba sin preguntar** — no por una decisión,
+sino porque no hay transporte de por medio y por tanto no pasaba por `VaultResponder`, que
+es donde vive la política.
+
+Ahora pasa. La bóveda propia va envuelta en un **`GuardedVault`** con la misma
+`ApprovalGate` (§2.0) y el mismo criterio que el daemon: **`get` pide autorización; buscar
+y guardar, no.** Es la frontera de siempre —lo que saca de la bóveda algo privado— puesta
+donde faltaba.
+
+| | daemon | pestaña del vault | dentro de la extensión |
+|---|---|---|---|
+| Pregunta antes de `get` | sí | sí | **sí** |
+| Dónde sale la pregunta | la consola | la propia página | la pantalla de la extensión que tengas delante |
+| Un sí se recuerda | por aparato, mientras esté encendida | igual | **no se recuerda** |
+
+### Dónde sale, y por qué nunca en la página
+
+La bóveda de dentro no tiene página propia, así que la pregunta se dibuja en la pantalla
+de la extensión que el usuario esté mirando: el popup, el modal de un campo o el aviso de
+guardar. Si no hay ninguna abierta —un sitio pidiendo una passkey, por ejemplo—, se abre
+una **ventana de la extensión** para eso.
+
+Todas son del origen `chrome-extension://`, y esa es la razón de la lista: **la página
+nunca dibuja esta pregunta.** Si pudiera, podría dibujarla cuando quisiera y contestarse
+que sí sola — que es exactamente el ataque que la regla del §4.0.2 evita para el botón que
+escribe.
+
+Dos detalles que se decidieron mirando cómo se rompe:
+
+- **La pregunta no persigue al usuario.** Si la pantalla donde estaba se va —se cierra el
+  modal, se cierra el popup—, cuenta como un **no**. Una pregunta de hace un rato que
+  aparece sola en la siguiente pantalla es la mejor forma de que la gente apruebe sin
+  mirar.
+- **Se dibuja dentro del propio modal, no en una ventana aparte**, cuando hay modal. Una
+  ventana le quita el foco a la página, el modal del campo se cierra al perder el foco, y
+  el relleno se quedaría a medias.
+
+### Se pregunta cada vez, y eso es temporal
+
+El modelo del ecosistema es **una aprobación por aparato** (§2.0), y aquí no se aplica a
+propósito: el aparato que pide es este mismo navegador, así que recordarla sería un solo
+clic que apaga la pregunta para siempre. Mientras el proceso no esté asentado se ve, que
+es lo que el dueño pidió — *«seguramente automatizaremos para que no se vea, pero hasta que
+el proceso sea sólido»*. Cuando se automatice, será **en los permisos del aparato**, donde
+ya viven (`pair --approval`, `caps +aprueba`), y no en una regla nueva de aquí.
+
+Se paga en dos sitios, y conviene saberlo: **reemplazar** un dato en una entrada que ya
+existe la lee antes para no perderle lo que el formulario no toca, así que también
+pregunta; y **ver lo que había antes** en el aviso de guardar, igual. Las dos cosas ya
+costaban una aprobación con una bóveda conectada: lo que ha desaparecido es la excepción,
+no se ha añadido un peaje.
+
+### Lo que esto arregla de paso
+
+Para pintar el marcador campo a campo (§4.1) hacía falta saber si alguna entrada tiene ese
+campo **y con qué valor**, y eso solo se sabe abriendo. Con la bóveda propia el gestor
+**abría todas las entradas del sitio en cada carga de página** — sin que nadie lo pidiera y
+sin que se viera. Con la puerta puesta ya no: se responde con la mitad pública, como con
+una bóveda conectada, y el marcador puede salir de más pero nunca antes de tiempo.
 
 ## 3.4. Sin daemon también funciona: la bóveda en una pestaña
 
@@ -576,18 +656,24 @@ Es la frontera que ya existía en el modelo de datos (§5) y que aquí se vuelve
 
 | | Qué es | Quién puede verlo |
 |---|---|---|
-| **público** | id, título, sitios, **nombre visible** (el usuario, o el correo, o el primer campo NO privado), cuándo se tocó, qué guarda (`hasSecret`, `hasFields`…) | cualquiera que pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
-| **privado** | los **valores**: usuario, contraseña, campos, notas, TOTP | solo se abren de a uno (`get`), y con una bóveda conectada **eso es una aprobación** |
+| **público** | id, título, sitios, **nombre visible** (el usuario, o el correo, o el primer campo NO privado), cuándo se tocó, y **qué campos lleva por su nombre** (`fieldKeys`: `username`, `secret`, `label:Número de socio`…) | cualquiera que pregunte por el sitio: es lo que devuelve `find`, sin llave y sin aprobación |
+| **privado** | los **valores**: usuario, contraseña, campos, notas, TOTP | solo se abren de a uno (`get`), y eso es **una aprobación en cualquier bóveda** (§3.3.2) |
+
+**Los NOMBRES de los campos son públicos; sus valores no.** Es de la misma familia que
+`sites`, que ya viaja en claro para poder emparejar con la página y revela en qué sitios
+tienes cuenta (§5): saber que guardaste algo llamado «Número de socio» es bastante menos
+que el número. Y es lo que permite ofrecer rellenarlo **sin abrir nada** — antes, un campo
+que el gestor no reconoce solo se podía rellenar abriendo la entrada entera.
 
 De ahí sale cómo se pinta el aviso, que es la parte que importa:
 
 - **La lista de candidatas es pública**, y por eso sale siempre. Sin ella el usuario no
   podría elegir qué reemplaza, y para elegir no hace falta abrir nada.
-- **Decir «esto cambia» es privado**, porque exige abrir la entrada y comparar. Con la
-  **bóveda propia** (la de la extensión) eso no cuesta nada ni sale de aquí: se hace de
-  una, y por eso el aviso ni aparece cuando nada cambió. Con una **bóveda conectada** sí
-  cuesta, así que **no se hace solo**: el aviso ofrece **«Ver qué cambia»** y es el
-  usuario quien lo pide — la confirmación es la aprobación de siempre.
+- **Decir «esto cambia» es privado**, porque exige abrir la entrada y comparar los
+  valores. Cuesta una aprobación en **cualquier** bóveda desde el §3.3.2, así que **no se
+  hace solo** en ninguna: el aviso ofrece **«Ver qué cambia»** y es el usuario quien lo
+  pide. Lo que sí se sabe de balde es si ese dato **existe** en la entrada, que es lo que
+  separa «guardar» de «reemplazar» en cada fila.
 - Guardar sin haber comparado está permitido: se escriben las casillas marcadas sobre la
   entrada elegida. La lectura que hace falta para no perder lo demás es parte de la
   escritura que el usuario ya confirmó, no un vistazo previo.
@@ -610,8 +696,16 @@ sale es una tabla, no una impresión (dueño, 2026-08-28):
 | sí | ninguna | vacío | **no** | — |
 | sí | ninguna | con algo escrito | **sí** | guardar → en una de las que hay, o en una nueva |
 | sí | alguna | vacío | **sí** | **rellenar** (de cuál, si hay varias) + **rellenar todo** |
-| sí | alguna | escrito **igual** a lo guardado | **no** | — |
+| sí | alguna | escrito **igual** a lo guardado | **sí** ⚠️ | guardar → reemplazarlo por lo mismo no cambia nada |
 | sí | alguna | escrito **distinto** | **sí** | guardar → en esa entrada, o en una nueva |
+
+> ⚠️ **Esa fila decía «no», y se retiró el 2026-08-29.** Saber si lo escrito vale lo mismo
+> que lo guardado exige **abrir** la entrada, y abrir pasa por la puerta (§3.3.2) en todas
+> las bóvedas. Pero además, hacerlo era un **oráculo**: la página propone un valor, mira si
+> el botón aparece y así prueba si acertó — y una entrada sin sitios (tu correo, tu
+> teléfono, tu documento, §4.2) vale para cualquier página, no solo para la suya. El botón
+> ahora sale de más en ese caso; el precio es un botón que no hacía falta, y lo que se
+> quita es una forma de adivinar lo guardado sin abrir nada.
 
 Lo que hay que leer ahí, dicho en palabras:
 
@@ -620,12 +714,12 @@ Lo que hay que leer ahí, dicho en palabras:
   que escribir el usuario no encendía nada — y parecía que había que llenarlo todo.)
 - **Rellenar solo en un campo vacío.** Escribir encima de lo que puso el usuario sería
   decidir por él; lo que quiere ahí es guardar lo suyo.
-- **Lo que ya está guardado igual no se ofrece.** Es el caso de justo después de
-  rellenar: el campo tiene el valor de la bóveda y el botón desaparece solo. Pero «igual»
-  quiere decir **igual en TODAS las entradas que tienen ese campo** (dueño, 2026-08-28):
-  con dos entradas, coincidir con una y diferir de la otra deja algo que hacer
-  —reemplazar el de la otra—, y **el botón solo desaparece cuando no queda ninguna opción
-  posible**.
+- **«Ya está guardado igual» ya no apaga el botón** (ver el aviso de la tabla). La regla
+  sigue escrita porque sigue siendo la correcta y vuelve en cuanto haya forma de aplicarla
+  sin ese oráculo: «igual» quiere decir **igual en TODAS las entradas que tienen ese
+  campo** (dueño, 2026-08-28) —con dos entradas, coincidir con una y diferir de la otra
+  deja algo que hacer, reemplazar el de la otra—, y el botón solo desaparecería cuando no
+  quedara ninguna opción posible.
 - **Nada se rellena solo, tampoco aquí.** Rellenar es siempre un botón que se pulsa, y
   hay dos: **«Rellenar este valor»** (eliges de qué entrada) y **«Rellenar todos los
   valores»**, que pone en la página todo lo que esa entrada tenga. El segundo existe para
@@ -635,7 +729,9 @@ Lo que hay que leer ahí, dicho en palabras:
 - **Cualquier campo, se reconozca o no** (dueño, 2026-08-28): *«si lleno un campo,
   cualquiera sea, aparece el semicírculo y me permite guardar ESE campo, en un record
   existente o uno nuevo»*. El número de socio, el código del portal: son los **campos
-  libres** del §4.2 y su identidad es la **etiqueta** que les pone la página.
+  libres** del §4.2 y su identidad es la **etiqueta** que les pone la página. Y también se
+  **rellenan**, aunque no se abra nada: la vista pública dice **qué campos lleva** cada
+  entrada, por su nombre y sin un solo valor (§4.0.2).
 - **Lo que se guarda es ESE campo.** Los demás del mismo formulario van en el aviso pero
   **sin marcar**, para que estén a un clic sin volver a empezar. Igual al enviar un
   formulario: lo reconocido va marcado y los libres acompañan sin marcar — enviar un
@@ -744,21 +840,22 @@ desde la página nueva no hay forma de llegar a ella. El buscador del modal la t
 #### Las dos preguntas de la tabla se responden mirando dentro
 
 «¿Alguna entrada tiene este campo?» y «¿lo tiene con este mismo valor?» no se contestan
-con lo público (§4.0.2): hay que **abrir** las entradas del sitio. De ahí sale la única
-diferencia entre las dos bóvedas:
+con lo público (§4.0.2): hay que **abrir** las entradas del sitio. Y abrir cuesta una
+autorización **en cualquier bóveda**, también en la propia desde que pregunta (§3.3.2).
 
-| | la bóveda propia (la extensión) | una bóveda conectada |
-|---|---|---|
-| abrir cuesta | nada, y no sale de aquí | **una aprobación en el teléfono** |
-| la tabla se aplica | exacta | por lo grueso: «hay entradas con campos», sin saber cuáles |
-| en la práctica | el botón sale justo cuando sirve | puede salir de más — nunca de menos |
+Pedirla al cargar cada página sería insoportable, así que **no se abre nada para pintar
+botones**: la tabla se aplica por lo grueso —«hay entradas con campos», sin saber cuáles—
+y el botón puede salir de más. El que sobra lleva a un modal que dirá que no cambia nada;
+el que falta deja un gestor que parece roto. Se prefiere lo primero.
 
-Pedir aprobación al cargar cada página sería insoportable, así que con una bóveda
-conectada **no se abre nada** para pintar botones. El botón que sobra lleva a un aviso
-que dirá que no cambia nada; el que falta deja un gestor que parece roto. Se prefiere lo
-primero. Lo que sí es igual en las dos: **la decisión se toma en el service worker** —lo
-escrito viaja hacia él (la página ya lo tiene), y de vuelta salen dos booleanos y de qué
-entradas; ningún valor guardado entra en el proceso de la página.
+Aquí había una tabla con la diferencia entre las dos bóvedas: la propia abría todo y
+respondía exacto. **Ya no hay diferencia** — abrir todas las entradas del sitio en cada
+carga de página, sin que nadie lo pidiera y sin que se viera, era justo lo que la puerta
+del §3.3.2 vino a cerrar.
+
+Lo que es igual en las dos, y no ha cambiado: **la decisión se toma en el service worker**
+—lo escrito viaja hacia él (la página ya lo tiene), y de vuelta salen dos booleanos y de
+qué entradas; ningún valor guardado entra en el proceso de la página.
 
 Una caja de **búsqueda** nunca es un dato de nadie, se reconozca el resto o no; y lo que
 no es un dato por su propio tipo (casillas, botones, ficheros) tampoco entra.

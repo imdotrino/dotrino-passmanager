@@ -51,6 +51,22 @@ try {
   const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
 
+  /**
+   * ABRIR una entrada diciendo que sí. La bóveda pide autorización antes de soltar nada
+   * (DISENO §3.3.2), y la pregunta se dibuja donde el usuario está mirando: hay que traer
+   * la pantalla de la extensión al frente para que le toque a ella.
+   */
+  const abrir = async (entryId) => {
+    await ext.bringToFront()
+    await ext.waitForTimeout(250)
+    const p = pedir('get', { id: entryId })
+    try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 10000 }) } catch (_) {}
+    const r = await p
+    await page.bringToFront()
+    await page.waitForTimeout(150)
+    return r
+  }
+
   // --- 1. entrar: se escribe y se envía, y la página NAVEGA ---
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(600)
@@ -132,7 +148,7 @@ try {
   ok(items[0]?.hint === 'seyacat@dotrino.com', 'y el usuario, sin esconder nada: ' + items[0]?.hint)
 
   // Y la credencial completa se recupera.
-  const full = items[0] ? await pedir('get', { id: items[0].id }) : null
+  const full = items[0] ? await abrir(items[0].id) : null
   ok(full?.result?.secret === 'hunter2-de-prueba', 'la contraseña guardada es la que se escribió')
 
   // --- 4. el aviso se cierra y no queda nada pendiente ---

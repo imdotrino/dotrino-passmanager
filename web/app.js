@@ -9,7 +9,7 @@
       get: 'Download the extension',
       howto: 'How to install it',
       c1t: 'One at a time',
-      c1d: 'Password managers usually keep a copy of all your passwords in the browser. This one asks for the password of the site you are opening, uses it and lets it go.',
+      c1d: 'Password managers usually keep a copy of all your passwords in the browser. This one asks for the password of the site you are opening, uses it and lets it go. And none of them leaves without you authorizing it.',
       c2t: 'Nothing is filled for you',
       c2d: 'It marks the fields where it can help and waits. Filling is always your call, and the button only shows up when there is really something to do there.',
       c3t: 'Not just passwords',

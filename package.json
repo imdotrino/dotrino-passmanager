@@ -1,6 +1,6 @@
 {
   "name": "dotrino-passmanager",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Gestor de contraseñas de Dotrino: la bóveda que responde y las piezas que piden",
