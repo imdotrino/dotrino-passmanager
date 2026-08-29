@@ -139,11 +139,11 @@ function descFor (f, i) {
       value: String(f.el.value || '').trim(),
     }
   }
-  // Un acceso es una cosa con dos mitades: se manda el formulario entero, y el «vacío»
-  // sigue siendo el de ESTA casilla.
+  // Un acceso: cada casilla responde por sí sola, pero se manda el formulario entero
+  // porque «ya está guardado igual» se decide con la credencial completa.
   return {
     id: i,
-    key: 'login',
+    key: keyOf(f),
     value: String(f.el.value || '').trim(),
     username: f.form?.username?.value || '',
     secret: f.form?.password?.value || '',
@@ -178,9 +178,20 @@ async function onPick (field) {
 /** El campo que tiene el modal abierto, para saber a quién contestarle. */
 let abierto = null
 
-const keyOf = (f) => (!f.kind && !f.free)
-  ? 'login'
-  : (cache.detect ? cache.detect.fieldKey({ kind: f.kind, label: f.label }) : 'other')
+/**
+ * La CLAVE de un campo, la misma con la que viaja en el aviso y en la bóveda.
+ *
+ * El usuario y la contraseña de un acceso son **dos claves distintas** (`username` y
+ * `secret`), no una sola: el dueño quiere verlas por separado en la lista de rellenar
+ * —«Usuario» y «Contraseña»—, y juntarlas hacía que la contraseña no apareciera por
+ * ninguna parte aunque se rellenara.
+ */
+const keyOf = (f) => {
+  if (f.kind || f.free) {
+    return cache.detect ? cache.detect.fieldKey({ kind: f.kind, label: f.label }) : 'other'
+  }
+  return f.el === f.form?.password ? 'secret' : 'username'
+}
 
 /**
  * El nombre del campo, que es **la etiqueta con la que se va a guardar**.
@@ -190,11 +201,8 @@ const keyOf = (f) => (!f.kind && !f.free)
  */
 function nameOf (field) {
   const kl = (k) => cache.i18n ? cache.i18n.kindLabel(lang, k) : k
-  if (!field.kind && !field.free) {
-    // Un acceso: al pulsar la contraseña se guarda la credencial entera; al pulsar el
-    // usuario, solo él. El nombre dice cuál de las dos cosas.
-    return field.el === field.form?.password ? t('credential') : kl('username')
-  }
+  // Un acceso son dos campos con su nombre cada uno: «Usuario» y «Contraseña».
+  if (!field.kind && !field.free) return kl(keyOf(field))
   if (field.kind) return kl(field.kind)
   // Un campo libre sin etiqueta ninguna se guarda como «otro dato», y eso es lo que dice.
   return field.label || kl('other')
@@ -257,12 +265,7 @@ async function fillFromModal (values) {
   for (const v of Array.isArray(values) ? values : []) {
     for (const f of lastFields) {
       if (keyOf(f) !== v.key) continue
-      if (v.key === 'login') {
-        if (f.el === f.form?.username && v.username) detect.fillField(f.el, v.username)
-        if (f.el === f.form?.password && v.secret) detect.fillField(f.el, v.secret)
-      } else if (v.value !== undefined) {
-        detect.fillField(f.el, v.value)
-      }
+      if (v.value) detect.fillField(f.el, v.value)
     }
   }
   ui.reposition()
@@ -282,15 +285,7 @@ async function sendModalContext () {
     const k = keyOf(f)
     if (vistos.has(k)) continue
     vistos.add(k)
-    // Un acceso es UNA fila que rellena las dos casillas, así que se llama por lo que
-    // hace: «usuario y contraseña». Con `nameOf` se quedaba con el nombre del primer
-    // input que se hubiera detectado —«Usuario»— y la contraseña no aparecía por
-    // ninguna parte, aunque se rellenara igual.
-    page.push({
-      key: k,
-      name: k === 'login' ? t('credential') : nameOf(f),
-      ids: f.offers?.ids || [],
-    })
+    page.push({ key: k, name: nameOf(f), ids: f.offers?.ids || [] })
   }
   try {
     w.postMessage({

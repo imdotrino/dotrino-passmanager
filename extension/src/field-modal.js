@@ -365,10 +365,9 @@ async function fill (keys) {
     })()
     const values = []
     for (const k of keys) {
-      if (k === 'login') {
-        values.push({ key: 'login', username: entry.username || '', secret: entry.secret || '' })
-        continue
-      }
+      // El usuario y la contraseña viven en la entrada, no en su lista de campos.
+      if (k === 'username') { if (entry.username) values.push({ key: k, value: entry.username }); continue }
+      if (k === 'secret') { if (entry.secret) values.push({ key: k, value: entry.secret }); continue }
       const c = campos.find(x => (x.kind || (x.label ? `label:${x.label}` : 'other')) === k)
       if (c) values.push({ key: k, value: c.value })
     }

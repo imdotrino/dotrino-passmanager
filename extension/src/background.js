@@ -842,7 +842,11 @@ async function offersFor ({ url, fields } = {}) {
 
   const out = []
   for (const f of Array.isArray(fields) ? fields : []) {
-    const acceso = f.key === 'login'
+    // El usuario y la contraseña son dos campos con su clave cada uno, pero la misma
+    // credencial: para saber si ya está guardada igual hay que mirar las dos mitades.
+    const esUser = f.key === 'username'
+    const esClave = f.key === 'secret'
+    const acceso = esUser || esClave
     const libre = !acceso && !KINDS.includes(f.key)
     // Lo escrito en ESTA casilla, también en un acceso: el usuario y la contraseña son
     // dos botones distintos, y el de la contraseña no se enciende porque haya usuario.
@@ -851,7 +855,9 @@ async function offersFor ({ url, fields } = {}) {
     let ids = []
     let same = false
     if (abiertas) {
-      const suyas = abiertas.filter(e => acceso ? !!e.secret || !!e.username : e.keys.has(f.key))
+      const suyas = abiertas.filter(e => acceso
+        ? (esUser ? !!e.username : !!e.secret)
+        : e.keys.has(f.key))
       ids = suyas.map(e => e.id)
       // «Ya está guardado igual» solo cuenta si lo está en TODAS las entradas que tienen
       // ese campo (dueño, 2026-08-28): con dos entradas, coincidir con una y diferir de

@@ -79,12 +79,12 @@ try {
   }
   await page.fill('input[name=user]', '')
   await page.waitForTimeout(600)
-  let r = await que([{ id: 0, key: 'login', value: '', username: '', secret: '' }])
+  let r = await que([{ id: 0, key: 'username', value: '', username: '', secret: '' }])
   ok(!r[0].fill && !r[0].save, 'fila 1 · vacío y sin nada guardado → sin botón')
 
   await page.fill('input[name=user]', 'a')
   await page.waitForTimeout(600)
-  r = await que([{ id: 0, key: 'login', value: 'a', username: 'a', secret: '' }])
+  r = await que([{ id: 0, key: 'username', value: 'a', username: 'a', secret: '' }])
   ok(!r[0].fill && r[0].save, 'fila 2 · UNA letra y sin nada guardado → guardar')
 
   // Se guarda una credencial para poder mirar las filas de abajo.
@@ -97,14 +97,14 @@ try {
   console.log('\nla tabla, con una credencial guardada')
   await page.goto(`${SITE}/login.html`)
   await page.waitForTimeout(1200)
-  r = await que([{ id: 0, key: 'login', value: '', username: '', secret: '' }])
+  r = await que([{ id: 0, key: 'username', value: '', username: '', secret: '' }])
   ok(r[0].fill && !r[0].save, 'fila 5 · vacío con algo guardado → rellenar')
   ok(r[0].ids.length === 1, 'y dice de qué entrada sale')
 
-  r = await que([{ id: 0, key: 'login', value: 'clave-buena', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
+  r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'clave-buena' }])
   ok(!r[0].fill && !r[0].save, 'fila 6 · escrito IGUAL a lo guardado → sin botón')
 
-  r = await que([{ id: 0, key: 'login', value: 'otra', username: 'ana@ejemplo.com', secret: 'otra' }])
+  r = await que([{ id: 0, key: 'username', value: 'ana@ejemplo.com', username: 'ana@ejemplo.com', secret: 'otra' }])
   ok(!r[0].fill && r[0].save, 'fila 7 · escrito distinto → guardar')
 
   console.log('\nun campo que ninguna entrada tiene')
@@ -246,7 +246,7 @@ try {
   await page.fill('input[name=city]', '')
   await page.waitForTimeout(500)
 
-  console.log('\ncon muchas entradas: cinco y un «más»')
+  console.log('\ncon muchas entradas: la lista se desplaza')
   // Se guardan unas cuantas más para pasar de cinco.
   for (const n of [1, 2, 3, 4, 5]) {
     await page.goto(`${SITE}/login.html`)
@@ -274,11 +274,16 @@ try {
       'y la lista se desplaza en vez de crecer sin fin')
     ok(!(await mm.locator('[data-testid=field-modal-search]').isVisible()),
       'y el buscador viene recogido')
-    // La fila de rellenar un acceso dice lo que rellena: las dos casillas.
-    const nombreFila = await mm.locator('[data-testid=field-modal-fill-row] .name').first().textContent()
-    ok(/contraseña|password/i.test(nombreFila), 'y la fila de rellenar nombra la contraseña: ' + nombreFila)
-    await page.mouse.click(200, 120)
-    await page.waitForTimeout(400)
+    // Usuario y contraseña son DOS filas, cada una con su nombre y su botón.
+    const nombres = await mm.locator('[data-testid=field-modal-fill-row] .name').allTextContents()
+    ok(nombres.some(n => /usuario|username/i.test(n)), 'sale la fila del usuario: ' + nombres.join(' / '))
+    ok(nombres.some(n => /contraseña|password/i.test(n)), 'y la de la contraseña, aparte')
+    // Y cada una rellena lo suyo.
+    await mm.locator('[data-testid=field-modal-fill-secret]').click()
+    await page.waitForTimeout(900)
+    const soloClave = await page.evaluate(() =>
+      Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
+    ok(!!soloClave.password && !soloClave.user, 'la de contraseña rellena SOLO la contraseña')
   }
 
   console.log('\nbuscar la cuenta de OTRO dominio (el subdominio que cambió)')
@@ -287,7 +292,7 @@ try {
   const OTRO = SITE.replace('localhost', '127.0.0.1')
   await page.goto(`${OTRO}/login.html`)
   await page.waitForTimeout(1200)
-  r = await que([{ id: 0, key: 'login', value: '', username: '', secret: '' }])
+  r = await que([{ id: 0, key: 'username', value: '', username: '', secret: '' }])
   ok(!r[0].fill, 'ahí no hay nada guardado: no ofrece rellenar')
   await page.fill('input[name=user]', 'x')
   await page.waitForTimeout(800)

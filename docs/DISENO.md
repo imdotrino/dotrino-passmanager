@@ -687,6 +687,10 @@ campo. Sigue al scroll y se recoloca si la ventana cambia.
   su casilla. Sustituye a «recuerda la última elegida», que se probó el mismo día y se
   quitó: recordar adivina, y con tres cuentas del mismo sitio adivina mal la mitad de las
   veces; marcarla es decirlo.
+- **El usuario y la contraseña son dos filas**, no una. Se probó juntarlas —«usuario y
+  contraseña», que es lo que rellenan— y el dueño lo cortó el 2026-08-28: la contraseña
+  no aparecía por ninguna parte, aunque se rellenara. Cada una tiene su nombre, su botón
+  y rellena lo suyo.
 - **Las dos secciones listan todo lo que califica**, no solo el campo que se pulsó:
   arriba, cada campo de la página que esa entrada puede rellenar; abajo, cada campo
   escrito que le añadiría o le cambiaría algo. El pulsado viene marcado y los demás no,
