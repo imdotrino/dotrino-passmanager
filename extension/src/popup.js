@@ -216,6 +216,58 @@ function renderAdd (s) {
 }
 
 /**
+ * LOS PEDIDOS QUE ESPERAN. Solo salen si este navegador lleva el permiso de aprobar.
+ *
+ * No es la puerta de la bóveda de dentro (esa es `hostApprovals`, para cuando la bóveda
+ * ES la extensión): aquí la bóveda vive fuera, otro aparato le pidió una llave privada, y
+ * este es uno de los que puede decir que sí.
+ *
+ * Se repregunta cada pocos segundos mientras el popup está abierto, porque un pedido
+ * puede llegar con la pantalla ya pintada — y porque el mismo pedido puede estar en
+ * varios aparatos a la vez y contestarse desde otro.
+ */
+async function pintarPedidos (caja) {
+  // Una vez por apertura: la identidad se vuelve a abrir y con ella jala el acta, que es
+  // donde dice si este aparato puede aprobar. Sin esto, un permiso recién dado no llegaba.
+  try { await ask('identity-refresh') } catch (_) {}
+
+  const dibujar = async () => {
+    let r = null
+    try { r = await ask('approvals') } catch (_) { return }
+    if (!r?.can) { caja.replaceChildren(); return }
+    if (!r.items.length) { caja.replaceChildren(); return }
+    caja.replaceChildren(
+      el('h2', { textContent: t(lang, 'apvTitle') }),
+      ...r.items.map((p) => {
+        const si = el('button', { className: 'primary', textContent: t(lang, 'apvYes') })
+        si.dataset.testid = `popup-apv-yes-${p.id}`
+        const no = el('button', { className: 'ghost', textContent: t(lang, 'apvNo') })
+        no.dataset.testid = `popup-apv-no-${p.id}`
+        const contestar = async (yes) => {
+          si.disabled = no.disabled = true
+          try { await ask('approvals-answer', { id: p.id, yes }) } catch (e) { toast(humanError(e), 'error') }
+          await dibujar()
+        }
+        si.onclick = () => contestar(true)
+        no.onclick = () => contestar(false)
+        const fila = el('li', { className: 'entry' }, [
+          el('div', { className: 'who' }, [
+            el('div', { className: 'name' }, [el('span', { className: 'nametext', textContent: t(lang, 'apvAsks', p.label || p.deviceId || '?') })]),
+            el('div', { className: 'hint', textContent: p.ns || '' }),
+          ]),
+          el('div', { className: 'acts' }, [el('div', { className: 'btns' }, [no, si])]),
+        ])
+        fila.dataset.testid = `popup-apv-${p.id}`
+        return el('ul', { className: 'entries' }, [fila])
+      }),
+    )
+  }
+  await dibujar()
+  clearInterval(pintarPedidos.timer)
+  pintarPedidos.timer = setInterval(dibujar, 4000)
+}
+
+/**
  * La tarjeta la dibuja la pieza compartida: la misma que usa el gestor (§4.3). Aquí solo
  * se dice qué acciones tiene, y el popup es el único que tiene `onFill` — rellenar es de
  * la página que tienes delante.
@@ -289,10 +341,17 @@ async function renderSite (estado0) {
     pie.append(soltar)
   }
 
+  // LOS PEDIDOS DE OTROS APARATOS, si este navegador puede aprobarlos (§2.0). Va lo
+  // primero y a propósito: alguien está esperando, y lo demás puede esperar a que
+  // conteste. Si no puede aprobar —lo normal—, no ocupa ni una línea.
+  const pedidos = el('div')
+  pintarPedidos(pedidos)
+
   // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es
   // de la bóveda entera, como los perfiles, y no una acción más de la última tarjeta.
   view.replaceChildren(
     profileBar(cardCtx(), estado0, { onAdd: renderAdd }),
+    pedidos,
     abrirGestor,
     el('h2', { textContent: t(lang, 'onThisSite') }),
     list, estado, pie,

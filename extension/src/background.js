@@ -1129,6 +1129,45 @@ async function renameEntry ({ id, name } = {}) {
 }
 
 /**
+ * LOS PEDIDOS DE APROBACIÓN que esperan a este navegador.
+ *
+ * Cuando la bóveda vive fuera y OTRO aparato le pide una llave privada, la bóveda no
+ * decide sola: se lo pregunta a los aparatos que llevan el permiso `aprueba` (§2.0). Este
+ * puede ser uno de ellos — hasta hoy tenía la capacidad y nada que la usara.
+ *
+ * Devuelve `{ can, items }`: si este navegador no puede aprobar, la lista ni se pide.
+ */
+/**
+ * Al ABRIR el popup se vuelve a abrir la identidad, una sola vez.
+ *
+ * Es cuando se jala el acta del vault, o sea cuando este aparato se entera de que sus
+ * permisos cambiaron. Una página lo hace en cada carga; el service worker no, porque el
+ * núcleo se queda vivo — así que el permiso nuevo no llegaba nunca. Se hace aquí, al
+ * abrir, y no en cada vuelta del sondeo: rehacer el núcleo no es gratis.
+ */
+async function refreshIdentity () {
+  try { return await identity.refresh() } catch (_) { return { ok: false } }
+}
+
+async function approvalsList () {
+  try {
+    if (!(await identity.canApprove())) return { can: false, items: [] }
+    const r = await identity.approvals('approvals')
+    return { can: true, items: Array.isArray(r?.items) ? r.items : [] }
+  } catch (_) {
+    // Sin bóveda enlazada, o sin papel: no es un error que enseñar, es que no aplica.
+    return { can: false, items: [] }
+  }
+}
+
+/** Decir que sí o que no a UN pedido. Lo firma la identidad de este aparato. */
+async function approvalsAnswer ({ id, yes } = {}) {
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  await identity.approvals(yes ? 'approve' : 'deny', id)
+  return { ok: true }
+}
+
+/**
  * EN QUÉ SITIOS HAY ALGO GUARDADO. Solo desde la UI de la extensión.
  *
  * Es con lo que el gestor abre: la lista de dominios, en vez de un buscador en blanco
@@ -1241,6 +1280,9 @@ const OPS = {
   remove: p => removeEntry(p),
   rename: p => renameEntry(p),
   sites: () => sitesOf(),
+  approvals: () => approvalsList(),
+  'identity-refresh': () => refreshIdentity(),
+  'approvals-answer': p => approvalsAnswer(p),
   'entry-view': p => entryView(p),
   'entry-diff': p => entryDiff(p),
   patch: p => patchEntry(p),

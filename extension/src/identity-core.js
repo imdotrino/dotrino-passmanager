@@ -226,6 +226,51 @@ export const identity = {
     return (members || []).find((m) => m.pub === v.master)?.encPub || null
   },
 
+  // ----- APROBAR pedidos de OTROS aparatos (§2.0) -----------------------------
+  //
+  // Un aparato con el permiso `aprueba` es el que contesta cuando otro pide una llave
+  // privada a la bóveda. La app de Android y una pestaña enrolada ya lo hacían; esta
+  // extensión tenía la capacidad en su identidad y nada que la usara (dueño, 2026-08-30:
+  // *«el permiso de aprobador también se lo puede dar a la misma extensión»*).
+  //
+  // Ojo con lo que NO es: esto no tiene que ver con la puerta de la bóveda de dentro
+  // (`ApprovalGate`), que es cuando la extensión ES la bóveda. Aquí la bóveda es otra y
+  // esto es el aparato que le dice que sí.
+
+  /**
+   * PONERSE AL DÍA con la bóveda: traerse el acta y, con ella, los permisos.
+   *
+   * Es `listVaultDevices`, y no es un rodeo: **el acta viaja con esa lista**, que es el
+   * canal que el pilar tiene para que los cambios de política lleguen sin inventar otro.
+   * Al adoptarla, si trae permisos que el papel no lleva, el papel se renueva ahí mismo.
+   *
+   * Hace falta porque una extensión no es una página: el núcleo de identidad vive en el
+   * service worker y, una vez abierto, se queda con el acta que recibió al enrolarse. Una
+   * pestaña se pone al día sola en cada carga; esto no. Sin esto, dar un permiso nuevo a
+   * la extensión no llegaba NUNCA (visto el 2026-08-30, probando que aprobara pedidos).
+   *
+   * Reabrir el núcleo no sirve, y se intentó: lo que se jala al abrir es el PERFIL —el
+   * apodo, el avatar—, no el acta.
+   */
+  async refresh () {
+    const { handlers } = await identityCore()
+    try { await handlers.listVaultDevices() } catch (_) { /* bóveda apagada: lo de antes sigue */ }
+    return { ok: true }
+  },
+
+  /** ¿Puede este navegador aprobar pedidos? Lo dice el papel que le dio la bóveda. */
+  async canApprove () {
+    const { handlers } = await identityCore()
+    if (typeof handlers.canApproveVault !== 'function') return false
+    return handlers.canApproveVault()
+  },
+
+  /** Los pedidos que esperan, o la respuesta a uno: `op` es `approvals`/`approve`/`deny`. */
+  async approvals (op, id) {
+    const { handlers } = await identityCore()
+    return handlers.vaultApprovals({ op, ...(id ? { id } : {}) })
+  },
+
   /**
    * Conectar este navegador a una bóveda: el enrolamiento estándar
    * (`vaultPair`) — llave nueva, código de seis que se teclea en la bóveda, cert

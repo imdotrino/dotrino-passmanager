@@ -1321,6 +1321,41 @@ La dirección va en el `#fragment` (`#site=…&id=…&only=…`) para que un ref
 abierta; con solo el id la vista se vuelve a pedir con `entry-view`, que es `find` del
 sitio quedándose con una — no es `list` disfrazado, porque el id ya lo tenía quien pregunta.
 
+## 4.3.1. La extensión también APRUEBA pedidos de otros aparatos
+
+> Dicho por el dueño el 2026-08-30: *«el permiso de aprobador también se lo puede dar a la
+> misma extensión»*, y *«el request de aprobación puede aparecer en múltiples dispositivos
+> a la vez»*.
+
+Cuando la bóveda vive fuera y un aparato **supervisado** le pide una llave privada, la
+bóveda no decide sola: se lo pregunta a los aparatos que llevan el permiso `aprueba`
+(§2.0). Eso ya lo hacían la app de Android y una pestaña enrolada; la extensión tenía la
+capacidad en su identidad y **nada que la usara**.
+
+Ahora el popup enseña los pedidos que esperan, arriba del todo, y se contestan ahí. Si
+este navegador no puede aprobar —lo normal— no ocupa ni una línea.
+
+**No confundirlo con la puerta de la bóveda de dentro** (`hostApprovals`, §3.3.2): esa es
+para cuando la extensión **es** la bóveda. Esto es lo contrario — la bóveda es otra y este
+es uno de los aparatos que le dice que sí.
+
+**El mismo pedido sale en TODOS los que pueden aprobar**, a la vez, y se contesta una sola
+vez: quien conteste primero lo resuelve y se cae de las demás pantallas.
+
+### Una extensión no es una página: hay que pedir el acta
+
+Al darle un permiso nuevo a la extensión, no llegaba **nunca**. La causa es una asimetría
+que no se ve hasta que se prueba: una pestaña abre su identidad en cada carga y de paso se
+pone al día; el núcleo de identidad de una extensión vive en el service worker y, una vez
+abierto, **se queda con el acta que recibió al enrolarse**.
+
+Reabrir el núcleo no arregla nada, y se intentó: lo que se jala al abrir es el PERFIL —el
+apodo, el avatar—, no el acta. El canal del acta es otro: **viaja con la lista de aparatos**
+(`listVaultDevices`), que es como el pilar hace llegar los cambios de política sin
+inventarse un canal aparte; al adoptarla, si trae permisos que el papel no lleva, el papel
+se renueva ahí mismo. Así que el popup la pide **una vez por apertura**, y no en cada
+vuelta del sondeo, porque no es gratis.
+
 ## 4.4. El TIMBRE: despertar una bóveda que vive en una pestaña
 
 > Pedido por el dueño el 2026-08-29: *«si la extensión no encuentra el vault encendido
