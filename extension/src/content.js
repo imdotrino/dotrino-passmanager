@@ -105,16 +105,16 @@ async function scan () {
   const todos = []
   const shown = []
   for (let i = 0; i < markable.length; i++) {
-    const offers = dicho[i] || { fill: false, save: false, ids: [] }
+    const offers = dicho[i] || { fill: false, save: false, gen: false, ids: [] }
     const campo = { ...markable[i], offers, title: titleFor(offers) }
     todos.push(campo)
-    if (offers.fill || offers.save) shown.push(campo)
+    if (offers.fill || offers.save || offers.gen) shown.push(campo)
   }
 
   // Volver a montarlos en cada tecla haría parpadear el que tienes debajo del cursor: se
   // rehacen solo cuando cambia QUÉ se marca o QUÉ ofrece.
   const key = shown
-    .map(f => `${markable.findIndex(m => m.el === f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}`)
+    .map(f => `${markable.findIndex(m => m.el === f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}${f.offers.gen ? 'g' : ''}`)
     .join('|')
   lastFields = todos
   lastShown = shown
@@ -127,7 +127,10 @@ async function scan () {
   return shown
 }
 
-const titleFor = (offers) => offers.fill ? t('fill') : t('saveThis')
+// Rellenar manda cuando hay algo guardado que poner: generar sigue estando dentro, pero
+// no es lo que se viene a hacer si ya tienes la contraseña de este sitio.
+const titleFor = (offers) =>
+  offers.fill ? t('fill') : offers.gen ? t('suggestPassword') : t('saveThis')
 
 /** Lo que se le cuenta al service worker de un campo para que decida. */
 function descFor (f, i) {
@@ -262,12 +265,26 @@ async function captureField (field) {
  */
 async function fillFromModal (values) {
   const { detect, ui } = await mods
+  let generada = null
   for (const v of Array.isArray(values) ? values : []) {
     for (const f of lastFields) {
       if (keyOf(f) !== v.key) continue
-      if (v.value) detect.fillField(f.el, v.value)
+      if (!v.value) continue
+      detect.fillField(f.el, v.value)
+      // «Repite la contraseña»: la misma, en la casilla de al lado. Dejarla vacía obliga
+      // a copiarla a mano, y una contraseña generada no se copia a mano.
+      if (v.key === 'secret' && f.form?.confirm) detect.fillField(f.form.confirm, v.value)
+      if (v.gen) generada = f
     }
   }
+
+  // UNA CONTRASEÑA GENERADA QUE NO SE GUARDA DEJA AL USUARIO FUERA DE SU CUENTA, y eso es
+  // peor que no haberla generado. Así que se apunta en el acto: apuntar no es guardar
+  // —sigue en la memoria del service worker hasta que el usuario lo diga (§4.0)—, pero a
+  // partir de aquí el aviso de después de enviar ya tiene qué ofrecer, y el marcador del
+  // propio campo pasa a decir «guardar» sin esperar a nada.
+  if (generada) await captureField(generada)
+
   ui.reposition()
   // Lo escrito cambia lo que se puede ofrecer: el marcador del campo recién rellenado
   // desaparece solo (§4.1, la fila del «ya está guardado igual»).
@@ -292,6 +309,10 @@ async function sendModalContext () {
       _dotrino: 'field-modal-context',
       page,
       canSave: !!abierto?.puedeGuardar,
+      // Si el campo que se pulsó es una contraseña vacía, el modal ofrece generar una
+      // (§4.1.1). Lo decide el campo, no la entrada elegida: una contraseña nueva no sale
+      // de la bóveda, así que no depende de qué haya guardado.
+      gen: !!abierto?.field?.offers?.gen,
       url: location.href,
     }, EXT_ORIGIN)
   } catch (_) {}

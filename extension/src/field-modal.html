@@ -108,6 +108,23 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
+  /* LA CONTRASEÑA NUEVA. Va a la vista y entera: se acaba de generar aquí, no sale de la
+     bóveda, y el usuario tiene que poder leerla —y copiarla— antes de aceptarla. Por eso
+     monoespaciada (una l y una I se distinguen) y seleccionable de una pasada. */
+  .row.gen { grid-template-columns: minmax(0,1fr) auto auto; }
+  .genval {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem; letter-spacing: .02em; overflow-wrap: anywhere; user-select: all;
+  }
+  .reroll {
+    background: none; border: 0; color: inherit; opacity: .45;
+    padding: 2px 5px; font-size: .85rem; line-height: 1;
+  }
+  .reroll:hover, .reroll:focus-visible { opacity: 1; }
+  /* El aviso de que hay que guardarla: es lo único que puede dejar al usuario fuera de
+     su cuenta, así que no se esconde detrás de nada (CONVENCIONES §5.1). */
+  .genhint { font-size: .7rem; opacity: .55; margin: 2px 5px 0; }
+
   button { font: inherit; cursor: pointer; border-radius: 7px; }
   .mini {
     padding: 3px 8px; font-size: .74rem;
@@ -150,6 +167,21 @@
     </div>
     <input type="search" id="q" data-testid="field-modal-search" hidden>
     <ul id="targets"></ul>
+  </div>
+
+  <!-- Generar va ANTES de rellenar y en su propio bloque: lo de abajo sale de tu bóveda
+       y esto se acaba de crear aquí. Mezclarlos haría que una contraseña nueva pareciera
+       una guardada, que es justo lo que no puede pasar. -->
+  <div id="genBox" hidden>
+    <h2 id="genTitle"></h2>
+    <div class="row gen">
+      <code class="genval" id="genVal" data-testid="field-modal-gen-value"></code>
+      <button class="reroll" id="genAgain" type="button"
+              data-testid="field-modal-gen-again">↻</button>
+      <button class="mini" id="genUse" type="button"
+              data-testid="field-modal-gen-use"></button>
+    </div>
+    <p class="genhint" id="genHint"></p>
   </div>
 
   <div id="fillBox" hidden>

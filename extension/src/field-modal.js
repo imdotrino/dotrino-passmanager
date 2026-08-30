@@ -19,6 +19,10 @@
 
 import { t, pickLang, kindLabel } from './i18n.js'
 import { hostApprovals } from './approval.js'
+// El generador de la librería, el MISMO que usa la CLI: aleatoriedad de
+// `crypto.getRandomValues` y elección sin sesgo. Escribir otro aquí sería tener dos ideas
+// distintas de qué es una contraseña generada (CLAUDE.md, «si falta una característica»).
+import { generatePassword } from './vendor/passmanager/generate.js'
 
 const lang = pickLang()
 const p = new URLSearchParams(location.search)
@@ -52,6 +56,11 @@ $('whereTitle').textContent = t(lang, 'saveWhere')
 $('fillTitle').textContent = t(lang, 'fillSection')
 $('saveTitle').textContent = t(lang, 'saveSection')
 $('fillAll').textContent = t(lang, 'fillAllChecked')
+$('genTitle').textContent = t(lang, 'genSection')
+$('genUse').textContent = t(lang, 'genUse')
+$('genHint').textContent = t(lang, 'genHint')
+$('genAgain').title = t(lang, 'genAgain')
+$('genAgain').setAttribute('aria-label', t(lang, 'genAgain'))
 
 
 function fail (e) {
@@ -72,7 +81,7 @@ function fail (e) {
 // Qué campos hay delante y cuáles puede rellenar cada entrada. Lo manda el content
 // script en cuanto este marco dice que está listo.
 
-let ctx = { page: [], canSave: false }
+let ctx = { page: [], canSave: false, gen: false }
 let records = []      // [{ id, name, when }] y al final, la entrada nueva
 let at = 0
 let detail = null     // lo que hay apuntado por guardar, campo a campo
@@ -85,6 +94,8 @@ addEventListener('message', (e) => {
     // La URL de la PÁGINA. Sin ella se preguntaría por la del propio marco, que es
     // `chrome-extension://…`, y la bóveda no tiene nada guardado de ahí.
     url: typeof e.data.url === 'string' ? e.data.url : '',
+    // El campo que se pulsó es una contraseña vacía: se ofrece generar una (§4.1.1).
+    gen: !!e.data.gen,
   }
   start().catch(fail)
 })
@@ -460,8 +471,48 @@ function render () {
   paint()
 }
 
+// --- la contraseña nueva (§4.1.1) -----------------------------------------------------
+//
+// Es lo ÚNICO de este modal que no sale de la bóveda: se crea aquí, en el origen de la
+// extensión, y la página no la ve hasta que el usuario pulsa «Usar». Por eso no pide
+// autorización ni depende de qué entrada esté elegida — no hay nada que sacar de ningún
+// sitio.
+//
+// Se genera UNA vez y se queda: `paint()` corre en cada tecla del buscador y en cada
+// cambio de entrada, y una contraseña que cambia sola mientras la lees no se puede
+// apuntar en un papel ni comprobar contra lo que se acaba de escribir. Para cambiarla
+// está el botón de al lado, que es una decisión.
+let generada = ''
+
+function paintGen () {
+  const on = !!ctx.gen
+  $('genBox').hidden = !on
+  if (!on) return
+  if (!generada) generada = generatePassword({ length: 20 })
+  $('genVal').textContent = generada
+}
+
+$('genAgain').onclick = () => {
+  generada = generatePassword({ length: 20 })
+  paint()
+}
+
+/**
+ * USARLA: se manda a la página, que es la única que alcanza el campo.
+ *
+ * Va marcada con `gen` para que el content script sepa que esto no estaba guardado y lo
+ * apunte en el acto (§4.0): una contraseña generada que no se guarda deja al usuario
+ * fuera de su cuenta, y eso es peor que no haberla generado.
+ */
+$('genUse').onclick = () => {
+  if (!generada) return
+  post({ op: 'fill-field-modal', values: [{ key: 'secret', value: generada, gen: true }] })
+  close()
+}
+
 function paint () {
   renderTargets()
+  paintGen()
 
   // Rellenar: los campos de la página que ESTA entrada puede poner.
   const puede = puedeRellenar()

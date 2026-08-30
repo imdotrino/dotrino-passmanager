@@ -14,8 +14,9 @@
     "test:web": "python3 -m http.server 8099 --directory web/test",
     "test:bench": "node extension/test/bench.e2e.mjs",
     "test:save-prompt": "node extension/test/save-prompt.e2e.mjs",
-    "test:offers": "node --test extension/test/offers.test.mjs",
+    "test:offers": "node --test extension/test/*.test.mjs",
     "test:field-button": "node extension/test/field-button.e2e.mjs",
+    "test:generar": "node extension/test/generar.e2e.mjs",
     "test:reemplazos": "node extension/test/reemplazos.e2e.mjs",
     "test:gestor": "node extension/test/gestor.e2e.mjs",
     "store:shots": "node extension/store/tienda.mjs"

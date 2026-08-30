@@ -22,16 +22,55 @@ const casos = [
 
 for (const c of casos) {
   test(`${c.que} → ${c.fill ? 'rellenar' : ''}${c.save ? 'guardar' : ''}${!c.fill && !c.save ? 'sin botón' : ''}`, () => {
-    assert.deepEqual(fieldOffers(c.f), { fill: c.fill, save: c.save })
+    assert.deepEqual(fieldOffers(c.f), { fill: c.fill, save: c.save, gen: false })
   })
 }
+
+// --- y la casilla de las contraseñas (§4.1.1) ---------------------------------------
+//
+// La misma tabla, pero en un campo de contraseña: uno vacío SIEMPRE ofrece generar una,
+// haya algo guardado o no. Es la fila que faltaba, y es la que pone el generador donde
+// hace falta — al registrarse, que es cuando se inventa una contraseña.
+const conSecreto = [
+  { que: 'contraseña vacía y sin nada guardado', f: { value: '', stored: false, secret: true }, fill: false, save: false, gen: true },
+  { que: 'contraseña vacía y con algo guardado', f: { value: '', stored: true, secret: true }, fill: true, save: false, gen: true },
+  { que: 'contraseña escrita', f: { value: 'abc', stored: false, secret: true }, fill: false, save: true, gen: false },
+  { que: 'contraseña escrita y con algo guardado', f: { value: 'abc', stored: true, secret: true }, fill: false, save: true, gen: false },
+]
+
+for (const c of conSecreto) {
+  test(c.que, () => {
+    assert.deepEqual(fieldOffers(c.f), { fill: c.fill, save: c.save, gen: c.gen })
+  })
+}
+
+// Lo que hacía falta arreglar: registrarse en un sitio nuevo no sacaba ningún botón, así
+// que el generador no aparecía justo donde tenía que aparecer.
+test('registrarse en un sitio nuevo: la contraseña vacía ya tiene botón', () => {
+  const antes = fieldOffers({ value: '', stored: false })
+  assert.equal(antes.fill || antes.save || antes.gen, false, 'un campo normal vacío sigue sin botón')
+  const ahora = fieldOffers({ value: '', stored: false, secret: true })
+  assert.equal(ahora.gen, true)
+})
+
+// Generar no puede depender de la bóveda: si dependiera, la página sabría si hay algo
+// guardado con solo mirar el botón. Depende del `type=password`, que la escribió ella.
+test('generar no mira lo que hay guardado', () => {
+  const sin = fieldOffers({ value: '', stored: false, secret: true })
+  const con = fieldOffers({ value: '', stored: true, secret: true })
+  assert.equal(sin.gen, con.gen)
+})
+
+test('los espacios tampoco son contraseña', () => {
+  assert.equal(fieldOffers({ value: '   ', stored: false, secret: true }).gen, true)
+})
 
 test('UNA letra ya basta: el botón es por campo, no por formulario', () => {
   assert.equal(fieldOffers({ value: 'a', stored: false }).save, true)
 })
 
 test('los espacios no son contenido', () => {
-  assert.deepEqual(fieldOffers({ value: '   ', stored: true }), { fill: true, save: false })
+  assert.deepEqual(fieldOffers({ value: '   ', stored: true }), { fill: true, save: false, gen: false })
 })
 
 // Lo que el dueño vio el 2026-08-29: guardó un campo en un registro y el botón se apagó,
@@ -44,7 +83,7 @@ test('guardarlo en un registro no apaga el botón: los demás siguen sin tenerlo
 // Y la regla completa, dicha como la dijo el dueño.
 test('solo se esconde si está vacío y no hay nada guardado suyo', () => {
   for (const value of ['', '   ']) {
-    assert.deepEqual(fieldOffers({ value, stored: false }), { fill: false, save: false })
+    assert.deepEqual(fieldOffers({ value, stored: false }), { fill: false, save: false, gen: false })
   }
   for (const f of [{ value: 'algo', stored: false }, { value: 'algo', stored: true }, { value: '', stored: true }]) {
     const { fill, save } = fieldOffers(f)
@@ -61,8 +100,8 @@ test('el marcador no depende de lo que haya guardado', () => {
 })
 
 test('sin decirle nada, no ofrece nada', () => {
-  assert.deepEqual(fieldOffers(), { fill: false, save: false })
-  assert.deepEqual(fieldOffers({}), { fill: false, save: false })
+  assert.deepEqual(fieldOffers(), { fill: false, save: false, gen: false })
+  assert.deepEqual(fieldOffers({}), { fill: false, save: false, gen: false })
 })
 
 test('la clave de un campo es su clase, y si no la tiene, su etiqueta', () => {

@@ -1057,7 +1057,13 @@ async function offersFor ({ url, fields } = {}) {
     // Si hay algo escrito, hay botón — aunque esa entrada ya lo tenga igual, porque las
     // otras pueden no tenerlo. Qué cambia de verdad lo dice el modal, que es de la
     // extensión y no lo lee la página.
-    out.push({ id: f.id, ids, ...fieldOffers({ value: f.value || '', stored: ids.length > 0 }) })
+    // `secret` es «esto es una casilla de contraseña»: una vacía siempre ofrece generar
+    // una nueva (§4.1.1), tenga el sitio algo guardado o no.
+    out.push({
+      id: f.id,
+      ids,
+      ...fieldOffers({ value: f.value || '', stored: ids.length > 0, secret: f.key === 'secret' }),
+    })
   }
   return out
 }

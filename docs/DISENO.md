@@ -538,7 +538,8 @@ quieres conservar pase lo que pase.
 La bóveda se llena desde donde vive: `dotrino-passmanager` (`ls`, `add`, `edit`,
 `show`, `rm`, `gen`, `import`). Ahí está el generador de contraseñas, que **no es un
 extra**: un gestor que no genera obliga a inventárselas, y ahí es donde se repite la de
-siempre.
+siempre. Y desde el 2026-08-30 está **también en el navegador**, en la casilla vacía de
+cualquier registro (§4.1.1), que es donde de verdad se inventa una contraseña.
 
 Y desde el navegador hay un solo caso, el que ocurre de verdad: **guardar lo que acabas
 de escribir** — la contraseña de un acceso, o los datos de un formulario que no lo es
@@ -1116,6 +1117,63 @@ Consecuencias en el código:
   sitio ni el sitio los alcanza.
 - Los botones siguen a sus campos en scroll y resize, y se remontan cuando la SPA
   cambia el formulario.
+
+## 4.1.1. El generador, ahí donde se inventa una contraseña
+
+> Añadido el 2026-08-30. El generador existía desde el principio, pero **solo en la CLI**
+> (`gen`, §4.0), y ahí no se registra nadie: registrarse pasa en el navegador. Un gestor
+> que no genera obliga a inventárselas, y ahí es donde se repite la de siempre.
+
+**Una casilla de contraseña vacía siempre ofrece una contraseña nueva.** Es una fila más
+de la tabla del §4.1, y la única que no depende de la bóveda:
+
+| | el campo está vacío | tiene algo escrito |
+|---|---|---|
+| **nada guardado suyo** | **generar** | guardar |
+| **algo guardado suyo** | **rellenar** + generar | guardar |
+
+Antes, la primera casilla decía «sin botón» — que es exactamente el momento de registrarse
+en un sitio nuevo, y por tanto el momento en que el generador tenía que aparecer y no
+podía.
+
+**Esto no reabre el rastro que cerró la regla del §4.1.** Aquella quitó la comparación con
+lo guardado porque dejaba que la página propusiera un valor y leyera el botón para saber si
+había acertado. Generar depende de dos cosas —que el campo sea de contraseña y que esté
+vacío— y **las dos las sabe ya la página**: el `type="password"` lo escribió ella. No se
+consulta la bóveda, así que no hay nada que leer ahí.
+
+**Dónde ocurre cada cosa:**
+
+- La contraseña **se crea en el iframe de la extensión**, con el `generatePassword` de la
+  librería —el mismo que usa la CLI—, y la página no la ve hasta que el usuario pulsa
+  «Usar». No se escribe otro generador: sería tener dos ideas distintas de qué es una
+  contraseña generada.
+- Se genera **una vez** y se queda hasta que se pida otra. Una contraseña que cambia sola
+  mientras la lees no se puede apuntar ni comprobar.
+- Va **a la vista y entera**, en monoespaciada: acaba de nacer, no sale de ninguna parte, y
+  el usuario tiene que poder leerla antes de aceptarla.
+
+**Se escribe también en la casilla de repetir.** Un registro trae dos contraseñas seguidas;
+dejar la segunda vacía obliga a copiar a mano lo que se acaba de generar, que es la
+fricción por la que se acaba escribiendo la de siempre. Cuál es esa casilla lo decide
+`confirmFor`, y es estrecho a propósito porque equivocarse es caro: en un **cambio de
+contraseña** las tres casillas son «actual», «nueva» y «repite la nueva», y escribir la
+misma en «actual» dejaría al usuario fuera de su cuenta. Se pide que sea **la siguiente**
+del mismo formulario **y** que se reconozca como confirmación —por su texto, o porque las
+dos declaran `autocomplete="new-password"`—. Si no se reconoce, no se toca nada.
+
+**Y lo generado queda apuntado en el acto.** Una contraseña generada que no se guarda deja
+al usuario fuera de su cuenta, y eso es peor que no haberla generado. Al pulsar «Usar» se
+captura en la memoria del service worker, así que el aviso de después de enviar (§4.0.1) ya
+tiene qué ofrecer y el marcador del propio campo pasa a decir «guardar» sin esperar a nada.
+**Apuntar no es guardar**: en la bóveda no entra nada hasta que el usuario lo diga, y ese
+sí se sigue pulsando en UI de la extensión (§4.0).
+
+⚠️ **Lo que todavía NO cubre**, dicho para que no se dé por hecho: en un formulario de
+**cambio de contraseña** con tres casillas, `findLoginForms` se queda con la primera —«la
+actual»—, así que las de «nueva» y «repite la nueva» no llevan marcador y el generador no
+aparece ahí. Cubrirlo pide que `findLoginForms` deje de devolver una sola contraseña por
+formulario, que toca también a la captura y al aviso.
 
 ## 4.2. Campos libres, atados o no a un dominio
 

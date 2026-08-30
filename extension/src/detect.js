@@ -13,6 +13,10 @@ const USER_HINTS = [
 
 const SEARCH_HINTS = ['search', 'buscar', 'query', 'q']
 
+// «Repite la contraseña». Solo sirven para RECONOCER la segunda casilla de un registro,
+// nunca para adivinar: si no coincide ninguna, no hay campo de confirmar y no se toca.
+const CONFIRM_HINTS = ['confirm', 'repeat', 'repet', 'repit', 'again', 'retype', 'verify', 'verific']
+
 /**
  * ¿El campo está a la vista? Solo la geometría: ni `disabled` ni `readOnly` entran aquí.
  *
@@ -194,9 +198,38 @@ export function findLoginForms (doc = document) {
     }
     if (!username && candidates.length === 1) username = candidates[0]
 
-    forms.push({ form: password.form || null, password, username })
+    forms.push({ form: password.form || null, password, username, confirm: confirmFor(password, sameScope) })
   }
   return forms
+}
+
+/**
+ * EL CAMPO DE «repite la contraseña», si es que lo hay — y solo si se reconoce.
+ *
+ * Existe por el generador (§4.1.1): una contraseña nueva se escribe en las DOS casillas de
+ * un registro, y dejar la segunda vacía obliga a copiarla a mano, que es exactamente la
+ * fricción por la que la gente acaba escribiendo la de siempre.
+ *
+ * Es deliberadamente estrecho, porque equivocarse aquí es caro: en un cambio de
+ * contraseña las tres casillas son «actual», «nueva» y «repite la nueva», y escribir la
+ * misma en la actual y en otra dejaría al usuario fuera de su cuenta. Así que se pide:
+ *
+ *   · que sea la SIGUIENTE del mismo ámbito (no una cualquiera más abajo), y
+ *   · que se reconozca como confirmación — por su texto, o porque las dos declaran
+ *     `autocomplete="new-password"`, que es lo que pone un registro bien hecho.
+ *
+ * En un cambio de contraseña la siguiente de «actual» es «nueva», que no es ninguna de
+ * las dos cosas: sale `null` y no se toca nada, que es lo correcto.
+ */
+export function confirmFor (password, sameScope = []) {
+  const next = sameScope[sameScope.indexOf(password) + 1]
+  if (!next || !isVisible(next)) return null
+  const h = haystack(next)
+  const { tokens, compacto } = tokenize(h)
+  if (CONFIRM_HINTS.some(x => matchesHint(h, tokens, compacto, x))) return next
+  const nueva = (el) =>
+    (el.getAttribute('autocomplete') || '').toLowerCase().split(/\s+/).includes('new-password')
+  return nueva(password) && nueva(next) ? next : null
 }
 
 // --- Campos que no son usuario ni contraseña ---------------------------------
@@ -358,6 +391,17 @@ export function readUsername ({ form, username, password } = {}) {
  * | **nada guardado suyo** | sin botón | **guardar** |
  * | **algo guardado suyo** | **rellenar** | **guardar** |
  *
+ * **Y una casilla más, para las contraseñas (§4.1.1): una contraseña vacía SIEMPRE ofrece
+ * generar una**, haya algo guardado o no. Es la única forma de que el generador esté
+ * donde de verdad hace falta —al registrarse, que es cuando se inventa una contraseña—,
+ * y hasta ahora vivía solo en la CLI, donde no se registra nadie. Un gestor que no genera
+ * obliga a inventárselas, y ahí es donde se repite la de siempre (DISENO §4.0).
+ *
+ * Esto **no reabre el rastro** que cerró la regla de arriba: `gen` depende solo de que el
+ * campo sea de contraseña y esté vacío, y las dos cosas las sabe ya la página —el
+ * `type="password"` lo escribió ella—. No se consulta la bóveda, así que no hay nada que
+ * leer mirando si el botón aparece.
+ *
  * Lo que cambió, y por qué: antes el botón desaparecía cuando lo escrito ya estaba
  * guardado igual. Con varias entradas eso escondía trabajo de verdad —**la otra entrada
  * podría querer ese mismo dato y no tenerlo**—, así que el botón se iba justo cuando
@@ -381,11 +425,11 @@ export function readUsername ({ form, username, password } = {}) {
  * Pura a propósito: `stored` lo calcula el service worker, que es el único que puede
  * mirar la bóveda. Aquí está la regla y nada más.
  *
- * @param {object} f `{ value, stored }`
+ * @param {object} f `{ value, stored, secret }` — `secret` = es un campo de contraseña
  */
-export function fieldOffers ({ value, stored } = {}) {
+export function fieldOffers ({ value, stored, secret } = {}) {
   const lleno = !!String(value ?? '').trim()
-  return { fill: !lleno && !!stored, save: lleno }
+  return { fill: !lleno && !!stored, save: lleno, gen: !lleno && !!secret }
 }
 
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */
