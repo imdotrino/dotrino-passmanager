@@ -1367,16 +1367,31 @@ cierto.
 **Lo que el aviso NO hace es decidir.** Llama; aprobar sigue siendo pulsar en la pantalla
 de la bóveda.
 
+### Probado contra producción, no supuesto
+
+El timbre es lo único de la cadena que **no se puede probar en local**: hace falta un
+servicio de push de verdad al que el navegador esté conectado. Así que se probó contra el
+proxio de producción, con una identidad de usar y tirar y sin bóveda de por medio
+(`dotrino-test/produccion/timbre.mjs`, `npm run prod:timbre` — aparte del `smoke`, porque
+sí toca producción). Lo medido:
+
+| | |
+|---|---|
+| suscripción con la VAPID de producción | endpoint real de FCM ✓ |
+| pubkey apagada, le mandan algo | **suena en ≈1 s** ✓ |
+| con la **pestaña cerrada**, solo el service worker | vuelve a sonar ✓ |
+| al volver a abrir | **la cola baja sola**: llegan los dos, marcados `queued` ✓ |
+
 ### Lo que esto NO resuelve todavía
 
+- **Hay una ventana de unos segundos en la que un pedido se pierde.** El proxio tarda en
+  dar por muerto un socket: un mensaje enviado justo después de cerrar la pestaña se
+  «entrega» a la conexión que todavía cree viva, y entonces ni se encola ni suena. No es
+  teoría — con 1,5 s de espera la prueba no sonaba, y con 6 s sí.
 - **El extremo del que pregunta espera 90 s.** Si el usuario tarda más en ver el aviso y
   abrir la bóveda, la petición ya venció por su lado — la bóveda contestará a algo que
   nadie escucha. Cuando la extensión sepa distinguir «encolado» de «se cayó la red» podrá
   decirlo y esperar mejor; hoy el proxio **no acusa por pubkey**, así que no puede saberlo.
-- **El timbre no está probado de punta a punta.** El escenario local no tiene servicio de
-  push al que llegar, así que se comprueba lo que sí se puede: que la bóveda avisa con la
-  pestaña oculta. Que un push despierte una bóveda cerrada está cableado por el pilar y
-  por el proxio, pero no observado.
 
 ## 5. Modelo de datos
 
