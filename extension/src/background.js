@@ -449,6 +449,10 @@ async function status () {
     // emparejamiento. No es un código de enlace que se pegue: es el que prueba que este
     // aparato está delante, y no viaja — la bóveda lo aprende porque lo escribes tú.
     pairing: pairing.code ? { code: pairing.code, deviceId: pairing.deviceId } : null,
+    // POR DÓNDE se le habla a la bóveda enlazada. No es un adorno: cuando una bóveda
+    // conectada no contesta, la primera pregunta es siempre «¿están los dos en el mismo
+    // proxio?», y sin esto no había forma de mirarlo desde fuera del service worker.
+    proxy: prof.kind === 'linked' ? ((await identity.vaultStatus().catch(() => null))?.proxy || PROXY_URL) : null,
     count,
   }
 }

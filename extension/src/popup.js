@@ -57,8 +57,19 @@ function humanError (e) {
   return e.message
 }
 
+/**
+ * Un elemento con sus propiedades. Los `data-*` van por `setAttribute`, no por
+ * `Object.assign`: asignarlos como propiedad crea una propiedad del objeto y **no un
+ * atributo**, así que `[data-testid=…]` no encontraba nada. Los de la pantalla de
+ * enlazar llevaban así desde el principio y no se notó porque nunca hubo una prueba que
+ * llegara hasta ahí (2026-08-29).
+ */
 function el (tag, props = {}, children = []) {
-  const n = Object.assign(document.createElement(tag), props)
+  const n = document.createElement(tag)
+  for (const [k, v] of Object.entries(props)) {
+    if (k.startsWith('data-') || k === 'aria-label') n.setAttribute(k, v)
+    else n[k] = v
+  }
   for (const c of [].concat(children)) if (c) n.append(c)
   return n
 }
@@ -181,12 +192,12 @@ function renderLink () {
 function renderAdd (s) {
   const name = el('input', { type: 'text', placeholder: t(lang, 'profileName') })
 
-  const here = el('button', { className: 'primary', textContent: t(lang, 'addHere') })
+  const here = el('button', { className: 'primary', textContent: t(lang, 'addHere'), 'data-testid': 'add-here' })
   here.onclick = async () => {
     try { await ask('profile-add', { label: name.value.trim() || null }); render() } catch (e) { toast(humanError(e), 'error') }
   }
 
-  const connect = el('button', { className: 'ghost', textContent: t(lang, 'addLinked') })
+  const connect = el('button', { className: 'ghost', textContent: t(lang, 'addLinked'), 'data-testid': 'add-linked' })
   connect.onclick = () => renderLink()
 
   const backBtn = el('button', { className: 'ghost', textContent: t(lang, 'back') })

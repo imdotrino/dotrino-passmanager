@@ -52,12 +52,16 @@ await cp(join(here, '../../dotrino-nav/src'), join(vendor, 'nav'), { recursive: 
 await cp(join(here, '../../dotrino-support/src'), join(vendor, 'support'), { recursive: true })
 console.log('vendor: dotrino-{topbar,nav,support}/src → extension/src/vendor/')
 
-// Los imports desnudos del topbar pasan a ser las copias que viajan al lado.
+// Los imports desnudos del topbar pasan a ser las copias que viajan al lado. Y se borra
+// la línea de EJEMPLO que enseña cómo cargarlo por jsDelivr: es un comentario y no se
+// ejecuta, pero un escaneo automático de la tienda no distingue comentarios de código, y
+// no vale la pena dejar una pregunta que no hace falta contestar.
 const topbarPath = join(vendor, 'topbar/index.js')
 await writeFile(topbarPath, (await readFile(topbarPath, 'utf8'))
   .replace("from '@dotrino/nav'", "from '../nav/index.js'")
   .replace("import '@dotrino/support'", "import '../support/index.js'")
-  .replace("from '@dotrino/identity/avatar'", "from '../identity/avatar.js'"))
+  .replace("from '@dotrino/identity/avatar'", "from '../identity/avatar.js'")
+  .split('\n').filter((l) => !l.includes('cdn.jsdelivr')).join('\n'))
 
 // Y fuera el contador de aperturas, con su import remoto.
 const supportPath = join(vendor, 'support/index.js')
