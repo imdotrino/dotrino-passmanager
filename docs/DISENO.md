@@ -1321,6 +1321,63 @@ La dirección va en el `#fragment` (`#site=…&id=…&only=…`) para que un ref
 abierta; con solo el id la vista se vuelve a pedir con `entry-view`, que es `find` del
 sitio quedándose con una — no es `list` disfrazado, porque el id ya lo tenía quien pregunta.
 
+## 4.4. El TIMBRE: despertar una bóveda que vive en una pestaña
+
+> Pedido por el dueño el 2026-08-29: *«si la extensión no encuentra el vault encendido
+> debe enviar una notificación al explorador que contiene el vault para levantarlo, lo
+> mismo las notificaciones de aprobación»*.
+
+Una bóveda en una pestaña (§3.4) solo responde mientras la pestaña esté abierta. Sin nada
+más, cerrarla es dejar al gestor sin bóveda hasta que alguien se acuerde de volver.
+
+**El proxio ya hacía su parte.** Cuando el destinatario no está conectado, encola el
+mensaje (24 h) y **toca un timbre** por Web Push. Lo que faltaba era que la bóveda de
+pestaña estuviera suscrita: se registraba en el proxio pero nunca pedía el timbre, así que
+no había a quién tocárselo.
+
+Lo que hay ahora, y quién pone cada parte:
+
+| | |
+|---|---|
+| **el proxio** | encola lo que no se pudo entregar y toca el timbre (ya lo hacía) |
+| **`@dotrino/proxy-client`** | `enablePush()`: pide la VAPID, se suscribe con el SW que la PWA ya tiene y deja la suscripción **firmada** en el proxio |
+| **la consola** | llama a `enablePush` con la llave del ACTA —la misma con la que se identifica, porque es su dirección— y trae los manejadores del SW |
+| **el service worker** | enseña el aviso y, al pulsarlo, **enfoca** la pestaña de la bóveda o la abre |
+
+Al abrirse, la bóveda conecta y **la cola baja sola**: la petición que estaba esperando se
+atiende sin que nadie la repita.
+
+**El timbre no lleva contenido**, y no es una precaución de más: el proxio no sabe qué se
+pidió —va sellado— y el aviso tampoco tiene por qué. Dice que alguien pide, no qué.
+
+### El permiso no se pide al abrir
+
+Un navegador que pregunta sin que hayas pulsado nada es un navegador que molesta, así que
+el permiso vive detrás de un botón en el mostrador de contraseñas. Hasta que se pulse, la
+bóveda funciona igual **mientras esté abierta**; lo único que no se puede es despertarla.
+
+### Y el mismo aviso cuando SÍ está abierta pero nadie la mira
+
+Con la pestaña en segundo plano, la pregunta de aprobación salía en una pantalla que nadie
+veía: el que pidió esperaba 90 segundos y acababa leyendo «nadie respondió», sin saber que
+la respuesta estaba a un clic. Ahora, si la página está oculta, la bóveda **avisa**; el
+aviso se cierra solo al contestar, porque uno que sigue ahí después dice algo que ya no es
+cierto.
+
+**Lo que el aviso NO hace es decidir.** Llama; aprobar sigue siendo pulsar en la pantalla
+de la bóveda.
+
+### Lo que esto NO resuelve todavía
+
+- **El extremo del que pregunta espera 90 s.** Si el usuario tarda más en ver el aviso y
+  abrir la bóveda, la petición ya venció por su lado — la bóveda contestará a algo que
+  nadie escucha. Cuando la extensión sepa distinguir «encolado» de «se cayó la red» podrá
+  decirlo y esperar mejor; hoy el proxio **no acusa por pubkey**, así que no puede saberlo.
+- **El timbre no está probado de punta a punta.** El escenario local no tiene servicio de
+  push al que llegar, así que se comprueba lo que sí se puede: que la bóveda avisa con la
+  pestaña oculta. Que un push despierte una bóveda cerrada está cableado por el pilar y
+  por el proxio, pero no observado.
+
 ## 5. Modelo de datos
 
 Una entrada, con el hueco de WebAuthn **reservado desde v1** aunque las passkeys
