@@ -1382,7 +1382,16 @@ sí toca producción). Lo medido:
 | con la **pestaña cerrada**, solo el service worker | vuelve a sonar ✓ |
 | al volver a abrir | **la cola baja sola**: llegan los dos, marcados `queued` ✓ |
 
-### Lo que esto NO resuelve todavía
+### Los límites de una bóveda en una pestaña: conocidos y ACEPTADOS
+
+> Decidido por el dueño el 2026-08-29, con las dos cosas de abajo medidas y delante:
+> *«el vault en pestaña tiene sus limitaciones conocidas, lo importante es que funcione si
+> la pestaña está abierta»*.
+>
+> **No son deuda.** El timbre es un extra que alarga el alcance de la pestaña, no lo que
+> la sostiene: con la pestaña abierta la bóveda responde, y esa es la promesa. Quien
+> quiera que responda siempre tiene el camino de siempre — el daemon del PC, que es el
+> *upgrade* del patrón del ecosistema. No hace falta arreglar lo de abajo.
 
 - **Hay una ventana de unos segundos en la que un pedido se pierde.** El proxio tarda en
   dar por muerto un socket: un mensaje enviado justo después de cerrar la pestaña se
@@ -1392,6 +1401,18 @@ sí toca producción). Lo medido:
   abrir la bóveda, la petición ya venció por su lado — la bóveda contestará a algo que
   nadie escucha. Cuando la extensión sepa distinguir «encolado» de «se cayó la red» podrá
   decirlo y esperar mejor; hoy el proxio **no acusa por pubkey**, así que no puede saberlo.
+
+**Y sobre el mecanismo, que se preguntó y se cerró el mismo día:** lo que hay **no es
+Firebase**. Es el Web Push Protocol estándar con VAPID — sin cuenta, sin SDK, sin JS de
+terceros; el proxio firma un POST y ya. El endpoint sale de Google porque **el servicio de
+push lo elige el navegador**, no nosotros (en Firefox saldría de Mozilla, en Safari de
+Apple), y eso no tiene alternativa: no se puede autohospedar el servicio de push de un
+navegador. El servicio ve que llegó algo cifrado, su tamaño y cuándo; el contenido va
+cifrado con las llaves del navegador y además está vacío — `{ type: 'ring', ts }`.
+
+FCM sí se usa, pero **solo para la app nativa** de Android (`ringFcm` en el proxio), que es
+otro problema. Encenderlo para la web añadiría una cuenta y una dependencia de producto
+para hacer exactamente lo que ya hace el estándar.
 
 ## 5. Modelo de datos
 
