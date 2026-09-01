@@ -1,6 +1,6 @@
 {
   "name": "dotrino-passmanager",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Gestor de contraseñas de Dotrino: la bóveda que responde y las piezas que piden",
@@ -22,8 +22,8 @@
     "store:shots": "node extension/store/tienda.mjs"
   },
   "dependencies": {
-    "@dotrino/identity": "0.62.0",
+    "@dotrino/identity": "0.73.1",
     "@dotrino/proxy-client": "0.13.1",
-    "@dotrino/vault": "0.35.0"
+    "@dotrino/vault": "0.43.0"
   }
 }
