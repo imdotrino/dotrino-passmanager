@@ -22,8 +22,8 @@
     "store:shots": "node extension/store/tienda.mjs"
   },
   "dependencies": {
-    "@dotrino/identity": "0.73.1",
+    "@dotrino/identity": "0.78.0",
     "@dotrino/proxy-client": "0.13.1",
-    "@dotrino/vault": "0.43.0"
+    "@dotrino/vault": "0.52.0"
   }
 }
