@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/passmanager",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Modelo de bóveda, cifrado e interfaz de credenciales del gestor de contraseñas de Dotrino",
   "type": "module",
   "license": "MIT",
@@ -32,11 +32,9 @@
     "totp",
     "webauthn"
   ],
-  "dependencies": {
-    "@dotrino/proxy-client": "0.13.1"
-  },
   "peerDependencies": {
-    "@dotrino/identity": ">=0.61.0"
+    "@dotrino/identity": ">=0.61.0",
+    "@dotrino/proxy-client": ">=0.13.0"
   },
   "peerDependenciesMeta": {
     "@dotrino/identity": {
