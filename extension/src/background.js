@@ -25,6 +25,7 @@ import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { GuardedVault } from './vendor/passmanager/vault/guard.js'
 import { ApprovalGate } from './vendor/passmanager/vault/approval.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
+import { identitySealing } from './vendor/passmanager/transport/sealed.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
 import { VaultError, CODES } from './vendor/passmanager/vault/errors.js'
 import {
@@ -270,21 +271,14 @@ async function askApproval ({ op, payload, vault }) {
  *
  * Es un adaptador y no una llave suelta porque la privada NO SALE de la identidad: se
  * le pide que abra, no que la entregue.
+ *
+ * Lo arma el PILAR (`identitySealing`), que es la MISMA pieza que usa la bóveda-en-pestaña
+ * de `vault.dotrino.com/vault` al otro lado. Estaba escrito aquí y allí, y son las dos
+ * puntas del mismo sobre: dos copias es una que se queda atrás, y eso no falla
+ * ruidosamente — la petición sale, al otro lado «no es para mí», y desde fuera se ve como
+ * que nadie respondió.
  */
-const sealing = {
-  async seal (msg, peerEncPub) {
-    if (!peerEncPub) throw new VaultError(CODES.UNSEALED, 'no tengo la llave de cifrado de la bóveda')
-    return {
-      app: 'passmanager',
-      // Destinatarios como OBJETOS: `encrypt` expande cada uno a todos los aparatos de
-      // esa persona; una llave suelta se le cae sin envolver nada y el sobre sale vacío.
-      sealed: await identity.encrypt([{ encryptionPubkey: peerEncPub }], JSON.stringify(msg)),
-      from: await identity.encryptionPubkey(),
-    }
-  },
-  async open (env) { return JSON.parse(await identity.decrypt(env.from, env.sealed)) },
-  isSealed: (m) => !!m && m.app === 'passmanager' && !!m.sealed,
-}
+const sealing = identitySealing(identity)
 
 /**
  * Recuerdo de lo que la bóveda YA entregó, en memoria de sesión: entrar tres veces al
