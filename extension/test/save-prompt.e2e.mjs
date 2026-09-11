@@ -163,6 +163,52 @@ try {
   await page.waitForTimeout(1500)
   const otra = page.frames().some(f => f.url().includes('/src/save-prompt.html'))
   ok(!otra, 'no vuelve a preguntar al recargar')
+
+  // --- 6. EL ACCESO QUE TE DEJA EN OTRO HOST ---------------------------------
+  //
+  // Es el caso corriente, no el raro: `us-east-2.signin.aws.amazon.com` →
+  // `console.aws.amazon.com`, `accounts.google.com` → `mail.google.com`. Acotado al
+  // mismo host, el aviso no salía justo detrás del acceso que más falta hace guardar —
+  // y no fallaba, simplemente no aparecía. Lo que lo ata ahora es la PESTAÑA.
+  //
+  // Aquí los dos «hosts» son `localhost` y `127.0.0.1`, que para el navegador son dos
+  // sitios distintos y los dos están en el manifiesto.
+  const OTRO = SITE.replace('localhost', '127.0.0.1')
+  const esperarAviso = async (p, vueltas = 24) => {
+    for (let i = 0; i < vueltas; i++) {
+      const f = p.frames().find(x => x.url().includes('/src/save-prompt.html'))
+      if (f) return f
+      await p.waitForTimeout(250)
+    }
+    return null
+  }
+
+  await page.goto(`${SITE}/login.html`)
+  await page.waitForTimeout(600)
+  await page.fill('input[name=user]', 'otra@dotrino.com')
+  await page.fill('input[name=password]', 'clave-de-otro-host')
+  await page.evaluate((otro) => { document.getElementById('login').action = otro + '/inside.html' }, OTRO)
+  await Promise.all([page.waitForURL(/127\.0\.0\.1/), page.click('button[type=submit]')])
+  const cruzado = await esperarAviso(page)
+  ok(!!cruzado, 'el aviso sale aunque el acceso te deje en otro host')
+  if (cruzado) {
+    // Y dice el sitio donde se ESCRIBIÓ, no aquel donde salió: el aviso cambia de sitio,
+    // la credencial no.
+    const quien = await cruzado.locator('#who').textContent()
+    ok(quien.includes('localhost') && !quien.includes('127.0.0.1'),
+      'y dice el sitio donde se escribió, no donde salió: ' + quien)
+  }
+
+  // --- 7. …y NO en otra pestaña de otro sitio -------------------------------
+  //
+  // La otra mitad de la regla, que es la que la hace aceptable: lo capturado no se
+  // asoma en una pestaña que no tiene nada que ver con el acceso.
+  const intrusa = await ctx.newPage()
+  await intrusa.goto(`${OTRO}/profile.html`)
+  await intrusa.waitForTimeout(3000)
+  const fuga = intrusa.frames().some(f => f.url().includes('/src/save-prompt.html'))
+  ok(!fuga, 'y no se asoma en otra pestaña de otro sitio')
+  await intrusa.close()
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

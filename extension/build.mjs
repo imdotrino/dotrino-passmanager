@@ -99,9 +99,16 @@ console.log('vendor: dotrino-identity/vault/content.js → extension/src/vendor/
 // El NÚCLEO de identidad, para que cada perfil tenga su llave de verdad (acta,
 // delegaciones, certificados). Se vendoriza el núcleo, NO la clase `Identity`: esa monta
 // un iframe contra id.dotrino.com y un service worker no tiene DOM.
-for (const f of ['core.js', 'acta.js', 'capabilities.js', 'remote.js', 'keyid.js', 'avatar.js']) {
-  await cp(join(here, '../../dotrino-identity/vault/', f), join(vendor, 'identity/', f))
-}
+//
+// QUÉ archivos: **los que el núcleo importa**, siguiendo la cadena — no una lista escrita
+// a mano. La lista existía y se quedó atrás: el núcleo empezó a importar `assertion.js`
+// (identity 0.84) y aquí nadie lo copió, así que el service worker moría al arrancar por
+// un import que no resuelve. Y muere en silencio: sin worker no hay marcador, no hay
+// aviso y no hay error en ninguna parte — la extensión parece estar y no está.
+const identitySrc = join(here, '../../dotrino-identity/vault')
+const identityFiles = new Set(['core.js', 'acta.js', 'capabilities.js', 'remote.js', 'keyid.js', 'avatar.js'])
+for (const f of [...identityFiles]) await seguirImports(join(identitySrc, f), identityFiles)
+for (const f of identityFiles) await cp(join(identitySrc, f), join(vendor, 'identity/', f))
 
 // Un service worker no admite `import()` DINÁMICO (lo prohíbe la especificación, no
 // Chrome). El núcleo lo usa para cargar el transporte perezosamente, que en una página
@@ -114,7 +121,7 @@ for (const f of ['core.js', 'remote.js']) {
     "import * as __proxy from '../proxy-client/index.js'\n" +
     code.replace(/await import\('@dotrino\/proxy-client'\)/g, '__proxy'))
 }
-console.log('vendor: dotrino-identity/vault/{core,acta,capabilities,remote,keyid,avatar}.js')
+console.log('vendor: dotrino-identity/vault/ →', [...identityFiles].sort().join(', '))
 
 // `@dotrino/identity` es peer dependency del sellado: en el navegador se le entrega la
 // copia que viaja, en vez de que intente resolver un import desnudo.
@@ -125,3 +132,62 @@ await writeFile(sealingPath,
   sealing.replace(
     "let primitives = null",
     "let primitives = __identityContent"))
+
+
+/**
+ * Los archivos que `entrada` importa, y los que importan esos: la cadena entera.
+ *
+ * Solo mira imports RELATIVOS y del mismo directorio, que es lo que se vendoriza. Los
+ * desnudos (`@dotrino/...`) los reescribe cada bloque de arriba a mano, porque cada uno
+ * apunta a una copia distinta.
+ */
+async function seguirImports (archivo, out) {
+  const code = await readFile(archivo, 'utf8')
+  const re = /(?:^|\n)\s*(?:import|export)\s[^'"\n]*from\s*['"](\.[^'"]+)['"]|(?:^|\n)\s*import\s*['"](\.[^'"]+)['"]/g
+  let m
+  while ((m = re.exec(code))) {
+    const rel = (m[1] || m[2]).replace(/^\.\//, '')
+    if (rel.includes('/') || out.has(rel)) continue
+    out.add(rel)
+    await seguirImports(join(dirname(archivo), rel), out)
+  }
+}
+
+// --- Y AL FINAL, QUE TODO RESUELVA ------------------------------------------
+//
+// Un import que no existe deja el service worker muerto ANTES de su primera línea, y no
+// se nota: la extensión sigue instalada, el content script sigue corriendo y todo lo que
+// le pregunta al worker se contesta solo con «no llego». Ni un error en la consola de la
+// página. Así que se comprueba aquí, que es donde se puede parar.
+async function verificarGrafo (entradas) {
+  const visto = new Set()
+  const rotos = []
+  const ir = async (f) => {
+    if (visto.has(f)) return
+    visto.add(f)
+    let code
+    try { code = await readFile(f, 'utf8') } catch { rotos.push(f); return }
+    const re = /(?:^|\n)\s*(?:import|export)\s[^'"\n]*from\s*['"](\.[^'"]+)['"]|(?:^|\n)\s*import\s*['"](\.[^'"]+)['"]/g
+    let m
+    while ((m = re.exec(code))) await ir(join(dirname(f), m[1] || m[2]))
+  }
+  for (const e of entradas) await ir(e)
+  if (rotos.length) {
+    throw new Error('imports que no resuelven (el service worker no arrancaría):\n  ' +
+      rotos.map((f) => f.replace(here + '/', '')).join('\n  '))
+  }
+  return visto.size
+}
+
+const cuantos = await verificarGrafo([
+  join(here, 'src/background.js'),
+  join(here, 'src/content.js'),
+  join(here, 'src/detect.js'),
+  join(here, 'src/ui.js'),
+  join(here, 'src/popup.js'),
+  join(here, 'src/manager.js'),
+  join(here, 'src/save-prompt.js'),
+  join(here, 'src/field-modal.js'),
+  join(here, 'src/approve.js'),
+])
+console.log(`grafo: ${cuantos} archivos y todos los imports resuelven`)

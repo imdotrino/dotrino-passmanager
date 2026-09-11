@@ -351,13 +351,14 @@ export function _shadow () { return shadow }
  */
 let prompt = null
 
-export function mountSavePrompt (params) {
+export function mountSavePrompt () {
   const sr = ensureHost()
   closeSavePrompt()
   const frame = document.createElement('iframe')
   frame.className = 'save-prompt'
   frame.setAttribute('title', 'Dotrino')
-  frame.src = chrome.runtime.getURL('src/save-prompt.html') + '?' + new URLSearchParams(params)
+  // Sin parámetros: lo que el aviso enseña no viene de la página. Se lo pide él.
+  frame.src = chrome.runtime.getURL('src/save-prompt.html')
   sr.append(frame)
   prompt = frame
   return frame

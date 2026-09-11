@@ -581,7 +581,7 @@ El recorrido, y dónde está cada pieza:
 |---|---|---|
 | al enviar | content script | lee del formulario lo que se reconoce —usuario, contraseña y los datos sueltos— y lo manda al service worker (`capture`) |
 | entre páginas | service worker | las sostiene en `chrome.storage.session`, **una sola** y con caducidad de 5 min |
-| ya en la página siguiente | content script | pregunta si hay algo pendiente **para este mismo sitio** y monta el aviso |
+| ya en la página siguiente | content script | pregunta si hay algo pendiente **en esta pestaña** (o en este mismo sitio) y monta el aviso |
 | el aviso | **iframe de la extensión** | **la marca arriba**, debajo a dónde va a parar, y **qué se va a escribir campo por campo y dónde** (§4.0.2). La contraseña **no llega hasta aquí** |
 | el «sí» | service worker | escribe en la bóveda **lo que quedó marcado**; después borra lo capturado |
 
@@ -592,9 +592,55 @@ abrirle a la página ninguna operación nueva. La página no puede pulsarlo, ni 
 fingirlo — vive además en el Shadow DOM cerrado del §4.1.
 
 **Lo que la página SÍ puede disparar**, y por qué no importa: `capture` (apuntar lo que
-ella misma acaba de recibir) y `pending-save` (preguntar si hay algo suyo pendiente, que
-devuelve el sitio y el usuario, nunca la contraseña). Ninguna escribe en la bóveda ni
-saca nada de ella.
+ella misma acaba de recibir) y `pending-save` (preguntar si hay algo pendiente, que
+contesta **un sí o un no y nada más**). Ninguna escribe en la bóveda ni saca nada de ella.
+
+#### Dónde sale el aviso: en la PESTAÑA del acceso, no solo en el host
+
+Hasta el 2026-09-11 el aviso se ofrecía **solo en el mismo host** donde se había escrito, y
+la razón era buena: `pending-save` le devolvía a la página el sitio y el usuario para que
+el aviso los pintara, así que ofrecerlo en otro sitio era enseñarle a ese otro un usuario
+que no es suyo.
+
+El problema es que **el caso corriente de un acceso es cambiar de host**, no quedarse:
+
+| escribes en | acabas en |
+|---|---|
+| `us-east-2.signin.aws.amazon.com` | `console.aws.amazon.com` |
+| `accounts.google.com` | `mail.google.com` |
+| `login.microsoftonline.com` | `portal.azure.com` |
+
+O sea que el aviso no salía justo detrás del acceso que más falta hacía guardar, y no
+fallaba: simplemente no aparecía, que es la peor forma de no funcionar.
+
+Se arregla por el otro extremo, quitando el motivo en vez de ensanchando la regla:
+
+1. **`pending-save` ya no devuelve nada**: ni el sitio ni el usuario, solo si hay algo. Lo
+   que el aviso enseña se lo pide él a `pending-detail`, que solo se contesta al origen
+   `chrome-extension://`. Así la página no se entera de nada, salga donde salga.
+2. **Y entonces lo que ata la captura al acceso es la PESTAÑA**, que es por donde vuelve el
+   redirigido. Se guarda el `tabId` al capturar y se compara al ofrecer.
+3. **El host se conserva como segunda vía**, porque hay accesos que vuelven en una pestaña
+   nueva y ahí no hay pestaña que emparejar.
+
+**La pestaña solo cuenta si hubo ENVÍO**, y esa mitad no es un detalle: enviar es el
+usuario diciendo «entro», así que lo que cargue después ahí es a donde eso le llevó.
+Irse de una página sin enviar nada se apunta como `leave` y se queda en su host. Sin esa
+distinción pasaba lo evidente en cuanto se prueba: rellenabas una contraseña desde la
+bóveda, te ibas a otra parte en la misma pestaña, y salía un aviso de guardar donde no
+había pasado nada.
+
+Y como **media web entra sin disparar `submit`** —un botón, un `fetch` y navegar a mano—,
+cuenta también como envío haber **pulsado un botón** en los últimos 5 segundos. Un enlace
+no: irse por un enlace, por la barra de direcciones o por el botón de atrás es irse.
+
+Lo que se guarda sigue siendo **el sitio donde se escribió** (`signin.aws.amazon.com`), no
+aquel donde salió el aviso: el aviso cambia de sitio, la credencial no. Y por eso, si el
+sitio usa un host distinto cada vez —AWS antepone la región: `us-east-2.signin…`—, la
+entrada queda atada a ese, y el sitio se corrige a mano en el gestor (`signin.aws.amazon.com`
+cubre todos sus subdominios, §4.2). Aquí no se recorta la etiqueta por nuestra cuenta:
+adivinar cuánto dominio sobra es exactamente lo que hace que una credencial acabe en el
+sitio equivocado.
 
 **Y lo que NO puede**, que es la otra mitad de la regla: `save-pending`, que escribe, y
 `pending-detail`, que **lee** la entrada guardada para poder decir qué cambia. Este

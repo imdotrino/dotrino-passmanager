@@ -16,17 +16,20 @@ import { t, pickLang, kindLabel } from './i18n.js'
 import { hostApprovals } from './approval.js'
 
 const lang = pickLang()
-const p = new URLSearchParams(location.search)
-const host = p.get('host') || ''
-const user = p.get('user') || ''
+
+// EL SITIO Y EL USUARIO no vienen de la página: los trae `pending-detail`, que solo se
+// contesta al origen de la extensión. Venían por la URL del iframe, y eso obligaba a que
+// el service worker se los diera antes al content script — o sea, a la página. Un acceso
+// que te deja en otro host habría enseñado ahí un usuario que no es de ese sitio, y por
+// eso el aviso estaba acotado al mismo host. Ahora no hace falta acotarlo por eso.
+let host = ''
+let user = ''
 
 const $ = (id) => document.getElementById(id)
 
 document.documentElement.lang = lang
 $('save').textContent = t(lang, 'save')
 $('no').textContent = t(lang, 'notNow')
-// De entrada, lo que se acaba de escribir; en cuanto haya destino elegido, ese manda.
-$('who').textContent = [user || '', host].filter(Boolean).join(' · ')
 
 const ask = (op, payload) => new Promise((resolve, reject) => {
   chrome.runtime.sendMessage({ op, payload }, (r) => {
@@ -407,6 +410,9 @@ function syncButtons () {
 async function load () {
   detail = await ask('pending-detail')
   if (!detail?.has) return close()
+  // De quién y de dónde es lo que se acaba de escribir. Llega aquí, no por la URL.
+  host = detail.host || ''
+  user = detail.username || ''
   // Preseleccionada, la que más se parece — que es la que el usuario querría pisar el
   // 90 % de las veces. Si ninguna se parece, una entrada nueva: no se pisa por defecto
   // algo que no se sabe si es lo mismo.

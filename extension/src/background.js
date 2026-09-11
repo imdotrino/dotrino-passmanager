@@ -616,7 +616,7 @@ async function readPending () {
  * Lo capturado ya no es solo usuario+contraseña: un formulario de datos (el perfil, la
  * dirección de envío) es igual de guardable, y llega sin contraseña ninguna.
  */
-async function capture ({ username, secret, url, fields, focus, from }) {
+async function capture ({ username, secret, url, fields, focus, from }, sender) {
   const limpios = cleanFields(fields)
   // Un usuario suelto también se guarda: es media credencial, y la otra media se suma
   // luego a la misma entrada. Lo que no se guarda es nada.
@@ -630,12 +630,22 @@ async function capture ({ username, secret, url, fields, focus, from }) {
       // nada pulsado y va todo marcado; al pulsar el botón de un campo, ese campo — que
       // es lo que el usuario pidió guardar, ni más ni menos.
       focus: Array.isArray(focus) ? focus.slice(0, MAX_FIELDS + 2).map(String) : [],
-      // DE DÓNDE viene. Lo que se apunta al pulsar el botón de un campo es para el modal
-      // que se está abriendo, no para el aviso de la página siguiente: sin esto, la
-      // pasada de «¿quedó algo pendiente?» del arranque lo pescaba y salían los dos.
-      from: from === 'field' ? 'field' : 'submit',
+      // DE DÓNDE viene, y son tres cosas distintas:
+      //
+      //   · `field`  — el botón de un campo. Es para el modal que se está abriendo, no
+      //     para el aviso de la página siguiente: sin esto, la pasada de «¿quedó algo
+      //     pendiente?» del arranque lo pescaba y salían los dos.
+      //   · `submit` — el usuario ENVIÓ el formulario. Lo que cargue después en esa
+      //     pestaña es a donde el acceso le llevó, aunque sea otro host.
+      //   · `leave`  — solo se fue de la página. No hubo acceso, así que lo apuntado no
+      //     sigue a nadie: se queda en su sitio.
+      from: ['field', 'leave'].includes(from) ? from : 'submit',
       url: url || '',
       host: hostOf(url),
+      // EN QUÉ PESTAÑA se escribió. Es lo que ata la captura al acceso que la produjo:
+      // media web te deja en otro host al entrar (`signin.aws.amazon.com` →
+      // `console.aws.amazon.com`), y esa vuelta pasa por la misma pestaña.
+      tabId: sender?.tab?.id ?? null,
       ts: Date.now(),
     },
   })
@@ -749,20 +759,40 @@ function stripDigest (list) {
 
 
 /**
- * ¿Hay algo que ofrecer en este sitio? Devuelve el sitio y el usuario, NUNCA la
- * contraseña ni nada de la bóveda: quien pregunta es el content script, o sea la
- * página. Todo lo demás —qué hay guardado, qué cambia— es de `pending-detail`, que la
- * página no puede pedir.
+ * ¿Hay algo que ofrecer aquí? Un `sí` o un `no`, y NADA MÁS.
  *
- * Se ofrece solo en el MISMO sitio donde se escribió. Entrar en un sitio y que el aviso
- * te salga en otro sería enseñarle a ese otro un usuario que no es suyo.
+ * Quien pregunta es el content script, o sea la página. Antes se le devolvía el sitio y
+ * el usuario para que el aviso los pintara, y eso obligaba a acotar por host: enseñarle
+ * a otro sitio un usuario que no es suyo es una fuga. Ahora el aviso —que es un iframe
+ * de la EXTENSIÓN— se los pide él mismo a `pending-detail`, que la página no puede
+ * pedir. Por aquí no sale ni el sitio.
+ *
+ * **Dónde se ofrece: en el mismo host, o —si hubo ENVÍO— en la pestaña donde se envió.**
+ * El host solo no valía, y es el caso corriente, no el raro: media web te deja en otro
+ * host al entrar —`us-east-2.signin.aws.amazon.com` → `console.aws.amazon.com`,
+ * `accounts.google.com` → `mail.google.com`—, así que el aviso no salía justo después del
+ * acceso que sí había que guardar. La pestaña es lo que ata la captura a esa vuelta.
+ *
+ * **Y por eso la pestaña solo cuenta con un `submit` detrás.** Enviar el formulario es el
+ * usuario diciendo «entro»; lo que cargue después ahí es a donde eso le llevó. Irse de
+ * una página sin enviar nada (`leave`) no es un acceso, así que lo apuntado se queda en
+ * su host y no aparece en el siguiente sitio que abras en esa pestaña. Sin esa distinción,
+ * rellenar una contraseña y navegar a otra parte sacaba un aviso de guardar donde no había
+ * pasado nada.
+ *
+ * El precio, dicho: un sitio que entra SIN disparar `submit` —botón, `fetch` y navegar a
+ * mano— y que además cambia de host se queda sin aviso. Se captura igual (`leave`), pero
+ * solo se ofrece en su propio host. No hay forma de distinguir desde `pagehide` entre «me
+ * llevó el acceso» y «me fui», y adivinarlo sería sacar el aviso en sitios donde no toca.
  */
-async function pendingSave ({ host } = {}) {
+async function pendingSave ({ host } = {}, sender) {
   const p = await readPending()
   if (!p) return { has: false }
   if (p.from === 'field') return { has: false }
-  if (host && p.host && host !== p.host) return { has: false }
-  return { has: true, host: p.host, username: p.username }
+  const mismoHost = !!host && !!p.host && host === p.host
+  const mismaPestana = p.from === 'submit' && sender?.tab?.id != null && sender.tab.id === p.tabId
+  if (!mismaPestana && !mismoHost) return { has: false }
+  return { has: true }
 }
 
 /**
@@ -1310,8 +1340,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   //
   // `capture` y `pending-save` SÍ los puede disparar la página, y es a propósito: son
   // los dos lados del aviso de guardar. Ninguno escribe en la bóveda ni saca nada de
-  // ella — uno apunta lo que el propio sitio acaba de recibir, y el otro devuelve el
-  // sitio y el usuario, nunca la contraseña. Fuera de esta lista se quedan los dos que
+  // ella — uno apunta lo que el propio sitio acaba de recibir, y el otro contesta un sí o
+  // un no y ni siquiera dice de qué sitio. Fuera de esta lista se quedan los dos que
   // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
   // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
   // extensión.
@@ -1320,7 +1350,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false
   }
 
-  Promise.resolve(op(msg.payload || {}))
+  Promise.resolve(op(msg.payload || {}, sender))
     .then(result => sendResponse({ result }))
     .catch(e => sendResponse({ error: { code: e?.code || 'error', message: e?.message } }))
   return true

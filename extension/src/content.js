@@ -379,8 +379,13 @@ const enoughData = (fields) => fields.filter(f => f.kind).length >= 2
 /**
  * Lo mismo pero sin esperar a nadie: en `pagehide` no hay tiempo para un `await`.
  * Con `force` se salta el mínimo de dos datos: es para cuando el usuario lo pide.
+ *
+ * `from` dice CÓMO se capturó, y no es cosmético: `submit` es el usuario enviando el
+ * formulario —así que lo que cargue después en esta pestaña es a donde ese acceso le
+ * llevó—, y `leave` es solo irse de la página. El aviso lo usa para decidir dónde puede
+ * salir (ver `pendingSave` en el service worker).
  */
-function captureFrom (form, { force = false } = {}) {
+function captureFrom (form, { force = false, from = 'submit' } = {}) {
   const { detect } = cache
   if (!detect) return false
   const secret = form?.password?.value || ''
@@ -390,7 +395,7 @@ function captureFrom (form, { force = false } = {}) {
   const fields = detect.readDataFields(scope, { skip: [form?.username, form?.password] })
   if (!secret && !(force ? fields.length : enoughData(fields))) return false
   return capture({
-    from: 'submit',
+    from,
     username: secret ? detect.readUsername(form) : '',
     secret,
     fields,
@@ -430,15 +435,37 @@ addEventListener('submit', (e) => {
   for (const x of lastForms) if (captureFrom(x)) return
 }, true)
 
+/**
+ * ENVIAR SIN `submit`: un botón que llama a `fetch` y navega a mano, que es media web.
+ *
+ * Para el aviso eso es un envío igual —el usuario pulsó «Entrar»—, y la diferencia
+ * importa: solo un envío deja que lo apuntado siga a la pestaña cuando el acceso te
+ * deja en otro host (ver `pendingSave` en el service worker). Así que se apunta cuándo
+ * se pulsó un botón de la página.
+ *
+ * Un ENLACE no cuenta, y es la mitad de la regla: irse por un enlace, por la barra de
+ * direcciones o por el botón de atrás es irse, no entrar — y lo que quedó escrito no
+ * tiene por qué asomarse en el sitio siguiente.
+ */
+let pulsado = 0
+const PULSADO_MS = 5000
+addEventListener('click', (e) => {
+  if (e.target?.closest?.('button, input[type=submit], input[type=button], input[type=image]')) {
+    pulsado = Date.now()
+  }
+}, { capture: true, passive: true })
+
 // 2. Y la salida de la página, porque media web entra sin disparar `submit`: un botón
 //    que llama a `fetch` y navega a mano. Sin esto el gestor solo aprendería de los
 //    formularios de siempre, que son cada vez menos.
 addEventListener('pagehide', () => {
-  for (const f of lastForms) if (captureFrom(f)) return
+  // Si acaba de pulsar un botón, esto es un envío aunque no haya `submit`.
+  const from = Date.now() - pulsado < PULSADO_MS ? 'submit' : 'leave'
+  for (const f of lastForms) if (captureFrom(f, { from })) return
   // Un formulario de datos no aparece en `lastForms` (ahí solo van los accesos), así que
   // se mira la página entera — pero solo si el usuario escribió: ver una pantalla no es
   // llenarla.
-  if (touched) captureFrom({ form: null, password: null, username: null })
+  if (touched) captureFrom({ form: null, password: null, username: null }, { from })
 }, { capture: true })
 
 /**
@@ -457,10 +484,9 @@ async function offerSave (waits = [0, 400, 1000, 2000]) {
     const p = r?.result
     if (!p?.has) continue
     const { ui } = await mods
-    // Solo el sitio y el usuario, que es lo que la página ya sabe. Lo que hay guardado
-    // —qué entradas existen, qué cambiaría— se lo pregunta el aviso al service worker
-    // desde el origen de la extensión: por aquí no pasa.
-    ui.mountSavePrompt({ host: p.host || '', user: p.username || '' })
+    // Un sí y nada más: ni el sitio ni el usuario pasan por aquí. Todo lo que el aviso
+    // enseña se lo pregunta él al service worker desde el origen de la extensión.
+    ui.mountSavePrompt()
     return
   }
 }

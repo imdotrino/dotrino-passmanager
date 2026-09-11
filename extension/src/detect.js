@@ -47,24 +47,29 @@ export function isVisible (el) {
  * dejan toda la información en la etiqueta, que es lo único que lee una persona.
  */
 export function labelTextOf (el) {
-  const partes = []
+  // Un `Set` y no una lista: **el mismo texto por dos vías es una etiqueta, no dos**. La
+  // consola de AWS pone `<label for>` y `aria-labelledby` apuntando al mismo elemento, y
+  // sumándolos la etiqueta salía repetida y recortada a 60 — «Account ID or alias(Don't
+  // have?) Account ID or alias(Don't h». Y esa etiqueta no es cosmética: un campo libre
+  // se identifica POR ella (§4.2), así que repetida es otra clave.
+  const partes = new Set()
   const doc = el.ownerDocument
   const root = el.getRootNode?.() || doc
 
   // 1. `<label for="...">`. `labels` ya resuelve esto en el navegador, pero no cruza
   //    shadow roots, así que se busca también a mano dentro de la raíz del campo.
   if (el.labels?.length) {
-    for (const l of el.labels) partes.push(l.textContent)
+    for (const l of el.labels) partes.add(norm(l.textContent))
   } else if (el.id) {
     const escaped = (globalThis.CSS?.escape ? CSS.escape(el.id) : el.id.replace(/["\\]/g, '\\$&'))
-    for (const l of root.querySelectorAll?.(`label[for="${escaped}"]`) || []) partes.push(l.textContent)
+    for (const l of root.querySelectorAll?.(`label[for="${escaped}"]`) || []) partes.add(norm(l.textContent))
   }
 
   // 2. `<label>Correo <input></label>` — el campo va dentro de su etiqueta. Solo si
   //    no vino ya por `labels`, que también la incluye: si no, el texto sale doble.
   const envolvente = el.closest?.('label')
   if (envolvente && !(el.labels && [...el.labels].includes(envolvente))) {
-    partes.push(envolvente.textContent)
+    partes.add(norm(envolvente.textContent))
   }
 
   // 3. `aria-labelledby`, que apunta a cualquier otro elemento.
@@ -72,12 +77,16 @@ export function labelTextOf (el) {
   if (by) {
     for (const id of by.split(/\s+/)) {
       const ref = root.getElementById?.(id) || doc.getElementById(id)
-      if (ref) partes.push(ref.textContent)
+      if (ref) partes.add(norm(ref.textContent))
     }
   }
 
-  return partes.join(' ').replace(/\s+/g, ' ').trim()
+  partes.delete('')
+  return [...partes].join(' ')
 }
+
+/** El texto de un nodo en una sola línea, que es como se compara y como se enseña. */
+const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim()
 
 /**
  * Compara una pista con el texto de un campo POR PALABRAS, no por subcadena.
