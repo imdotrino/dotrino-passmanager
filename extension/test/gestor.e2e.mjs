@@ -16,7 +16,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const { chromium } = await import(process.env.PLAYWRIGHT || 'playwright')
+// `PLAYWRIGHT` puede apuntar a un archivo (el paquete de otro repo), y por ahí Playwright
+// llega como CommonJS: `chromium` viene colgado del `default`, no como export con nombre.
+const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
+const chromium = _pw.chromium || _pw.default?.chromium
 
 const EXT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SITE = process.env.SITE || 'http://localhost:8099'
