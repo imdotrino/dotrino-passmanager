@@ -90,6 +90,19 @@ await writeFile(supportPath, support.replace(remoto,
 function recordAppOpen() {}`))
 console.log('vendor: support sin el contador de aperturas (nada de código remoto)')
 
+// LA TARJETA DE PERFIL del ecosistema (CONVENCIONES §6.1). Trae el editor —nombre, foto,
+// redes, datos— y además SU PROPIO conmutador de perfiles, con borrado, cuando se le pasa
+// `manage`. Por eso viaja: el gestor tenía las operaciones (`profile-rename`,
+// `profile-remove`) sin ninguna pantalla que las usara, y escribir aquí otro formulario
+// sería reimplementar un pilar a mano — lo que la regla principal prohíbe.
+await mkdir(join(vendor, 'profile'), { recursive: true })
+await cp(join(here, '../../dotrino-profile/src/index.js'), join(vendor, 'profile/index.js'))
+const profilePath = join(vendor, 'profile/index.js')
+await writeFile(profilePath, (await readFile(profilePath, 'utf8'))
+  .replace("from '@dotrino/identity/capabilities'", "from '../identity/capabilities.js'")
+  .replace("from '@dotrino/identity/keyid'", "from '../identity/keyid.js'"))
+console.log('vendor: dotrino-profile/src/index.js → extension/src/vendor/profile/index.js')
+
 // El sellado extremo a extremo es de @dotrino/identity (la misma cripto que usa el
 // vault para los secretos sellados). No se reescribe: viaja.
 await mkdir(join(vendor, 'identity'), { recursive: true })

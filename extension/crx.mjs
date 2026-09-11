@@ -118,6 +118,54 @@ for (const f of await readdir(appDir)) {
   }
 }
 
+// LOS ARCHIVOS DE POLÍTICA para Windows y macOS, al lado del paquete.
+//
+// En esos dos sistemas Chrome no deja instalar nada de fuera de la tienda salvo que una
+// política lo autorice, así que el `.crx` por sí solo no basta ahí. Y esa política se
+// escribía a mano, copiando de la documentación: un JSON con las comillas escapadas dentro
+// de un texto del registro, o un plist entero. Es justo lo que se copia mal — y el Bloc de
+// notas encima lo guarda como `.reg.txt`.
+//
+// Aquí los dos salen del build, que es quien sabe el id y la URL de verdad.
+//
+// SIN VERSIÓN EN EL NOMBRE, y no es un descuido del §11.5: eso rige para los INSTALADORES,
+// y esto no instala nada — apunta a `updates.xml`, que es lo que cambia. Un `.reg` con
+// versión obligaría a volver a aplicarlo en cada release, que es exactamente lo contrario
+// de para lo que sirve.
+const politicaJson = JSON.stringify({
+  [id]: { installation_mode: 'normal_installed', update_url: `${BASE}/updates.xml` },
+})
+await writeFile(join(appDir, 'dotrino-passmanager.reg'),
+  'Windows Registry Editor Version 5.00\r\n\r\n' +
+  '; Politica de Chrome: deja instalar esta extension desde pass.dotrino.com y la mantiene\r\n' +
+  '; al dia sola. Doble clic como administrador y reinicia Chrome. Comprueba en chrome://policy\r\n' +
+  '; OJO: ExtensionSettings es UNA sola politica para todas las extensiones del equipo. Si ya\r\n' +
+  '; tenias una puesta, esto la reemplaza entera: ahi hay que anadir la entrada dentro.\r\n' +
+  '[HKEY_LOCAL_MACHINE\\Software\\Policies\\Google\\Chrome]\r\n' +
+  `"ExtensionSettings"="${politicaJson.replace(/"/g, '\\"')}"\r\n`)
+
+await writeFile(join(appDir, 'dotrino-passmanager.plist'),
+  `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS: va en /Library/Managed Preferences/com.google.Chrome.plist (pide administrador).
+     Despues:  sudo killall cfprefsd   y reinicia Chrome. Comprueba en chrome://policy
+     OJO: este archivo es la politica ENTERA de Chrome en ese equipo. Si ya habia una, hay
+     que anadir esta clave dentro en vez de reemplazarlo. -->
+<plist version="1.0">
+<dict>
+  <key>ExtensionSettings</key>
+  <dict>
+    <key>${id}</key>
+    <dict>
+      <key>installation_mode</key><string>normal_installed</string>
+      <key>update_url</key><string>${BASE}/updates.xml</string>
+    </dict>
+  </dict>
+</dict>
+</plist>
+`)
+console.log('política: %s/dotrino-passmanager.{reg,plist}', BASE)
+
 // EL ENLACE DE LA LANDING, apuntado a este paquete. El nombre lleva la versión
 // (CONVENCIONES §11.5), así que escrito a mano se queda atrás — y el wiki manda aquí a
 // descargarlo en vez de guardar él la URL, para no tener la versión escrita en dos repos.

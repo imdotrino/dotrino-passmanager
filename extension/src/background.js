@@ -359,6 +359,23 @@ async function renameProfile ({ id, label }) {
 }
 
 /**
+ * EL PERFIL COMPLETO del que está activo: nombre, foto, redes y datos.
+ *
+ * Es lo que le falta a `<dotrino-profile mode="self">` para poder editar — lo demás
+ * (la lista, cambiarse, borrar, renombrar) ya estaba. Sale del núcleo de identidad tal
+ * cual, sin recortar: lo que decide qué se comparte es el `visible` de cada dato, y eso
+ * es del propio registro, no de quien lo enseña.
+ */
+const getProfile = () => identity.getMe()
+
+/**
+ * Y guardarlo. Es un PATCH: lo que no venga no se toca — el editor manda solo el campo
+ * que cambiaste, y pisar el resto con lo que la pantalla tuviera en memoria es cómo se
+ * pierde una foto por editar un teléfono.
+ */
+const setProfile = ({ patch } = {}) => identity.updateMe(patch || {})
+
+/**
  * Quitar un perfil. Se lleva TODO lo suyo —la identidad la borra el núcleo, la bóveda la
  * borramos aquí—: si quedara algo, «lo quité» sería mentira.
  */
@@ -1303,6 +1320,8 @@ const OPS = {
   'profile-add': addProfile,
   'profile-use': useProfile,
   'profile-rename': renameProfile,
+  'profile-get': getProfile,
+  'profile-set': setProfile,
   'profile-remove': removeProfile,
   find: async p => stripDigest(await findFor(p.url)),
   offers: p => offersFor(p),

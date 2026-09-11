@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS: va en /Library/Managed Preferences/com.google.Chrome.plist (pide administrador).
+     Despues:  sudo killall cfprefsd   y reinicia Chrome. Comprueba en chrome://policy
+     OJO: este archivo es la politica ENTERA de Chrome en ese equipo. Si ya habia una, hay
+     que anadir esta clave dentro en vez de reemplazarlo. -->
+<plist version="1.0">
+<dict>
+  <key>ExtensionSettings</key>
+  <dict>
+    <key>fgfaonjeacleeoagdcbndgiapfnnablc</key>
+    <dict>
+      <key>installation_mode</key><string>normal_installed</string>
+      <key>update_url</key><string>https://pass.dotrino.com/app/updates.xml</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

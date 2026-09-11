@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+; Politica de Chrome: deja instalar esta extension desde pass.dotrino.com y la mantiene
+; al dia sola. Doble clic como administrador y reinicia Chrome. Comprueba en chrome://policy
+; OJO: ExtensionSettings es UNA sola politica para todas las extensiones del equipo. Si ya
+; tenias una puesta, esto la reemplaza entera: ahi hay que anadir la entrada dentro.
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome]
+"ExtensionSettings"="{\"fgfaonjeacleeoagdcbndgiapfnnablc\":{\"installation_mode\":\"normal_installed\",\"update_url\":\"https://pass.dotrino.com/app/updates.xml\"}}"

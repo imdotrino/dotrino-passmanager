@@ -173,6 +173,27 @@ export const identity = {
     await handlers.deleteProfile({ id })
     await restart()
   },
+  // ----- EL PERFIL: nombre, foto, redes, datos (CONVENCIONES §6.1) ------------
+  //
+  // Lo edita `<dotrino-profile>`, el componente del ecosistema, desde el gestor. El núcleo
+  // ya guardaba este registro —y lo empuja a la bóveda para que sea el mismo en todos tus
+  // aparatos—; lo que faltaba era asomarlo por aquí.
+
+  /** El registro completo del perfil activo. */
+  async getMe () {
+    const { handlers } = await identityCore()
+    return handlers.getMe()
+  },
+
+  /**
+   * Guarda un PATCH: lo que no venga en él no se toca. Es como lo pide el núcleo, y es lo
+   * que evita que editar un teléfono borre la foto.
+   */
+  async updateMe (patch) {
+    const { handlers } = await identityCore()
+    return handlers.updateMe({ patch: patch || {} })
+  },
+
   /** La pública del perfil activo: con ella lo conoce la bóveda. */
   async publickey () {
     const c = await identityCore()

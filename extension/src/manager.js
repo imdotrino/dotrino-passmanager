@@ -21,7 +21,9 @@
 import { pickLang, t, kindLabel, fieldLabel } from './i18n.js'
 import { KINDS } from './vendor/passmanager/fields.js'
 import { entryCard, byName } from './entry-card.js'
-import { profileBar } from './profiles.js'
+// La tarjeta del ecosistema en vez del conmutador casero: trae el editor y el borrado, que
+// eran las dos operaciones que el service worker tenía sin pantalla (ver profile-card.js).
+import { profileCard } from './profile-card.js'
 // La bóveda puede preguntar mientras esta pestaña está delante (no por editar —que no
 // saca nada—, pero sí si el usuario copia algo desde aquí más adelante): la pregunta sale
 // en esta misma página, como en el resto de pantallas de la extensión.
@@ -150,12 +152,10 @@ async function renderList () {
   // DE QUÉ BÓVEDA se está hablando. Un perfil es una bóveda (§3.3) y aquí se administra
   // todo, así que sin esta barra la pantalla no dice de quién es lo que enseña. Añadir un
   // perfil no está: pide emparejar, y ese flujo vive en el popup.
+  // Sale SIEMPRE, también con un solo perfil: ahí no conmuta nada, pero dice en cuál estás
+  // y es donde se edita tu nombre, tu foto y tus datos.
   const perfiles = el('div')
-  ask('status')
-    // Sale SIEMPRE, también con uno solo: con un perfil la barra no conmuta nada, pero
-    // dice en cuál estás, que es la mitad de para qué existe.
-    .then((st) => { if (st?.profiles?.length) perfiles.replaceChildren(profileBar(ctx(), st)) })
-    .catch(() => {})
+  perfiles.replaceChildren(profileCard(ask, lang))
 
   const lista = el('ul', { className: 'entries' })
   const titulo = el('h2')

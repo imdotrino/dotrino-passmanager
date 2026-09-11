@@ -3,7 +3,7 @@
   "version": "0.9.0",
   "private": true,
   "type": "module",
-  "description": "Gestor de contraseñas de Dotrino: la bóveda que responde y las piezas que piden",
+  "description": "Gestor de contrase\u00f1as de Dotrino: la b\u00f3veda que responde y las piezas que piden",
   "bin": {
     "dotrino-passmanager": "bin/passmanager.js"
   },
@@ -19,7 +19,8 @@
     "test:generar": "node extension/test/generar.e2e.mjs",
     "test:reemplazos": "node extension/test/reemplazos.e2e.mjs",
     "test:gestor": "node extension/test/gestor.e2e.mjs",
-    "store:shots": "node extension/store/tienda.mjs"
+    "store:shots": "node extension/store/tienda.mjs",
+    "test:perfil": "node extension/test/perfil.e2e.mjs"
   },
   "dependencies": {
     "@dotrino/identity": "0.78.0",
