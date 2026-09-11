@@ -60,3 +60,16 @@ for (const f of await readdir(appDir)) {
     await rm(join(appDir, f)); console.log('fuera el viejo:', f)
   }
 }
+
+// Y EL CANAL PROPIO NO SE QUEDA ATRÁS. El `.crx` que se instala solo en los aparatos lo
+// arma `crx.mjs`, que es otro comando porque necesita la llave de firma. Publicar el zip
+// sin él dejaría `updates.xml` anunciando una versión vieja, y los aparatos no se
+// enterarían de nada — que es exactamente lo que acaba de pasar con el enlace de descarga.
+// Así que aquí se para y se dice, en vez de avisar y seguir.
+const updates = await readFile(join(appDir, 'updates.xml'), 'utf8').catch(() => '')
+const anunciada = updates.match(/<updatecheck[^>]*\sversion='([^']+)'/)?.[1]
+if (anunciada && anunciada !== manifest.version) {
+  console.error('\nEl canal propio se queda en %s y esto es %s.', anunciada, manifest.version)
+  console.error('Arma también el .crx:  npm run crx   (o las dos cosas:  npm run release)')
+  process.exit(1)
+}

@@ -3,3 +3,5 @@ dist/
 .env
 .claude/
 package-lock.json
+# La llave que firma el .crx: vive en ~/.dotrino/keys, nunca aquí.
+*.pem

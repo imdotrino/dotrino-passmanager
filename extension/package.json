@@ -3,10 +3,12 @@
   "version": "0.35.0",
   "private": true,
   "type": "module",
-  "description": "Extensión Chrome MV3 del gestor de contraseñas de Dotrino",
+  "description": "Extensi\u00f3n Chrome MV3 del gestor de contrase\u00f1as de Dotrino",
   "scripts": {
     "build": "node build.mjs",
     "package": "node package.mjs",
+    "crx": "node crx.mjs",
+    "release": "node package.mjs && node crx.mjs",
     "publish:store": "node publish.mjs"
   }
 }

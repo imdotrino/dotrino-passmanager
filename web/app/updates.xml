@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Lo consulta Chrome para saber si hay versión nueva. Lo escribe extension/crx.mjs. -->
+<gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
+  <app appid='fgfaonjeacleeoagdcbndgiapfnnablc'>
+    <updatecheck codebase='https://pass.dotrino.com/app/dotrino-passmanager-0.35.0.crx' version='0.35.0' />
+  </app>
+</gupdate>
