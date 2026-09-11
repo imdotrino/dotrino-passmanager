@@ -7,6 +7,7 @@
       heroLead: 'Your own vault keeps them, on your device. When you open a site, the browser gets that site’s password and nothing else.',
       state: 'In development. Not in the Chrome store yet.',
       get: 'Download the extension',
+      getCrx: 'Signed package (.crx)',
       howto: 'How to install it',
       c1t: 'One at a time',
       c1d: 'Password managers usually keep a copy of all your passwords in the browser. This one asks for the password of the site you are opening, uses it and lets it go. And none of them leaves without you authorizing it.',

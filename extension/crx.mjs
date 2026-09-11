@@ -17,7 +17,7 @@
 // todos los dispositivos ven una extensión distinta: hay que guardarla en la bóveda.
 
 import { readFile, writeFile, mkdir, rm, cp, readdir } from 'node:fs/promises'
-import { createPrivateKey, createPublicKey, createHash } from 'node:crypto'
+import { createPrivateKey, createPublicKey, createHash, createVerify } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { tmpdir, homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -82,6 +82,9 @@ const crx = await readFile(`${stage}.crx`)
 if (crx.subarray(0, 4).toString() !== 'Cr24') throw new Error('eso no es un .crx')
 const dentro = idDelCrx(crx)
 if (dentro !== id) throw new Error(`el .crx dice ${dentro} y la llave dice ${id}`)
+// Y QUE LA FIRMA VALGA. Un paquete mal firmado no se instala, y el error que da Chrome
+// («el paquete no es válido») no dice cuál de las diez cosas falló. Aquí sí se sabe.
+comprobarFirma(crx)
 
 const appDir = join(here, '../web/app')
 await mkdir(appDir, { recursive: true })
@@ -110,6 +113,16 @@ for (const f of await readdir(appDir)) {
   }
 }
 
+// EL ENLACE DE LA LANDING, apuntado a este paquete. El nombre lleva la versión
+// (CONVENCIONES §11.5), así que escrito a mano se queda atrás — y el wiki manda aquí a
+// descargarlo en vez de guardar él la URL, para no tener la versión escrita en dos repos.
+const landing = join(here, '../web/index.html')
+const html = await readFile(landing, 'utf8')
+const puesto = html.replace(
+  /\.\/app\/dotrino-passmanager-\d+\.\d+\.\d+\.crx/g, `./app/${nombre}`)
+if (!puesto.includes(nombre)) throw new Error('la landing no tiene el enlace al .crx donde se esperaba')
+if (puesto !== html) { await writeFile(landing, puesto); console.log('y la landing apunta a él') }
+
 console.log('\n.crx  : %s  (%s KB)', join(appDir, nombre), Math.round(crx.length / 1024))
 console.log('update: %s/updates.xml', BASE)
 console.log('id    : %s', id)
@@ -137,6 +150,44 @@ function idDelCrx (buf) {
   if (header[p] !== 0x0a || header[p + 1] !== 16) throw new Error('crx_id con una forma que no conozco')
   return header.subarray(p + 2, p + 18).toString('hex')
     .replace(/[0-9a-f]/g, (c) => 'abcdefghijklmnop'[parseInt(c, 16)])
+}
+
+/**
+ * La firma RSA del paquete, comprobada como la comprueba Chrome: sobre
+ * `"CRX3 SignedData\0"` + el largo del `signed_header_data` + ese bloque + el zip.
+ */
+function comprobarFirma (buf) {
+  const headerSize = buf.readUInt32LE(8)
+  const header = buf.subarray(12, 12 + headerSize)
+  const zip = buf.subarray(12 + headerSize)
+
+  const at = header.indexOf(Buffer.from([0x82, 0xf1, 0x04]))
+  const [shdLen, tras] = varint(header, at + 3)
+  const shd = header.subarray(tras, tras + shdLen)
+  const largo = Buffer.alloc(4); largo.writeUInt32LE(shdLen)
+  const firmado = Buffer.concat([Buffer.from('CRX3 SignedData\0', 'binary'), largo, shd, zip])
+
+  let n = 0
+  let p = 0
+  while (p < header.length) {
+    // Campo 2 (`sha256_with_rsa`), repetido: clave 0x12.
+    if (header[p] !== 0x12) { p++; continue }
+    const [len, cuerpo] = varint(header, p + 1)
+    const proof = header.subarray(cuerpo, cuerpo + len)
+    p = cuerpo + len
+    if (proof[0] !== 0x0a) continue
+    const [kl, k0] = varint(proof, 1)
+    const pub = proof.subarray(k0, k0 + kl)
+    const resto = proof.subarray(k0 + kl)
+    if (resto[0] !== 0x12) continue
+    const [sl, s0] = varint(resto, 1)
+    const sig = resto.subarray(s0, s0 + sl)
+    const vale = createVerify('RSA-SHA256').update(firmado)
+      .verify({ key: pub, format: 'der', type: 'spki' }, sig)
+    if (!vale) throw new Error('la firma del .crx no vale')
+    n++
+  }
+  if (!n) throw new Error('el .crx no trae ninguna firma')
 }
 
 function varint (buf, p) {
