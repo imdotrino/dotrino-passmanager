@@ -8,7 +8,7 @@
     "build": "node build.mjs",
     "package": "node package.mjs",
     "crx": "node crx.mjs",
-    "release": "node package.mjs && node crx.mjs",
+    "release": "node package.mjs && dotrino-env run --ns passmanager -- node crx.mjs",
     "publish:store": "node publish.mjs"
   }
 }

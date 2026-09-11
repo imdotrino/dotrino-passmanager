@@ -12,26 +12,36 @@
 //   node crx.mjs                      # arma el .crx y el updates.xml en ../web/app/
 //   CRX_KEY=/ruta/otra.pem node crx.mjs
 //
-// LA LLAVE NO VIVE EN EL REPO. Por defecto se busca en `~/.dotrino/keys/`, fuera del
-// árbol de trabajo, como el keystore de las apps Android. Si se pierde, el id cambia y
-// todos los dispositivos ven una extensión distinta: hay que guardarla en la bóveda.
+// LA LLAVE VIVE EN LA BÓVEDA, no en el disco. Está en el cajón `passmanager` como
+// `CRX_KEY_PEM_B64` (en base64, para que viaje en una línea y ningún parser de `.env` la
+// parta), así que este script se corre por delante de ella:
+//
+//   dotrino-env run --ns passmanager -- npm run crx
+//
+// Si no está en el entorno, se PARA. No cae a un archivo por su cuenta: firmar con otra
+// llave no da un error, da una extensión distinta en todos los aparatos — y eso no se
+// descubre hasta que alguien intenta actualizar y no puede. Para casos declarados (el
+// primer arranque, una máquina sin bóveda) existe `CRX_KEY`, que es una ruta y hay que
+// escribirla a propósito.
 
 import { readFile, writeFile, mkdir, rm, cp, readdir } from 'node:fs/promises'
-import { createPrivateKey, createPublicKey, createHash, createVerify } from 'node:crypto'
+import { createPrivateKey, createPublicKey, createHash, createSign, createVerify } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { tmpdir, homedir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const BASE = 'https://pass.dotrino.com/app'
 
-const keyPath = process.env.CRX_KEY || join(homedir(), '.dotrino/keys/passmanager-crx.pem')
-const pem = await readFile(keyPath, 'utf8').catch(() => null)
+const pem = process.env.CRX_KEY_PEM_B64
+  ? Buffer.from(process.env.CRX_KEY_PEM_B64, 'base64').toString('utf8')
+  : (process.env.CRX_KEY ? await readFile(process.env.CRX_KEY, 'utf8') : null)
 if (!pem) {
-  console.error('No encuentro la llave de firma en %s', keyPath)
-  console.error('Se crea UNA vez y se guarda (si se pierde, el id cambia en todos los aparatos):')
-  console.error('  mkdir -p ~/.dotrino/keys && openssl genrsa -out %s 2048 && chmod 600 %s', keyPath, keyPath)
+  console.error('No tengo la llave de firma.')
+  console.error('Vive en la bóveda de Dotrino, cajón «passmanager». Corre esto por delante:')
+  console.error('  dotrino-env run --ns passmanager -- npm run crx')
+  console.error('(pide aprobación en el teléfono: es la llave que firma lo que se instala)')
   process.exit(1)
 }
 
@@ -64,26 +74,21 @@ await writeFile(join(stage, 'manifest.json'), JSON.stringify({
   update_url: `${BASE}/updates.xml`,
 }, null, 2) + '\n')
 
-const chrome = ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser']
-  .find((c) => { try { execFileSync('which', [c], { stdio: 'ignore' }); return true } catch { return false } })
-if (!chrome) {
-  console.error('No hay ningún Chrome para empaquetar (google-chrome o chromium).')
-  process.exit(1)
-}
-execFileSync(chrome, [
-  '--headless', '--no-sandbox', '--disable-gpu',
-  `--pack-extension=${stage}`, `--pack-extension-key=${keyPath}`,
-], { stdio: 'inherit' })
-
-// Y SE COMPRUEBA que el paquete lleva el id que se esperaba, en vez de darlo por hecho:
-// el id es lo único que ata todos los dispositivos a la misma extensión, y una llave
-// equivocada aquí se vería como una instalación nueva en cada máquina.
-const crx = await readFile(`${stage}.crx`)
-if (crx.subarray(0, 4).toString() !== 'Cr24') throw new Error('eso no es un .crx')
+// SE ARMA AQUÍ, no con `chrome --pack-extension`. Dos motivos, y el primero manda:
+// ese comando quiere la llave **en un archivo**, y la llave viene de la bóveda — tendría
+// que escribirla en el disco para volver a leerla, que es justo lo que la bóveda evita.
+// El segundo es que así no hace falta un Chrome instalado para sacar una versión.
+//
+// Un CRX3 son tres cosas pegadas: `Cr24` + la cabecera + el zip de siempre.
+execFileSync('zip', ['-r', '-q', `${stage}.zip`, '.', '-x', '*.DS_Store'], { cwd: stage })
+const zip = await readFile(`${stage}.zip`)
+const crx = armarCrx(zip, pem, spki, id)
+// Y SE RELEE lo que acaba de escribirse, con el mismo código que leería Chrome: que el
+// id sea el que se esperaba y que la firma valga. El id es lo único que ata todos los
+// dispositivos a la misma extensión, y una llave equivocada aquí se vería como una
+// instalación nueva en cada máquina, sin vuelta atrás.
 const dentro = idDelCrx(crx)
 if (dentro !== id) throw new Error(`el .crx dice ${dentro} y la llave dice ${id}`)
-// Y QUE LA FIRMA VALGA. Un paquete mal firmado no se instala, y el error que da Chrome
-// («el paquete no es válido») no dice cuál de las diez cosas falló. Aquí sí se sabe.
 comprobarFirma(crx)
 
 const appDir = join(here, '../web/app')
@@ -135,21 +140,76 @@ async function mkdtempDir () {
 }
 
 /**
- * El id que lleva DENTRO el paquete. Está en la cabecera CRX3, en el `signed_header_data`
- * (campo 10000 del protobuf), que es un `SignedData` con el `crx_id` de 16 bytes.
+ * ARMA el CRX3: `Cr24` + versión + el tamaño de la cabecera + la cabecera + el zip.
+ *
+ * La cabecera es un protobuf con dos cosas: la prueba `sha256_with_rsa` (la pública y la
+ * firma) y el `signed_header_data`, que solo lleva el id. Y lo que se firma no es el zip
+ * a secas sino `"CRX3 SignedData\0"` + el largo de ese bloque + el bloque + el zip: así la
+ * firma cubre también de qué extensión dice ser, y nadie puede reetiquetar un paquete
+ * firmado como si fuera otro.
+ */
+function armarCrx (zip, pem, spki, id) {
+  const crxId = Buffer.from(id.replace(/[a-p]/g, (c) => '0123456789abcdef'['abcdefghijklmnop'.indexOf(c)]), 'hex')
+  const signedHeaderData = bytes(1, crxId)
+
+  const largo = Buffer.alloc(4); largo.writeUInt32LE(signedHeaderData.length)
+  const firma = createSign('RSA-SHA256')
+    .update(Buffer.concat([Buffer.from('CRX3 SignedData\0', 'binary'), largo, signedHeaderData, zip]))
+    .sign(pem)
+
+  const header = Buffer.concat([
+    bytes(2, Buffer.concat([bytes(1, spki), bytes(2, firma)])),   // sha256_with_rsa
+    bytes(10000, signedHeaderData),
+  ])
+  const cabecera = Buffer.alloc(12)
+  cabecera.write('Cr24', 0)
+  cabecera.writeUInt32LE(3, 4)
+  cabecera.writeUInt32LE(header.length, 8)
+  return Buffer.concat([cabecera, header, zip])
+}
+
+/** Un campo protobuf de los que llevan longitud (que aquí son todos). */
+function bytes (campo, valor) {
+  return Buffer.concat([varintBuf((campo << 3) | 2), varintBuf(valor.length), valor])
+}
+
+function varintBuf (n) {
+  const out = []
+  while (n > 0x7f) { out.push((n & 0x7f) | 0x80); n >>>= 7 }
+  out.push(n)
+  return Buffer.from(out)
+}
+
+/**
+ * Los campos de una cabecera CRX3, en orden. Se recorre la estructura en vez de buscar
+ * los bytes de una clave sueltos por ahí: esos mismos bytes pueden aparecer dentro de una
+ * firma, y entonces se lee basura sin que nada avise.
+ */
+function * campos (buf) {
+  let p = 0
+  while (p < buf.length) {
+    const [tag, t1] = varint(buf, p)
+    if ((tag & 7) !== 2) throw new Error('la cabecera del .crx trae un campo que no esperaba')
+    const [len, t2] = varint(buf, t1)
+    yield [tag >> 3, buf.subarray(t2, t2 + len)]
+    p = t2 + len
+  }
+}
+
+/**
+ * El id que lleva DENTRO el paquete: el `crx_id` del `signed_header_data` (campo 10000),
+ * que son 16 bytes con los dígitos hexadecimales corridos a las letras a..p.
  */
 function idDelCrx (buf) {
-  const headerSize = buf.readUInt32LE(8)
-  const header = buf.subarray(12, 12 + headerSize)
-  // Campo 10000, tipo 2 (bytes) → clave varint 0x82 0xf1 0x04.
-  const at = header.indexOf(Buffer.from([0x82, 0xf1, 0x04]))
-  if (at < 0) throw new Error('la cabecera del .crx no trae signed_header_data')
-  let p = at + 3
-  const [, tras] = varint(header, p); p = tras
-  // Dentro del SignedData: campo 1, tipo 2 → clave 0x0a, y 16 bytes de id.
-  if (header[p] !== 0x0a || header[p + 1] !== 16) throw new Error('crx_id con una forma que no conozco')
-  return header.subarray(p + 2, p + 18).toString('hex')
-    .replace(/[0-9a-f]/g, (c) => 'abcdefghijklmnop'[parseInt(c, 16)])
+  const header = buf.subarray(12, 12 + buf.readUInt32LE(8))
+  for (const [campo, valor] of campos(header)) {
+    if (campo !== 10000) continue
+    for (const [c, id] of campos(valor)) {
+      if (c !== 1 || id.length !== 16) continue
+      return id.toString('hex').replace(/[0-9a-f]/g, (x) => 'abcdefghijklmnop'[parseInt(x, 16)])
+    }
+  }
+  throw new Error('la cabecera del .crx no trae el id')
 }
 
 /**
@@ -161,27 +221,22 @@ function comprobarFirma (buf) {
   const header = buf.subarray(12, 12 + headerSize)
   const zip = buf.subarray(12 + headerSize)
 
-  const at = header.indexOf(Buffer.from([0x82, 0xf1, 0x04]))
-  const [shdLen, tras] = varint(header, at + 3)
-  const shd = header.subarray(tras, tras + shdLen)
-  const largo = Buffer.alloc(4); largo.writeUInt32LE(shdLen)
+  let shd = null
+  for (const [campo, valor] of campos(header)) if (campo === 10000) shd = valor
+  if (!shd) throw new Error('la cabecera del .crx no trae signed_header_data')
+
+  const largo = Buffer.alloc(4); largo.writeUInt32LE(shd.length)
   const firmado = Buffer.concat([Buffer.from('CRX3 SignedData\0', 'binary'), largo, shd, zip])
 
   let n = 0
-  let p = 0
-  while (p < header.length) {
-    // Campo 2 (`sha256_with_rsa`), repetido: clave 0x12.
-    if (header[p] !== 0x12) { p++; continue }
-    const [len, cuerpo] = varint(header, p + 1)
-    const proof = header.subarray(cuerpo, cuerpo + len)
-    p = cuerpo + len
-    if (proof[0] !== 0x0a) continue
-    const [kl, k0] = varint(proof, 1)
-    const pub = proof.subarray(k0, k0 + kl)
-    const resto = proof.subarray(k0 + kl)
-    if (resto[0] !== 0x12) continue
-    const [sl, s0] = varint(resto, 1)
-    const sig = resto.subarray(s0, s0 + sl)
+  for (const [campo, proof] of campos(header)) {
+    if (campo !== 2) continue    // sha256_with_rsa
+    let pub = null; let sig = null
+    for (const [c, v] of campos(proof)) {
+      if (c === 1) pub = v
+      if (c === 2) sig = v
+    }
+    if (!pub || !sig) throw new Error('una prueba del .crx viene incompleta')
     const vale = createVerify('RSA-SHA256').update(firmado)
       .verify({ key: pub, format: 'der', type: 'spki' }, sig)
     if (!vale) throw new Error('la firma del .crx no vale')
