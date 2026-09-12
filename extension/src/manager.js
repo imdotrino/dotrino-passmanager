@@ -21,9 +21,9 @@
 import { pickLang, t, kindLabel, fieldLabel } from './i18n.js'
 import { KINDS } from './vendor/passmanager/fields.js'
 import { entryCard, byName } from './entry-card.js'
-// La tarjeta del ecosistema en vez del conmutador casero: trae el editor y el borrado, que
-// eran las dos operaciones que el service worker tenía sin pantalla (ver profile-card.js).
-import { profileCard } from './profile-card.js'
+// El perfil se abre desde el BOTÓN de la barra, que enseña el selector del ecosistema: esta
+// pantalla es para administrar los registros (§5.1, y el gestor no es la ficha de nadie).
+import { wireTopbar } from './profile-card.js'
 // La bóveda puede preguntar mientras esta pestaña está delante (no por editar —que no
 // saca nada—, pero sí si el usuario copia algo desde aquí más adelante): la pregunta sale
 // en esta misma página, como en el resto de pantallas de la extensión.
@@ -152,10 +152,6 @@ async function renderList () {
   // DE QUÉ BÓVEDA se está hablando. Un perfil es una bóveda (§3.3) y aquí se administra
   // todo, así que sin esta barra la pantalla no dice de quién es lo que enseña. Añadir un
   // perfil no está: pide emparejar, y ese flujo vive en el popup.
-  // Sale SIEMPRE, también con un solo perfil: ahí no conmuta nada, pero dice en cuál estás
-  // y es donde se edita tu nombre, tu foto y tus datos.
-  const perfiles = el('div')
-  perfiles.replaceChildren(profileCard(ask, lang))
 
   const lista = el('ul', { className: 'entries' })
   const titulo = el('h2')
@@ -198,7 +194,7 @@ async function renderList () {
     nota.hidden = !!items.length
   }
 
-  view.replaceChildren(perfiles, buscador, tituloSitios, sitios, titulo, lista, nota)
+  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota)
 
   /**
    * Los dominios donde hay algo. Pulsar uno es lo mismo que abrir el gestor desde esa
@@ -711,3 +707,7 @@ document.addEventListener('dotrino-lang', (ev) => {
 })
 
 render()
+
+
+// La barra, con su selector de perfiles y tu avatar: lo pinta el componente.
+wireTopbar(ask)

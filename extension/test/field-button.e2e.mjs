@@ -411,6 +411,28 @@ try {
   ok(puesto2.user === 'ana@ejemplo.com' && !!puesto2.password,
     'y la credencial de otro dominio entra: ' + puesto2.user)
 
+  console.log('\nel mismo marcador cierra lo que abrió')
+  await page.goto(`${SITE}/login.html`)
+  await page.waitForTimeout(800)
+  await page.fill('input[name=user]', 'ana@ejemplo.com')
+  await page.waitForTimeout(900)
+  {
+    // Pulsar fuera cierra el modal, pero el marcador vive en NUESTRO anfitrión y ese no
+    // cuenta como «fuera»: el clic llegaba al botón y lo volvía a montar, así que se veía
+    // cerrar y abrirse otra vez (dueño, 2026-09-11).
+    const caja = await page.locator('input[name=user]').boundingBox()
+    const pulsar = async () => {
+      await page.mouse.click(caja.x + caja.width - 10, caja.y + 8)
+      await page.waitForTimeout(1400)
+    }
+    const abierto = () => page.frames().some((f) => f.url().includes('field-modal.html'))
+    await pulsar(); ok(abierto(), 'el marcador abre el modal')
+    await pulsar(); ok(!abierto(), 'y pulsarlo otra vez lo CIERRA')
+    await pulsar(); ok(abierto(), 'y al tercero vuelve a abrir')
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
+
   console.log('\ny se cierra al pulsar fuera')
   await page.goto(`${SITE}/profile.html`)
   await page.waitForTimeout(1000)

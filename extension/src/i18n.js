@@ -8,6 +8,7 @@ const STRINGS = {
     openVaultHint: 'Se abre y ya funciona — no hace falta instalar nada.',
     pasteInvite: 'O pega aquí la invitación que te muestra tu bóveda:',
     ownVault: 'Guardadas en esta extensión.',
+    myProfile: 'Mi perfil',
     linkedVault: 'Guardadas en la bóveda de este perfil.',
     useOther: 'Usar otra bóveda',
     linkedTo: 'Bóveda conectada',
@@ -154,6 +155,7 @@ const STRINGS = {
     openVaultHint: 'It opens and just works — nothing to install.',
     pasteInvite: 'Or paste here the invitation your vault shows you:',
     ownVault: 'Kept in this extension.',
+    myProfile: 'My profile',
     linkedVault: 'Kept in this profile’s vault.',
     useOther: 'Use another vault',
     linkedTo: 'Connected vault',
@@ -285,8 +287,18 @@ const STRINGS = {
   },
 }
 
+/**
+ * EL IDIOMA ELEGIDO, y si no hay ninguno, el del navegador.
+ *
+ * La clave es `dotrino.lang` con PUNTO: es la que escribe `<dotrino-topbar>` al pulsar el
+ * toggle, y por tanto la única que existe. Aquí se leía `dotrino-lang` con GUION —que es el
+ * nombre del EVENTO, no el de la clave—, así que esta rama nunca encontró nada: elegías
+ * español, se guardaba, y al recargar volvía al idioma del navegador (dueño, 2026-09-11:
+ * «no funcionan las traducciones»). Nadie escribe la de guion; era código muerto.
+ */
 export function pickLang () {
-  const stored = globalThis.localStorage?.getItem('dotrino-lang')
+  let stored = null
+  try { stored = globalThis.localStorage?.getItem('dotrino.lang') } catch (_) {}
   if (stored === 'es' || stored === 'en') return stored
   return (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es'
 }

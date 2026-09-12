@@ -1,13 +1,3 @@
-:root {
-  --bg: #12141a;
-  --panel: #1b1e26;
-  --line: #2b303c;
-  --fg: #e8eaf0;
-  --dim: #9aa3b5;
-  --accent: #00658c;
-  --danger: #ff6b6b;
-  --ok: #46c98b;
-}
 
 /* La barra del ecosistema, con la paleta de la app: el componente está pensado para
    tematizarse por variables, así que no se toca su interior. */
@@ -17,7 +7,8 @@ dotrino-topbar {
   --dotrino-topbar-text: var(--fg);
   --dotrino-topbar-muted: var(--dim);
   --dotrino-topbar-accent: var(--accent);
-  --dotrino-topbar-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --dotrino-topbar-font: var(--font);
+  --dotrino-topbar-brand-font: var(--font-brand);
 }
 dotrino-topbar { --dotrino-topbar-pad: 8px 12px; --dotrino-topbar-gap: 8px; }
 
@@ -41,7 +32,7 @@ input[type="password"], input[type="text"], input[type="search"] {
 input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 button.primary {
   width: 100%; padding: 9px 12px; border: 0; border-radius: 8px;
-  background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); font-weight: 600; cursor: pointer;
 }
 button.ghost {
   padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px;

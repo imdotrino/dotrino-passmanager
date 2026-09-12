@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Dotrino</title>
+<link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="manager.css">
 <link rel="stylesheet" href="entry-card.css">
 <link rel="stylesheet" href="profiles.css">
@@ -12,9 +13,10 @@
        de su propia carpeta, y al copiarla se le quita el contador de aperturas, que
        llegaba a un servidor por un import() remoto (ver extension/build.mjs).
        · `no-back`: no se viene de ninguna parte.
-       · sin `profile`: el botón de perfil del §6.1 es la IDENTIDAD del ecosistema, y aquí
-         «perfil» ya significa otra cosa —una bóveda (§3.3)—. Dos perfiles distintos en la
-         misma barra serían el mismo nombre para dos cosas.
+       · `profile`: el botón de perfil del §6.1. El topbar no abre nada por su cuenta si no
+         se le pasa `identity` —solo emite `dotrino-profile`—, así que la tarjeta la monta
+         esta app con su propio proveedor (`profile-card.js`), que es lo que le da acceso a
+         la identidad del service worker.
        · `support-no-bubble`: en una ventana que se abre veinte veces al día, una burbuja
          que sale sola tapa el contenido en cada apertura.
        · `support-no-count`: un gestor de contraseñas no avisa a un servidor de que lo
@@ -23,6 +25,7 @@
     brand="Dotrino"
     icon="../icons/icon-32.png"
     no-back
+    profile
     support-no-bubble
     support-no-count
     support-repo="imdotrino/dotrino-passmanager"

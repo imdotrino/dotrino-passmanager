@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dotrino</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <!-- LA PÁGINA DEL PERFIL. Estuvo un rato como modal encima de otra pantalla y salía
+       apretado: el perfil son la foto, cinco datos, las redes, los detalles y la lista de
+       cuentas — eso no cabe en una ventana pequeña (dueño, 2026-09-11).
+       Es una pantalla ADMINISTRATIVA (§5.1): se entra a operar, no a leer sobre nada. -->
+  <dotrino-topbar
+    brand="Dotrino"
+    icon="../icons/icon-32.png"
+    profile
+    support-no-bubble
+    support-no-count
+    support-repo="imdotrino/dotrino-passmanager"
+    support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
+
+  <main id="view"></main>
+  <script type="module" src="profile.js"></script>
+</body>
+</html>

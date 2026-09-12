@@ -329,6 +329,10 @@ async function listProfiles () {
     id: p.id,
     label: p.name || null,
     avatar: p.avatar || null,
+    // LA PÚBLICA DEL PERFIL. No es un adorno: de ella derivan el identicon los componentes
+    // del ecosistema (el botón de la barra, el selector), y sin ella se quedan con la
+    // silueta genérica. El núcleo la trae y aquí se estaba tirando.
+    pubkey: p.pubkey || null,
     current: !!p.current,
     kind: (await pmOf(p.id)).kind,
   })))

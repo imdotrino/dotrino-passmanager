@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/passmanager-extension",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "private": true,
   "type": "module",
   "description": "Extensi\u00f3n Chrome MV3 del gestor de contrase\u00f1as de Dotrino",

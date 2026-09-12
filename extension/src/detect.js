@@ -261,7 +261,8 @@ export function kindOf (el) {
   // 1. Lo que el sitio declara. `autocomplete` admite prefijos de sección y de tipo
   //    (`shipping email`, `section-a billing tel`): manda el último token conocido.
   const declared = (el.getAttribute('autocomplete') || '').toLowerCase().trim()
-  if (declared && declared !== 'off' && declared !== 'on') {
+  const declarado = !!declared && declared !== 'off' && declared !== 'on'
+  if (declarado) {
     for (const token of declared.split(/\s+/).reverse()) {
       if (AUTOCOMPLETE_TO_KIND[token]) return AUTOCOMPLETE_TO_KIND[token]
     }
@@ -270,6 +271,16 @@ export function kindOf (el) {
   // 2. El tipo del input, que también es una declaración.
   if (el.type === 'email') return 'email'
   if (el.type === 'tel') return 'tel'
+
+  // 2b. DECLARÓ, y no es ninguna de nuestras clases: se acabó. No se adivina por encima
+  //     de lo que el sitio dijo — sería inventarse un dato distinto del que hay.
+  //
+  //     El caso que lo puso aquí: `autocomplete="nickname"` en el nombre visible del
+  //     perfil. `nickname` no es una clase del modelo, así que se seguía a las pistas, y
+  //     ahí la etiqueta en español —«Tu nombre visible»— lleva la palabra «nombre» y lo
+  //     convertía en `given-name`, robándole la clase al campo Nombres. Un campo sin
+  //     clase no se pierde: es un campo libre y se identifica por su etiqueta (§4.2).
+  if (declarado) return null
 
   // 3. Y si no, las pistas. Un buscador nunca es un dato personal.
   const h = haystack(el)
@@ -304,8 +315,16 @@ export function findDataFields (doc = document, { free = false } = {}) {
     if (looksLikeSearch(el)) continue
     const kind = kindOf(el)
     if (kind) {
-      if (vistos.has(kind)) continue
-      vistos.add(kind)
+      // DOS campos de la misma clase se marcan LOS DOS. Antes el segundo se descartaba,
+      // y era un descarte mudo: en profile.dotrino.com la etiqueta del nombre visible
+      // lleva la palabra «nombre», que en español es pista de `given-name`, se quedaba
+      // con la clase, y el campo Nombres —con dato dentro— se quedaba sin marcador
+      // (dueño, 2026-09-11). El mismo formulario se comportaba distinto según el idioma.
+      //
+      // Enseñar un botón NO es guardar, así que aquí no hay nada que deduplicar: en una
+      // segunda casilla de correo lo útil es poder poner el correo que ya tienes. Quien
+      // sí deduplica es `readDataFields`, al capturar, y por eso se deja la clase puesta
+      // en vez de bajar el campo a libre: si no, las dos mitades se contarían distinto.
       out.push({ el, kind })
       continue
     }

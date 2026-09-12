@@ -186,7 +186,13 @@ function place (node, el) {
 }
 
 export function reposition () {
-  for (const m of markers) place(m.node, m.el)
+  for (const m of markers) {
+    // Un campo que la página ya tiró no se recoloca: se quita. Recolocarlo lo deja escondido
+    // para siempre en la misma esquina, que es como se veía antes de arreglarlo.
+    if (!m.el.isConnected) { m.node.remove(); continue }
+    place(m.node, m.el)
+  }
+  markers = markers.filter((m) => m.el.isConnected)
   placeFieldModal()
 }
 
@@ -392,7 +398,10 @@ export function promptWindow () {
 // extensión por lo mismo que el aviso: ahí dentro se pulsa «Guardar», y eso tiene que
 // nacer fuera de la página.
 
-const MODAL_W = 288
+// 336 y no 288: a 288 los nombres de cuenta largos se partían en dos líneas y la ficha
+// quedaba apretada (dueño, 2026-09-11). Sigue cabiendo al lado del campo en una ventana
+// estrecha, y si no cabe a la derecha se coloca a la izquierda como siempre.
+const MODAL_W = 336
 let fieldModal = null
 let fieldAnchor = null
 

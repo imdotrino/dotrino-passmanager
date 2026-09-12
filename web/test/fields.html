@@ -18,6 +18,19 @@
   <input type="search" name="search" placeholder="Buscar (NO es un dato)">
 </form>
 
+<h3>Dos campos que reclaman la misma clase (caso 12)</h3>
+<!--
+  El caso real de profile.dotrino.com: el primer campo se llama «Tu nombre visible», y en
+  español esa etiqueta lleva la palabra «nombre», que es una pista de `given-name`. Antes
+  se quedaba con la clase y el campo «Nombres» —el de verdad— se caía sin marcador y sin
+  rastro. Aquí no hay `autocomplete` a propósito: es lo que hace que la etiqueta mande.
+-->
+<form id="f4">
+  <label>Tu nombre visible <input placeholder="Tu nombre"></label>
+  <label>Nombres <input placeholder="Tus nombres"></label>
+  <label>Apellidos <input placeholder="Tus apellidos"></label>
+</form>
+
 <h3>Acceso</h3>
 <form id="f3">
   <input name="email" type="email" placeholder="correo">

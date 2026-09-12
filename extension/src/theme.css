@@ -1,0 +1,94 @@
+
+/* Las fuentes, empaquetadas. Partidas en dos por `unicode-range` igual que en el resto del
+   ecosistema: el navegador solo baja la extendida si la página usa esos caracteres. */
+@font-face {
+  font-family: 'Quicksand';
+  src: url('../fonts/quicksand.woff2') format('woff2');
+  font-weight: 300 700; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Quicksand';
+  src: url('../fonts/quicksand-ext.woff2') format('woff2');
+  font-weight: 300 700; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* Comfortaa Bold — exclusiva del wordmark de marca. */
+@font-face {
+  font-family: 'Comfortaa';
+  src: url('../fonts/comfortaa.woff2') format('woff2');
+  font-weight: 700; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Comfortaa';
+  src: url('../fonts/comfortaa-ext.woff2') format('woff2');
+  font-weight: 700; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* EL TEMA DEL ECOSISTEMA — «Cool & Cozy», variante oscura.
+ *
+ * Es el sistema de diseño de Dotrino (Stitch, proyecto «Dotrino Cozy Ecosystem Home»), el
+ * mismo que usa dotrino.com: azul #00658c, formas de pastilla y tipografía redondeada.
+ * Hasta ahora la extensión tenía una paleta oscura propia que no se parecía a nada del
+ * ecosistema (dueño, 2026-09-11).
+ *
+ * LA VARIANTE OSCURA NO ESTÁ INVENTADA: en Material 3 las contrapartes oscuras son
+ * `inverse-primary` y los `*-fixed-dim`, que el propio sistema ya trae. Y está MEDIDA: los
+ * once pares de texto/fondo pasan 4.5:1 de WCAG, el más ajustado en 5.84:1. Eso importa
+ * porque lo que había antes tenía el gris apagado en 3.77:1 — por debajo del mínimo.
+ *
+ * La versión clara del sistema, por si algún día esta pantalla la quiere:
+ *   surface #f7fafc · lowest #ffffff · low #f1f4f6 · on-surface #181c1e
+ *   on-surface-variant #3f484e · outline #70787f · outline-variant #bfc8cf
+ *   primary #00658c · on-primary #ffffff · primary-container #72c1f0
+ *   secondary #006b5c · tertiary #665590 · error #ba1a1a
+ */
+:root {
+  color-scheme: dark;
+
+  /* Superficies, de más honda a más alta */
+  --bg: #0f1416;             /* surface */
+  --bg-low: #181c1e;         /* surface-container-low */
+  --panel: #1c2022;          /* surface-container: las tarjetas */
+  --panel-high: #262a2d;     /* surface-container-high: lo que flota encima */
+  --panel-top: #313538;      /* surface-container-highest */
+
+  /* Texto y líneas */
+  --fg: #dfe3e6;             /* on-surface */
+  --dim: #bfc8cf;            /* on-surface-variant */
+  --line: #3f484e;           /* outline-variant */
+  --line-strong: #899296;    /* outline */
+
+  /* Acento: en oscuro el primario SE ACLARA (inverse-primary), y el texto que va encima
+     se oscurece. Al revés que en claro, y es lo que hace que un botón se lea. */
+  --accent: #81cfff;
+  --on-accent: #003549;
+  --accent-container: #004c6b;
+  --on-accent-container: #c6e7ff;
+
+  --ok: #7ad7c2;             /* secondary (fixed-dim) */
+  --info: #d0bcff;           /* tertiary (fixed-dim) */
+  --danger: #ffb4ab;         /* error */
+
+  /* EL AZUL DE MARCA, sin aclarar. El marcador que se dibuja en las páginas de OTROS no
+     está sobre nuestro fondo, así que no le toca la variante oscura: ahí manda la marca. */
+  --brand: #00658c;
+
+  /* Formas: el sistema es de pastilla — radio base 16px y botones redondos del todo. */
+  --radius: 16px;
+  --radius-sm: 8px;
+  --radius-pill: 9999px;
+
+  /* TIPOGRAFÍA: Comfortaa, la de la marca, en toda la interfaz (dueño, 2026-09-11).
+     En otros repos está declarada como «exclusiva del wordmark»; esa regla la derogó él.
+     Quicksand se queda de apoyo —es la otra del sistema— y detrás las del equipo.
+     Viajan empaquetadas porque una extensión no puede traerlas de Google Fonts (CSP de
+     MV3): 79 KB entre las cuatro piezas, y la extendida solo se baja si hace falta. */
+  --font: 'Comfortaa', 'Quicksand', ui-rounded, system-ui, -apple-system, sans-serif;
+  --font-brand: var(--font);
+  --font-mono: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  /* Sombra teñida de azul, como pide el sistema: profundidad por difusión, no por bordes. */
+  --shadow: 0 4px 20px rgba(114, 193, 240, .10);
+}

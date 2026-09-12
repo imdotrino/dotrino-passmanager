@@ -25,13 +25,42 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('  [pageerror]', e.message))
 page.on('console', (m) => { if (m.type() === 'error') console.log('  [error]', m.text().slice(0, 200)) })
 await page.goto(`chrome-extension://${id}/src/manager.html`)
-await page.waitForTimeout(3000)
+await page.waitForTimeout(2500)
 
 const fallos = []
 const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
 
-const card = page.locator('[data-testid=profile-card]')
-ok(await card.count() === 1, 'la tarjeta está en el gestor')
+// EL GESTOR ES EL GESTOR: el perfil no está aquí. Se abre con el botón de la barra, y se
+// abre en SU PROPIA PÁGINA — en un modal salía apretado, que es todo lo que cabe decir de
+// una ficha con foto, cinco datos, redes, detalles y la lista de cuentas.
+ok(await page.locator('dotrino-profile').count() === 0, 'el gestor NO enseña el perfil')
+
+// EL BOTÓN ABRE EL SELECTOR del ecosistema, no una página: es el mismo gesto que en el
+// resto de apps. La lista, cambiar de perfil, crear y adoptar los pinta el componente; lo
+// único nuestro es el adaptador que le da los datos del service worker.
+await page.locator('dotrino-topbar').evaluate((tb) => tb.shadowRoot.querySelector('[part~=profile]').click())
+await page.waitForTimeout(1200)
+const menu = await page.locator('dotrino-topbar').evaluate((tb) => {
+  const m = tb.shadowRoot.querySelector('.prof-menu')
+  if (!m || m.hidden) return null
+  return { filas: m.querySelectorAll('.item').length, avatares: m.querySelectorAll('img').length }
+})
+ok(!!menu, 'el botón de la barra abre el selector de perfiles')
+ok(!!menu && menu.filas >= 4, 'con la lista y las tres acciones (' + (menu?.filas ?? 0) + ')')
+ok(!!menu && menu.avatares >= 1, 'y cada perfil con su identicon, no una silueta')
+
+// Y «Abrir mi perfil» lleva a la página, en OTRA pestaña: no te saca de donde estabas.
+const nueva = ctx.waitForEvent('page', { timeout: 10000 })
+await page.locator('dotrino-topbar').evaluate((tb) => tb.shadowRoot.querySelector('.prof-menu a.item').click())
+const pagina = await nueva.catch(() => null)
+ok(!!pagina, '«Abrir mi perfil» abre una pestaña')
+ok(!!pagina && pagina.url().includes('/src/profile.html'), 'y es la PÁGINA del perfil')
+ok(!page.isClosed() && page.url().includes('manager.html'), 'y el gestor sigue donde estaba')
+await pagina.waitForTimeout(2500)
+
+const card = pagina.locator('[data-testid=profile-card]')
+ok(await card.count() === 1, 'con la tarjeta dentro')
+ok(!(await card.evaluate((c) => c.hasAttribute('modal'))), 'a lo ancho, no como modal')
 // El Shadow DOM del componente es abierto: Playwright lo atraviesa.
 ok(await card.locator('.nick-input').count() >= 1, 'con el campo del nombre (editor)')
 ok(await card.locator('[data-photo], input[type=file]').count() >= 1, 'y con la foto')
@@ -47,14 +76,14 @@ ok(filas >= 1, 'y la lista de perfiles (' + filas + ')')
 const input = card.locator('.nick-input').first()
 await input.fill('Perfil de prueba')
 await input.press('Enter')
-await page.waitForTimeout(1500)
+await pagina.waitForTimeout(1500)
 const ext = await ctx.newPage()
 await ext.goto(`chrome-extension://${id}/src/popup.html`)
 const me = await ext.evaluate(() => new Promise((r) => chrome.runtime.sendMessage({ op: 'profile-get', payload: {} }, r)))
 ok(me?.result?.nickname === 'Perfil de prueba', 'el nombre se guardó en el perfil: ' + JSON.stringify(me?.result?.nickname))
 
 ok(await card.locator('.panel-title').count() === 0, 'y SIN los paneles de reputación')
-await page.screenshot({ fullPage: true, path: '/tmp/claude-1000/-mnt-sda1-Dotrino/07b04585-15e7-481e-9e17-69baa9a969a3/scratchpad/perfil.png' })
+await pagina.screenshot({ fullPage: true, path: '/tmp/claude-1000/-mnt-sda1-Dotrino/07b04585-15e7-481e-9e17-69baa9a969a3/scratchpad/perfil.png' })
 await ctx.close(); await rm(perfil, { recursive: true, force: true })
 console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
 process.exit(fallos.length ? 1 : 0)

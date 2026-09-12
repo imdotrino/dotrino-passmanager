@@ -318,8 +318,17 @@ try {
   ok(await g.locator(`[data-testid=manager-default-${id}]`).count() === 1, 'su predeterminada')
   ok(await g.locator(`[data-testid=manager-fill-${id}]`).count() === 0,
     'y SIN rellenar, que es de la página que tienes delante')
-  ok(await g.locator('[data-testid^=profile-]').first().isVisible(),
-    'y arriba, de qué bóveda se está hablando')
+  // De qué bóveda se está hablando lo dice el BOTÓN DE PERFIL de la barra, con el
+  // identicon del perfil activo — el mismo gesto que en el resto de apps (§6.1). Antes
+  // había además una pastilla que lo repetía en el gestor y en el popup; el dueño la
+  // mandó quitar de las dos pantallas el 2026-09-11, así que lo que se comprueba es lo
+  // que quedó, no lo que había.
+  const quienSoy = await g.locator('dotrino-topbar').evaluate((tb) => {
+    const b = tb.shadowRoot?.querySelector('[part~=profile]')
+    return b ? { hay: true, avatar: !!b.querySelector('img') } : { hay: false }
+  })
+  ok(quienSoy.hay, 'y arriba, de qué bóveda se está hablando')
+  ok(quienSoy.avatar, 'con el identicon del perfil activo, no una silueta')
 
   await g.locator('[data-testid=manager-site-localhost]').click()
   await g.waitForTimeout(1200)

@@ -356,6 +356,51 @@ try {
   })
   ok(marcadores.existe, 'el gestor monta su UI en la página')
   ok(!marcadores.alcanzable, 'y la página no la alcanza (shadow root cerrado)')
+
+  // --- caso 12: dos campos que reclaman la MISMA clase ---
+  //
+  // El fallo que vio el dueño el 2026-09-11 en profile.dotrino.com: en español salían
+  // cinco marcadores y en inglés seis, sobre el mismo formulario. La etiqueta del nombre
+  // visible lleva la palabra «nombre», que es pista de `given-name`, se quedaba con la
+  // clase, y el campo Nombres —con dato escrito dentro— se caía SIN MARCADOR y sin decir
+  // nada. Un campo con algo escrito siempre se puede guardar: si la clase está cogida,
+  // baja a campo libre y conserva su botón.
+  //
+  // Se cuentan pinchando con CDP porque el shadow root es cerrado (caso 11): desde la
+  // página no se ven, que es justamente lo que el caso anterior comprueba.
+  console.log('\ncaso 12 · dos campos que reclaman la misma clase')
+  await page.goto(`${SITE}/fields.html`)
+  await page.waitForTimeout(1000)
+  const puestos = await page.evaluate(() => {
+    const els = [...document.querySelectorAll('#f4 input')]
+    const vals = ['seyacat', 'Santiago', 'Andrade']
+    els.forEach((el, i) => {
+      el.focus(); el.value = vals[i]
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    return els.length
+  })
+  await page.waitForTimeout(2500)
+  const cdp = await ctx.newCDPSession(page)
+  await cdp.send('DOM.enable')
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true })
+  const tops = []
+  const recorrer = (n) => {
+    if (n.attributes) {
+      const a = {}
+      for (let i = 0; i < n.attributes.length; i += 2) a[n.attributes[i]] = n.attributes[i + 1]
+      if ((a.class || '').includes('marker')) tops.push(Number((a.style?.match(/top: ([\d.]+)px/) || [])[1]))
+    }
+    for (const c of n.children || []) recorrer(c)
+    for (const sr of n.shadowRoots || []) recorrer(sr)
+  }
+  recorrer(root)
+  const cajas = await page.evaluate(() => [...document.querySelectorAll('#f4 input')]
+    .map((el) => Math.round(el.getBoundingClientRect().top + scrollY)))
+  const conMarcador = cajas.filter((y) => tops.some((t) => Math.abs(t - y) < 3)).length
+  ok(puestos === 3, 'los tres campos del caso llevan algo escrito')
+  ok(conMarcador === 3, `los TRES tienen marcador, no solo el primero (${conMarcador})`)
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

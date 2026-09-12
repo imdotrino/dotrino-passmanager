@@ -68,6 +68,19 @@ let shownKey = ''
 let lastFields = []
 let lastShown = []
 
+/**
+ * UN NÚMERO POR ELEMENTO, para poder decir «este ya no es el mismo de antes».
+ *
+ * Va en un `WeakMap` a propósito: un campo que la página tira no deja aquí nada que lo
+ * sobreviva, y en una SPA que repinta cada pocos segundos eso importa.
+ */
+const ids = new WeakMap()
+let idSiguiente = 0
+const idDe = (el) => {
+  if (!ids.has(el)) ids.set(el, ++idSiguiente)
+  return ids.get(el)
+}
+
 async function scan () {
   const { detect, ui } = await mods
   try {
@@ -113,8 +126,17 @@ async function scan () {
 
   // Volver a montarlos en cada tecla haría parpadear el que tienes debajo del cursor: se
   // rehacen solo cuando cambia QUÉ se marca o QUÉ ofrece.
+  //
+  // La clave va por ELEMENTO, no por posición, y ahí estaba un fallo que solo se ve en las
+  // páginas que se repintan enteras. `<dotrino-profile>` rehace su Shadow DOM en cada
+  // respuesta que recibe, así que los `input` que teníamos referenciados quedan
+  // DESCONECTADOS: medirlos devuelve ceros y el marcador se esconde. Con la clave por
+  // índice salía la misma de antes, así que en vez de rehacerlos solo se recolocaban —
+  // contra nodos muertos, y ya no volvían (dueño, 2026-09-11: «los marcadores aparecen
+  // luego desaparecen»). Con la identidad del elemento dentro, un repintado cambia la clave
+  // y se rehacen, que es lo que había que hacer.
   const key = shown
-    .map(f => `${markable.findIndex(m => m.el === f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}${f.offers.gen ? 'g' : ''}`)
+    .map(f => `${idDe(f.el)}:${f.offers.fill ? 'f' : ''}${f.offers.save ? 's' : ''}${f.offers.gen ? 'g' : ''}`)
     .join('|')
   lastFields = todos
   lastShown = shown
@@ -163,6 +185,17 @@ function descFor (f, i) {
  */
 async function onPick (field) {
   const { ui } = await mods
+
+  // EL MISMO BOTÓN CIERRA. Pulsar fuera ya cierra el modal, pero el marcador vive en NUESTRO
+  // anfitrión, y ese no cuenta como «fuera» —si contara, pulsar dentro del modal lo cerraría—.
+  // Así que el clic llegaba aquí y lo volvía a montar: se veía cerrar y abrirse otra vez.
+  // Sobre otro campo sí cambia de campo, que es lo que se espera de un menú.
+  if (ui.fieldModalOpen?.() && abierto?.field?.el === field.el) {
+    ui.closeFieldModal()
+    abierto = null
+    return
+  }
+
   const { error } = await entriesForHost()
   if (error) {
     return ui.showModal({ title: 'Dotrino', empty: messageFor(error), closeLabel: t('close') })
@@ -248,11 +281,31 @@ async function captureField (field) {
       url: location.href,
     }
   } else {
+    // UN CAMPO SUELTO QUE VIVE EN UN ACCESO SIGUE SIENDO PARTE DE ESE ACCESO.
+    //
+    // El formulario de AWS tiene tres casillas: el ID de cuenta, el usuario y la contraseña.
+    // El ID de cuenta es un campo libre, y pulsando SU marcador se mandaba `secret: ''` a
+    // pelo: guardabas la cuenta de AWS sin la contraseña y sin que nada lo dijera (dueño,
+    // 2026-09-11: «al abrir el marcador de Account ID or alias, no sale para almacenar el
+    // password»).
+    //
+    // Desde el marcador del usuario la contraseña SÍ viajaba —sin marcar, para sumarla de un
+    // clic—, así que dos botones del mismo formulario ofrecían cosas distintas. Ahora los dos
+    // llevan la credencial de su formulario; lo único que cambia es qué viene marcado, que es
+    // lo que se pulsó.
     const scope = field.el.form || document
-    const fields = detect.readDataFields(scope)
+    const acceso = lastForms.find((f) => f.form && f.form === field.el.form) || null
+    const fields = detect.readDataFields(scope, { skip: [acceso?.username, acceso?.password] })
     const key = detect.fieldKey({ kind: field.kind, label: field.label })
     if (!fields.some(x => detect.fieldKey(x) === key)) return false
-    payload = { from: 'field', username: '', secret: '', fields, focus: [key], url: location.href }
+    payload = {
+      from: 'field',
+      username: acceso ? detect.readUsername(acceso) : '',
+      secret: acceso?.password?.value || '',
+      fields,
+      focus: [key],
+      url: location.href,
+    }
   }
 
   const r = await capture(payload)

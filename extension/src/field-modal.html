@@ -3,14 +3,15 @@
 <head>
 <meta charset="utf-8">
 <title>Dotrino</title>
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root { color-scheme: light dark; }
+  
   * { box-sizing: border-box; }
   body {
     margin: 0;
     font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: #14161c;
-    color: #e9edf2;
+    background: var(--panel);
+    color: var(--fg);
     padding: 10px 12px;
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,.12);
@@ -27,7 +28,7 @@
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: baseline; gap: 8px; padding: 4px 5px; cursor: pointer;
   }
-  .t input[type=radio] { margin: 0; accent-color: #00658c; }
+  .t input[type=radio] { margin: 0; accent-color: var(--accent); }
   /* El lápiz: al lado del nombre, tenue hasta que lo buscas. El nombre de una entrada lo
      pone el usuario; lo que se calcula del contenido es solo el punto de partida. */
   .pencil {
@@ -42,18 +43,18 @@
     background: rgba(255,255,255,.06); color: inherit;
     border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
   }
-  .newname:focus { outline: 2px solid #00658c; outline-offset: -1px; }
+  .newname:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   /* El campo del nombre y su visto, en una fila: el campo se lleva el hueco y el botón
      se queda con lo justo. */
   .editing { grid-column: 2 / -1; display: flex; align-items: center; gap: 6px; }
   .editing .newname { grid-column: auto; }
   .ok {
-    flex: none; background: none; color: #7fc6e6; cursor: pointer;
+    flex: none; background: none; color: var(--accent); cursor: pointer;
     border: 1px solid rgba(127,198,230,.35); border-radius: 6px;
     padding: 3px 9px; font-size: .84rem; line-height: 1.2;
   }
   .ok:hover { background: rgba(127,198,230,.12); }
-  .ok:focus-visible { outline: 2px solid #4cc2ff; outline-offset: 1px; }
+  .ok:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .t .who2 { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .t .when { font-size: .7rem; opacity: .55; white-space: nowrap; }
@@ -85,7 +86,7 @@
     color: inherit; background: rgba(255,255,255,.06);
     border: 1px solid rgba(255,255,255,.14); border-radius: 7px;
   }
-  #q:focus { outline: 2px solid #00658c; outline-offset: -1px; }
+  #q:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   li { border-radius: 7px; }
   li:hover { background: rgba(255,255,255,.05); }
   /* Casilla · nombre · con qué se rellena · botón. Las dos de en medio tienen su parte
@@ -96,7 +97,7 @@
     display: grid; grid-template-columns: auto minmax(0,1.3fr) minmax(0,1fr) auto;
     align-items: center; gap: 8px; padding: 4px 5px;
   }
-  .row input[type=checkbox] { margin: 0; accent-color: #00658c; }
+  .row input[type=checkbox] { margin: 0; accent-color: var(--accent); }
   /* La fila de guardar no lleva casilla de elegir: es el nombre, si es privado, y su
      botón —que dice guardar o reemplazar según lo que vaya a hacer. */
   .row.save { grid-template-columns: minmax(0,1fr) auto auto; }
@@ -128,7 +129,7 @@
   button { font: inherit; cursor: pointer; border-radius: 7px; }
   .mini {
     padding: 3px 8px; font-size: .74rem;
-    background: none; color: #7fc6e6; border: 1px solid rgba(127,198,230,.35);
+    background: none; color: var(--accent); border: 1px solid rgba(127,198,230,.35);
   }
   .wide {
     width: 100%; margin-top: 6px; padding: 7px;
@@ -139,7 +140,7 @@
   .buttons { display: flex; gap: 8px; margin-top: 10px; }
   /* Más delgado que un botón normal: es el remate de la lista, no su protagonista. */
   .buttons > button { flex: 1; padding: 6px; font-size: .82rem; }
-  .primary { border: 0; padding: 8px; background: #00658c; color: #fff; font-weight: 600; }
+  .primary { border: 0; padding: 8px; background: var(--accent); color: #fff; font-weight: 600; }
   .ghost { border: 1px solid rgba(255,255,255,.22); background: none; color: inherit; padding: 8px 12px; }
   button:disabled { opacity: .45; cursor: default; }
   button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

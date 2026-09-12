@@ -199,6 +199,7 @@ const cuantos = await verificarGrafo([
   join(here, 'src/ui.js'),
   join(here, 'src/popup.js'),
   join(here, 'src/manager.js'),
+  join(here, 'src/profile.js'),
   join(here, 'src/save-prompt.js'),
   join(here, 'src/field-modal.js'),
   join(here, 'src/approve.js'),
