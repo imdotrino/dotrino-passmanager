@@ -1,107 +1,143 @@
-# Usar el gestor un rato en una máquina que no es tuya
+# Usar el gestor en un equipo que no es tuyo
 
 > **Estado: PROPUESTA** (2026-09-17). Sin código. La pidió el dueño: *«¿cómo haría para
-> loguearme en passmanager de forma temporal en otra máquina?»*. El mismo día decidió la
-> duración, qué pide aprobación y si se puede guardar (§6). **Falta la primera pregunta,
-> que cambia una regla escrita**, y sin ella no se construye.
+> loguearme en passmanager de forma temporal en otra máquina?»*.
 >
-> ⚠️ **Depende de [`sealed-passwords.md`](./sealed-passwords.md).** La primera versión de §3
-> daba por hecho que la bóveda descifra la credencial **aunque esté cerrada** (dueño: *«la
-> prueba de firma no desencripta las cosas»*). Hoy solo es posible por un agujero —la `cek`
-> bajo la llave de la máquina— y se cierra con las contraseñas selladas por aparato. §3 ya
-> está rehecha sobre eso: **quien descifra es el teléfono que aprueba**, por relevo.
+> **El modelo lo fijó el dueño el mismo día**, después de una primera versión con sesión y
+> aprobador: *«en el vault debería poderse crear un dispositivo que se abra con contraseña;
+> con eso no necesitamos ni la aprobación: este dispositivo tiene permisos como los demás,
+> su llave vive en el vault igual que sus sobres y se desbloquea con usuario y contraseña»*.
+>
+> **Depende de [`sealed-passwords.md`](./sealed-passwords.md)**: sin contraseñas selladas por
+> aparato no hay sobres que darle a nadie, y la bóveda cerrada seguiría descifrando.
 
 ## 1. Lo que se quiere
 
-Usar tus contraseñas en un equipo prestado durante un rato, y que al acabarse ese rato el
-equipo **deje de recibir nada sin que nadie tenga que acordarse de quitarlo**.
+Entrar al gestor en un equipo prestado **con usuario y contraseña**, sin tener otro aparato
+a mano, y que lo que ese equipo pueda llegar a ver esté **acotado de antemano**.
 
 ## 2. Por qué hoy no se puede
 
 | Camino | Por qué no sirve |
 |---|---|
-| Enlazar el equipo (`dotrino-vault pair --scope passwords`) | Mete su llave en el acta **sin vencimiento**. Quitarla es `revoke`, que sella el acta y exige la bóveda abierta. Si se olvida, el equipo sigue dentro. |
-| Enlazarlo «con fecha» | Al vencer no hay quien lo saque: sacar a un miembro es sellar, y sellar es de la maestra, que con la bóveda cerrada no firma nada (*la maestra tiene dos trabajos*, `CLAUDE.md`). Seguiría en el acta con `sign`, `read` y `store`. **Descartado.** |
-| Una sesión (`profile.dotrino.com/sessions`) | `passwords` está en la lista prohibida del papel (`SESSION_FORBIDDEN`, `@dotrino/identity/session`), y el plan lo dice sin matices: *«Sesiones que sellen, administren, aprueben o lean secretos. Ni con permiso.»* (`dotrino-vault/docs/inicio-de-sesion.md` §8). |
-| «Entrar con Dotrino» (SSO) | Dice quién eres a una aplicación. No da acceso a ninguna contraseña. |
+| Enlazar el equipo (`dotrino-vault pair --scope passwords`) | Mete en el acta una llave que vive **en ese equipo**, sin vencimiento. Quitarla es `revoke`, con la bóveda abierta. |
+| Una sesión (`profile.dotrino.com/sessions`) | `passwords` está prohibido en el papel (`SESSION_FORBIDDEN`) y el plan lo dice: *«Sesiones que … lean secretos. Ni con permiso.»* (`dotrino-vault/docs/inicio-de-sesion.md` §8). |
+| «Entrar con Dotrino» (SSO) | Dice quién eres a una aplicación. No da ninguna contraseña. |
+| Cualquiera, hoy | la bóveda descifra con su propia llave aunque esté cerrada (`sealed-passwords.md` §1). |
 
-## 3. La propuesta: la sesión PIDE, y el teléfono que aprueba es el que DESCIFRA
+## 3. La propuesta: un aparato que se abre con usuario y contraseña
 
-La sesión **no recibe ninguna llave**: ni la capacidad de leer, ni una envoltura. Recibe la
-de **pedir**. Cada entrega pasa por el **relevo** de `sealed-passwords.md` §3: la bóveda
-—abierta o cerrada, da igual, porque no puede abrir nada— le manda al teléfono los sobres y
-**su** envoltura; el teléfono pregunta, abre, y le sella a la sesión **solo lo pedido**.
-Aprobar es descifrar.
+Es **un miembro del acta como cualquier otro**: tiene su llave de firma, su llave de
+cifrado, sus permisos y sus sobres. Lo único distinto es **dónde vive su llave privada**: en
+la bóveda, cifrada con algo que solo sale de tu contraseña.
+
+**No es una sesión** —no hay papel ni aparato que respalde—, así que la regla de
+`inicio-de-sesion.md` §8 no le aplica. Tampoco es una contraseña de cuenta: si la olvidas
+pierdes ese aparato, no tu cuenta.
+
+### 3.1. Alta: una vez, con la bóveda abierta
 
 ```
-  equipo prestado (extensión)              teléfono (`passwords` + `approve`)
-  ───────────────────────────              ──────────────────────────────────
-  «Usar un rato» → genera S
-  muestra QR + código de 6  ──escanea──►   «Gestor de contraseñas · 1 hora»
-                                            [Permitir]  [No]
-        ◄──── papel { scopes: [passwords:ask], exp } ────
-
-  pide la contraseña de x.com ──► bóveda ── sobres + SU envoltura ──►
-                                            «Sesión 3F2A pide x.com»
-                                            [Permitir] → abre
-        ◄──────────── solo lo pedido, sellado a S ────────────────
+tu aparato (consola o TUI)                         bóveda
+──────────────────────────                         ──────
+eliges usuario, contraseña, permisos
+y qué entradas llevará
+genera el par de firma y el de cifrado
+OPAQUE (registro) ─────────────────────────────►   guarda el registro OPAQUE
+cifra las privadas con la export_key   ────────►   guarda ese bloque, que no puede abrir
+                                                    la maestra lo admite en el acta
 ```
 
-Al pasar `exp`, **ni la bóveda suelta sobres ni el teléfono abre**. Al vencer no hay que
-firmar ni sellar nada, así que se retira sola y nadie tiene que acordarse.
+- **Las llaves nacen en tu aparato**, no en la bóveda. La bóveda solo recibe material que no
+  puede abrir.
+- **Sin tipo nuevo en el acta** (*permisos, no tipos*): es un miembro con sus `caps`. Que su
+  llave viva en la bóveda es estado de la bóveda, no del acta.
+- **Aprobación: la elige quien lo crea** (decidido). Sin aprobación, el aparato lleva
+  `unattended`; con ella, lo privado espera el sí de un aprobador, como hoy cualquier aparato
+  sin ese permiso (`needsApproval`, `dotrino-vault/src/vault.js:152`).
 
-De un código de dos pasos el teléfono manda **el código**, no la semilla. Guardar va al
-revés: la sesión le sella el valor al teléfono, el teléfono lo enseña, y si se aprueba hace
-él el sobre y lo firma como autor.
+### 3.2. Entrar en el equipo prestado
 
-Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-flow`,
-`@dotrino/qr`), el aviso al teléfono de la mesa de contraseñas, y el sellado del transporte
-(la llave de cifrado de S se averigua y se verifica contra S, `proxy-client` ≥ 0.20).
+```
+equipo prestado (extensión)                        bóveda (abierta o cerrada)
+───────────────────────────                        ──────────────────────────
+usuario + contraseña
+OPAQUE (inicio) ◄──────────────────────────────►   comprueba sin ver la contraseña
+                                                    ¿intentos dentro del límite?
+obtiene la export_key
+                ◄── bloque de las llaves + inicio de sesión con vencimiento ──
+abre las llaves EN MEMORIA
+desde aquí es un aparato: find / get / put ────►   solo mientras el inicio de sesión esté vigente
+```
 
-## 4. Los límites que se proponen
+- **OPAQUE** (decidido): la bóveda nunca ve la contraseña y no entrega nada con qué
+  adivinarla. Desde fuera solo se puede probar **en línea**, contra el límite de intentos.
+- **La llave sola no basta.** La bóveda solo le entrega sobres mientras haya un inicio de
+  sesión vigente. Al vencer, quien se haya quedado con la llave no consigue nada sin volver a
+  saber la contraseña.
+- **Salir** suelta las llaves de memoria y cierra el inicio de sesión en la bóveda.
 
-| | |
+### 3.3. Qué entradas lleva
+
+**Solo las que marques** (decidido). Es lo que el modelo de sobres permite sin nada extra:
+los destinatarios de cada entrada se eligen, y este aparato solo recibe envoltura de las
+marcadas para él. Lo que no está envuelto a su llave **no se abre aunque la roben**.
+
+Marcar una entrada que ya existe es darle una envoltura nueva, y la hace quien ya la tiene
+abierta (`sealed-passwords.md` §2.5); desmarcarla deja de mandársela en el acto y borra su
+envoltura al abrir la bóveda.
+
+## 4. Qué protege y qué no
+
+| Quien tiene… | …consigue |
 |---|---|
-| **Alcance** | uno nuevo, `passwords:ask`. `passwords` **sigue prohibido**: nada en una sesión lee sin aprobación. |
-| **Quién lo puede dar** | el aparato que respalda tiene que tener **hoy**, en el acta, `passwords` **y** `approve`: es el que va a abrir los sobres. Nunca amplía. |
-| **Duración** | 1 hora por defecto, tope de 4 (las sesiones generales van 8 y 24). **Decidido.** |
-| **Qué puede hacer** | `find` del sitio, `get` y **guardar** (`put`/`patch`). **No** `search` (buscar en toda la bóveda) ni `sites`. **Decidido.** |
-| **Aprobación** | en **cada** `get` —también un dato público, tu correo o tu teléfono— y en **cada** guardado, de uno en uno y sin la hora deslizante de los aparatos. `find` no pregunta: enseña qué cuentas hay en ese sitio para poder elegir, sin ningún valor. **Decidido.** |
-| **Dónde vale** | el `origin` firmado es el de la extensión del gestor; en otra aplicación el papel no vale. |
-| **Cerrar antes** | desde `profile.dotrino.com/sessions`, y **de verdad**: la bóveda guarda los `sid` cerrados hasta su `exp`, también si se reinicia. En las sesiones generales cerrar es cortesía (el papel muere al vencer); con contraseñas no basta. |
-| **Muere con quien respalda** | quitar el teléfono del acta invalida sus papeles. Sale del modelo de F1 y hay que probarlo aquí. |
+| tu usuario, desde fuera | probar contraseñas **en línea**, contra el límite de intentos |
+| una copia del disco de la bóveda | **probar contraseñas sin límite** contra el registro OPAQUE: el material del servidor está ahí. Lo que aguanta es la contraseña, así que tiene que ser larga |
+| el equipo prestado mientras estás dentro | **las entradas marcadas** para ese aparato, sin preguntar si lo creaste sin aprobación |
+| tu contraseña, capturada en ese equipo | entrar desde cualquier sitio **hasta que la cambies o revoques el aparato**, y solo a lo marcado |
+| la llave que quedó en el equipo, sin la contraseña | nada: sin inicio de sesión vigente no hay sobres |
 
-## 5. Lo que esto NO arregla
+Y lo de siempre: **el equipo prestado ve lo que rellenas**. Nada de esto protege lo que
+escribes en una máquina comprometida.
 
-- **El equipo prestado ve lo que rellenas.** La aprobación limita cuántas contraseñas salen,
-  no protege las que apruebas: una captura de teclado, de pantalla o una extensión
-  maliciosa se las lleva igual.
-- **Hay que instalar la extensión** en ese equipo, y quitarla al terminar. Lo que quede en
-  él (la llave S) no se puede garantizar borrado; lo que se garantiza es que **la bóveda
-  deja de contestarle**.
-- **Tu bóveda tiene que estar atendiendo** (el demonio, o la pestaña abierta) **y tu
-  teléfono a mano y con `passwords`**, porque es quien descifra. Sin teléfono no hay
-  acceso: es la pregunta abierta «sesión sin teléfono» de `inicio-de-sesion.md` §9, y aquí
-  la respuesta tiene que ser que no.
+## 5. Lo que se descartó para esto
 
-## 6. Lo que decide el dueño
+**La sesión aprobada por relevo** (primera versión de este documento): un QR en el equipo
+prestado, un papel firmado por un aprobador y cada contraseña descifrada por el aprobador.
+Funciona, pero obliga a tener un aprobador encendido y a mano **en cada uso**. El relevo se
+queda en `sealed-passwords.md` §3 para lo que sí lo necesita: un aparato que acaba de entrar
+y aún no tiene sus envolturas.
 
-1. **La regla.** `inicio-de-sesion.md` §8 dice que una sesión no lee secretos «ni con
-   permiso». ¿Se acepta que **pida** contraseñas si cada entrega la aprueba el teléfono?
-   **Sin este sí no se construye nada de lo demás.**
-2. ~~**Duración**~~ — **decidido (2026-09-17): 1 hora, tope de 4.**
-3. ~~**Qué pregunta**~~ — **decidido: todo `get`, también lo público; `find` no.**
-4. ~~**Escribir**~~ — **decidido: puede guardar, y cada guardado pasa por el teléfono.**
-5. **Aprobar de uno en uno**, o una ventana corta (p. ej. 5 minutos) por sitio.
+## 6. Decisiones
 
-## 7. Qué tocaría, cuando se decida
+**Tomadas por el dueño (2026-09-17):**
+
+- un aparato que se abre con usuario y contraseña, con su llave en la bóveda;
+- lleva **solo las entradas que marques**;
+- la **aprobación la elige quien lo crea**;
+- la contraseña se comprueba con **OPAQUE**.
+
+**Pendientes:**
+
+1. **Cuánto dura un inicio de sesión.** Para la sesión se había decidido 1 hora con tope de
+   4. ¿Vale lo mismo aquí?
+2. **Límite de intentos**: cuántos, y qué pasa al pasarlo (esperar, o bloquear hasta que
+   entres desde otro aparato). Los intentos fallidos van a la bitácora.
+3. **Cómo se encuentra tu bóveda con un usuario.** Hoy no hay nada que traduzca un nombre a
+   un perfil y a su bóveda. Lo mínimo es escribir también el código de la bóveda; un
+   directorio de nombres es otra pieza.
+4. **La librería de OPAQUE.** Tiene que ser JS puro o WASM embebido —el vault va en un
+   ejecutable único y ahí no entra nada nativo— y pasar por la revisión de dependencias
+   (`CONVENCIONES-APPS.md` §1.1). Candidatas: `@cloudflare/opaque-ts` (TypeScript, dos
+   dependencias) y `@serenity-kit/opaque` (WASM de `opaque-ke`).
+5. **Guardar desde ese aparato**: ¿puede, y con aprobación si la tiene?
+
+## 7. Qué tocaría
 
 | Pieza | Cambio |
 |---|---|
-| `@dotrino/identity` (`vault/session.js`) | `passwords:ask` en `SESSION_SCOPES`, con su capacidad exigida (`passwords` + `approve`) y su tope de duración |
-| `@dotrino/passmanager` (`VaultResponder`) | aceptar el papel en la petición y aplicar la política de sesión (operaciones cerradas; aprobación en toda lectura y todo guardado). Va aquí y no en cada bóveda: son **cuatro** las que responden |
-| `dotrino-vault` (mesa de contraseñas) | verificar el papel contra el acta de hoy, lista de `sid` cerrados hasta su `exp`, y mandarle al teléfono los sobres con el sitio y si es leer o guardar |
-| **antes que todo lo anterior** | las contraseñas selladas por aparato (`sealed-passwords.md`): sin eso no hay quién descifre sin que la bóveda vea el claro |
-| `dotrino-passmanager/extension` | «Usar un rato»: llave S no extraíble, QR, papel en memoria de sesión, borrarlo al vencer |
-| `dotrino-profile-app` (`/sessions`) | cerrar una sesión del gestor avisando a la bóveda, firmado |
-| app del teléfono | nada nuevo: escanear y aprobar ya existen |
+| **antes que todo** | las contraseñas selladas por aparato (`sealed-passwords.md`), con destinatarios elegibles por entrada |
+| `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, inicio de sesión con vencimiento, límite de intentos, cambio de contraseña |
+| `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: OPAQUE, llaves solo en memoria, salir |
+| consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña |
+| dependencia nueva | la librería de OPAQUE, en las dos puntas |

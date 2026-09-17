@@ -38,7 +38,8 @@ abierta o cerrada.
 
 | Destinatario | Para qué | Abre con |
 |---|---|---|
-| los **aparatos con `passwords`** y `encPub` en el acta | abrir lo que la bóveda les manda, de a uno | su propia privada, que no sale de él |
+| los **aparatos con `passwords`** y `encPub` en el acta | pedir sus sobres **a demanda** y abrirlos; no los guardan por defecto | su propia privada |
+| de un **aparato que se abre con contraseña** (`temporary-access.md`), solo las **entradas marcadas** para él | lo mismo, acotado a esas entradas | su privada, que vive cifrada en la bóveda y solo se abre en memoria tras el inicio OPAQUE |
 | la **copia de recuperación**, bajo la frase del perfil | el día que no quede ningún aparato, y para convertir y reparar al abrir la bóveda | la frase |
 | **nunca** la bóveda: ni su llave de comunicación, ni su `enc-keypair`, ni la de sellado | — | — |
 
@@ -128,37 +129,45 @@ tanto»: eso es el agujero con otro nombre.
 
 ## 3. El relevo: quien aprueba es quien descifra
 
-Para quien **no tiene envoltura** —una sesión en un equipo prestado, o un aparato recién
-entrado con la deuda sin pagar— la lectura pasa por un aparato que sí la tiene y que además
-puede aprobar (`passwords` + `approve`; en la práctica, el teléfono):
+Para quien **no tiene envoltura** —un aparato recién entrado con la deuda sin pagar— la
+lectura pasa por un **aprobador**: **cualquier** aparato con `passwords` y `approve`, no
+necesariamente un teléfono. El orden lo corrigió el dueño (2026-09-17): el aprobador **pide su
+sobre DESPUÉS de aprobar**, a demanda, como cualquier lectura suya.
 
 ```
-solicitante ── get(id, keys) ──────────► bóveda        (cerrada: da igual)
-                                          │
-teléfono    ◄── { quién pide, qué sitio, qué campos, sobres, SU envoltura } ──
-teléfono        [Permitir] → abre con su privada
-solicitante ◄── solo lo pedido, sellado a SU encPub ─── teléfono   (sendSealed)
+solicitante ── get(id, keys) ──► bóveda        (cerrada: da igual)
+aprobador   ◄── { quién pide, qué sitio, qué campos }      ← sin ningún sobre
+aprobador       [Permitir]
+aprobador   ── get(id, keys) ──► bóveda ── los sobres y SU envoltura ──► aprobador
+aprobador       abre con su privada
+solicitante ◄── solo lo pedido, sellado a SU encPub ─── aprobador   (sendSealed)
 ```
 
+- **Sin un sí no sale ningún sobre.** El aviso no lleva material cifrado.
 - **Aprobar ES descifrar.** No hay un momento en el que la bóveda tenga algo en claro.
-- **La `encPub` del solicitante no sale del mensaje**: de un miembro se saca del acta; de una
-  sesión, se averigua y se verifica contra la llave `S` que firma su papel
-  (`proxy-client` ≥ 0.20). Es el cerrojo 3 de §8.11.
+- **Lo que no fuerza la bóveda:** un aprobador con `passwords` puede pedir sus sobres cuando
+  quiera —son suyos—, así que preguntar antes es regla del aprobador, no un cerrojo. Por eso
+  `passwords` es un permiso de confianza total.
+- **La `encPub` del solicitante no sale del mensaje**: se saca del acta. Es el cerrojo 3 de
+  `secretos-sellados.md` §8.11.
 - **Se entrega el resultado, no el secreto de fondo, cuando se puede**: de un TOTP, el
-  teléfono calcula el código de 6 dígitos y manda eso, no la semilla; de una passkey,
+  aprobador calcula el código de 6 dígitos y manda eso, no la semilla; de una passkey,
   firmaría el reto en vez de soltar la privada. (La passkey por relevo no entra en la
   primera versión.)
-- **Escribir por relevo**: el solicitante manda el valor sellado al teléfono; el teléfono lo
+- **Escribir por relevo**: el solicitante manda el valor sellado al aprobador; el aprobador lo
   abre, lo enseña (lo público en claro, lo privado tapado), y si se aprueba hace él el sobre
   y lo firma como autor (§2.4).
+
+Para el **equipo prestado** el relevo se descartó: el dueño eligió un aparato que se abre con
+usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 
 ## 4. El precio, dicho claro
 
 1. **Un aparato con `passwords` más una copia del disco de la bóveda lo abren todo.** Es el
    mismo trato que los aparatos que administran en los cajones (`secretos-sellados.md`
    §8.6.1). Perder uno obliga a revocar, abrir la bóveda y cambiar lo importante.
-2. **El teléfono que aprueba por relevo necesita `passwords`**, o sea que puede abrir todas
-   tus contraseñas. Hoy puede no tenerlo.
+2. **El aparato que aprueba por relevo necesita `passwords`**, o sea que puede abrir todas
+   tus contraseñas.
 3. **La vista pública sigue en claro en el disco**: qué sitios, qué nombres de usuario, qué
    campos. Igual que hoy viaja; ahora además está guardada así.
 4. **Un aparato nuevo no lee lo anterior** hasta que otro le reparta o se abra la bóveda (o
@@ -172,15 +181,16 @@ solicitante ◄── solo lo pedido, sellado a SU encPub ─── teléfono   
 | `@dotrino/passmanager` `lib/src/model.js` | formato v2: vista pública guardada, un sobre por campo con su generación, llavero de generaciones |
 | `@dotrino/passmanager` `lib/src/vault/` | una `SealedVault` para las **cuatro** bóvedas (el dueño: *«el vault embebido, el de la página y el demonio deben funcionar igual»*); `get` devuelve sobres + la envoltura de quien pide; `putSealed` en vez de `put`/`patch` con valores; el relevo (§3) |
 | `@dotrino/identity/content` | nada: `makeGeneration`, `wrapForMember`, `openWrap`, `encryptWithCek`, `decryptWithCek` ya están |
-| `dotrino-vault` | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; `resealAll` también de contraseñas; aviso de relevo al teléfono |
+| `dotrino-vault` | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; `resealAll` también de contraseñas; aviso de relevo al aprobador (sin sobres); destinatarios elegibles por entrada |
 | la extensión | abrir sobres con su llave, construir sobres al guardar, `kcmp` para comparar |
 | `dotrino-test` | el smoke de reposo busca también contraseñas y la `cek` |
 
 ## 6. Lo que decide el dueño
 
 1. **¿Los aparatos enlazados con `passwords` reciben envoltura** y abren ellos (§2.3), o
-   **todo pasa por relevo** y solo el teléfono abre? Lo segundo obliga a tener el teléfono a
-   mano para rellenar cualquier contraseña, también en tu propio PC. Recomendación: envoltura.
+   **todo pasa por relevo** y solo un aprobador abre? Lo segundo obliga a tener un aprobador
+   encendido para rellenar cualquier contraseña, también en tu propio PC. Recomendación:
+   envoltura, pedida a demanda y sin guardarla en el aparato.
 2. **Comparar**: ¿llave de comparación con resúmenes estables (§2.6), o se quita comparar sin
    abrir?
 3. **Hasta convertir, la mesa no entrega** (§2.7). ¿De acuerdo?
