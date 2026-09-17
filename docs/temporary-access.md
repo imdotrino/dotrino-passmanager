@@ -4,6 +4,15 @@
 > loguearme en passmanager de forma temporal en otra máquina?»*. El mismo día decidió la
 > duración, qué pide aprobación y si se puede guardar (§6). **Falta la primera pregunta,
 > que cambia una regla escrita**, y sin ella no se construye.
+>
+> ⚠️ **NO SE PUEDE CONSTRUIR TAL CUAL** (dueño, el mismo día: *«la prueba de firma no
+> desencripta las cosas»*). §3 da por hecho que la bóveda descifra la credencial y se la
+> sella a la sesión **aunque esté cerrada**. Eso solo es posible hoy porque la mesa de
+> contraseñas del demonio guarda su llave (`cek`) dentro de `passwords.json`, cifrado con
+> la llave de la **máquina** y no con la del perfil: descifra con el perfil cerrado, que es
+> lo que el modelo de sobres prohíbe. La propuesta se apoyaba en ese agujero. Quién
+> descifra tiene que ser un aparato con su sobre —el teléfono que aprueba, por ejemplo—,
+> y eso se decide antes de rehacer §3.
 
 ## 1. Lo que se quiere
 
