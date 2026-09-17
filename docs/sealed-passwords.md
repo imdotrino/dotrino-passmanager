@@ -157,9 +157,12 @@ las cuentas con su frase** (decidido). Al abrir:
 Durante ese paso la bóveda ve los valores —los tiene que reescribir—, igual que en la
 conversión de los cajones a v5; después, ya no. Un aparato con `passwords` **sin `encPub`** en
 el acta no puede recibir envolturas: la conversión lo dice por su nombre en vez de saltárselo.
-**El vault existe siempre en tres versiones, y tienen que ser COMPATIBLES** (regla del dueño,
-2026-09-17: *«se deben mantener las 3 versiones del vault siempre, el de pestaña, el de la
-extensión y el binario»* — *«deben ser compatibles»*). Ninguna se retira ni se queda atrás:
+**El vault existe siempre en tres versiones, COMPATIBLES y con las MISMAS CARACTERÍSTICAS**
+(regla del dueño, 2026-09-17: *«se deben mantener las 3 versiones del vault siempre, el de
+pestaña, el de la extensión y el binario»* — *«deben ser compatibles»* — *«y con las mismas
+características»*). Ninguna se retira, ninguna se queda atrás y ninguna tiene una función que
+las otras no tengan. Lo único que cambia es **cuándo están encendidas**: el binario atiende con
+el navegador cerrado, las otras dos mientras su navegador esté abierto.
 
 | Versión | Dónde vive |
 |---|---|
@@ -175,6 +178,9 @@ Compatibles quiere decir, y así se prueba:
 - **la misma política**: destinatarios (`passwords`, `passkeys`, recuperación), aprobación de lo
   privado, filtro por destinatario — una sola pieza en `@dotrino/passmanager`, no tres copias;
 - **una prueba cruzada**: escribir con una y leer con las otras dos, en CI;
+- **las mismas funciones en las tres**: lo que se construya aquí (sobres, conversión, aparato
+  con contraseña, inicios de sesión y su lista) va en las tres a la vez. Hoy no están
+  igualadas; antes de construir hay que inventariar qué tiene cada una;
 - **cada una anuncia su versión y su protocolo** con `@dotrino/compat` (`CONVENCIONES-APPS.md`
   §14), para que un desfase se vea en vez de manifestarse como silencio.
 

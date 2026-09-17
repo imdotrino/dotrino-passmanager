@@ -132,6 +132,18 @@ las apps (`@dotrino/topbar`), así que se entra igual desde cualquiera.
   es ese aparato para **todas las apps** mientras dure el inicio de sesión, y aparece en la lista
   de perfiles del menú con su «Salir».
 
+- **Recordar, lo elige quien entra** (decidido): una casilla «Recordar» en la página.
+  **Sin marcar**, la llave vive en memoria hasta cerrar el navegador. **Marcada**, se guarda en
+  ese navegador —como llave no extraíble, nunca en claro— y sigue ahí hasta «Salir» o hasta
+  que cierres el inicio desde tu consola. La página avisa de no marcarla en un equipo prestado.
+  Cambia una línea escrita: `inicio-de-sesion.md` §2 decía que no se ofrece «recuérdame en este
+  equipo»; aquella regla era para que una **sesión** no se convirtiera en un enrolamiento
+  encubierto, y esto no lo es —la llave es de un aparato que ya está en el acta y se cierra
+  desde la consola—, pero la decisión es del dueño y queda anotada allí.
+- **Las dos formas de entrar** (decidido): la página ofrece usuario y contraseña, y debajo
+  **«Con otro aparato tuyo»**, la sesión con QR que ya existe (`profile.dotrino.com/sessions`),
+  que no toca contraseñas ni necesita crear nada antes.
+
 **Lo que implica, dicho claro:** no es un inicio de sesión «del gestor», es **de la cuenta**. Lo
 que ese navegador puede hacer lo dicen los permisos del aparato: con `sign` firma por ti (un eco,
 una calificación); con `passwords`, rellena lo marcado. Por eso los permisos se eligen al crearlo
@@ -177,13 +189,12 @@ y aún no tiene sus envolturas.
 
 **Pendientes:**
 
-- **Cuánto se queda la llave en el navegador** tras iniciar sesión desde el menú: solo esa
-  pestaña, o todas las del ecosistema hasta cerrar el navegador. El dueño decidió que el cliente
-  decide la duración; falta decir qué hace este cliente.
-- **¿«Iniciar sesión» ofrece también la sesión con QR** que ya existe en
-  `profile.dotrino.com/sessions`, o solo usuario y contraseña?
+Ninguna.
 
 **Decididas por el camino:**
+
+- ~~**Cuánto se queda la llave en el navegador**~~ — **decidido: casilla «Recordar»** (§3.4).
+- ~~**¿«Iniciar sesión» ofrece también la sesión con QR?**~~ — **decidido: sí, las dos formas.**
 
 1. ~~**Cuánto dura un inicio de sesión**~~ — **decidido: sin vencimiento en la bóveda, lo
    decide el cliente**, y **la consola lista los inicios abiertos con un botón para
