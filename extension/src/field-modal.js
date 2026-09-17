@@ -515,19 +515,19 @@ $('genUse').onclick = () => {
 // `paint()` rehace las listas enteras —al llegar los valores, al cambiar de entrada, en
 // cada tecla del buscador—, así que una casilla que solo viviera en el DOM volvería a su
 // estado inicial sin que nadie la tocara. Se apunta aquí, por clave de campo.
-const sinRellenar = new Set()   // casillas de rellenar desmarcadas (nacen marcadas)
-const sinGuardar = new Set()    // casillas de guardar desmarcadas (nacen marcadas)
-const privadasMarcadas = new Set()
+const uncheckedFill = new Set()   // casillas de rellenar desmarcadas (nacen marcadas)
+const uncheckedSave = new Set()    // casillas de guardar desmarcadas (nacen marcadas)
+const checkedPrivate = new Set()
 
-/** Una casilla que apunta su estado en `set`: `dentro` = lo que significa estar en él. */
-function casilla (set, key, dentro, testid) {
+/** Una casilla que apunta su estado en `set`: `checkedWhenInSet` = lo que significa estar en él. */
+function trackedCheckbox (set, key, checkedWhenInSet, testid) {
   const box = document.createElement('input')
   box.type = 'checkbox'
-  box.checked = dentro ? set.has(key) : !set.has(key)
+  box.checked = checkedWhenInSet ? set.has(key) : !set.has(key)
   box.dataset.testid = testid
   box.dataset.key = key
   box.addEventListener('change', () => {
-    if (box.checked === dentro) set.add(key)
+    if (box.checked === checkedWhenInSet) set.add(key)
     else set.delete(key)
     paintButtons()
   })
@@ -539,7 +539,7 @@ function casilla (set, key, dentro, testid) {
  * seis filas iguales de tamaño hay que leerlas todas para encontrar la del campo que tienes
  * al lado.
  */
-function marcarPulsado (li, fieldKey) {
+function markPicked (li, fieldKey) {
   if (!key || fieldKey !== key) return
   li.classList.add('current')
   li.setAttribute('aria-current', 'true')
@@ -551,19 +551,19 @@ function marcarPulsado (li, fieldKey) {
  * verdad—, y no hacen nada si no hay nada marcado.
  */
 function paintButtons () {
-  const puede = puedeRellenar()
-  const aRellenar = puede.filter(f => !sinRellenar.has(f.key))
-  $('fillAll').textContent = t(lang, aRellenar.length < puede.length ? 'fillSelected' : 'fillAllChecked')
-  $('fillAll').disabled = !aRellenar.length
+  const fillable = puedeRellenar()
+  const toFill = fillable.filter(f => !uncheckedFill.has(f.key))
+  $('fillAll').textContent = t(lang, toFill.length < fillable.length ? 'fillSelected' : 'fillAllChecked')
+  $('fillAll').disabled = !toFill.length
 
-  const filas = rowsToSave()
-  const marcadas = filas.filter(r => !sinGuardar.has(r.key))
-  const reemplaza = marcadas.some(r => r.status === 'changed')
-  const todas = marcadas.length === filas.length
-  $('save').textContent = t(lang, reemplaza
-    ? (todas ? 'replaceAll' : 'replaceSelected')
-    : (todas ? 'saveAll' : 'saveSelected'))
-  $('save').disabled = !marcadas.length
+  const rows = rowsToSave()
+  const toSave = rows.filter(r => !uncheckedSave.has(r.key))
+  const replaces = toSave.some(r => r.status === 'changed')
+  const all = toSave.length === rows.length
+  $('save').textContent = t(lang, replaces
+    ? (all ? 'replaceAll' : 'replaceSelected')
+    : (all ? 'saveAll' : 'saveSelected'))
+  $('save').disabled = !toSave.length
 }
 
 function paint () {
@@ -579,10 +579,10 @@ function paint () {
     const li = document.createElement('li')
     li.dataset.testid = 'field-modal-fill-row'
     li.dataset.field = f.key
-    marcarPulsado(li, f.key)
+    markPicked(li, f.key)
     const row = document.createElement('div')
     row.className = 'row'
-    const box = casilla(sinRellenar, f.key, false, `field-modal-check-${f.key}`)
+    const box = trackedCheckbox(uncheckedFill, f.key, false, `field-modal-check-${f.key}`)
     const n = document.createElement('span')
     n.className = 'name'
     n.textContent = f.name || kindLabel(lang, f.key)
@@ -600,7 +600,7 @@ function paint () {
     b.textContent = t(lang, 'fillOne')
     // El de UNA fila no cierra el modal (dueño, 2026-09-16): quien rellena de uno en uno
     // suele ir a por el siguiente, y cerrarlo le obligaba a volver a pulsar el marcador.
-    b.addEventListener('click', () => fill([f.key], { cerrar: false }))
+    b.addEventListener('click', () => fill([f.key], { closeAfter: false }))
     row.append(box, n, v, b)
     li.append(row)
     ul.append(li)
@@ -622,11 +622,11 @@ function paint () {
     const li = document.createElement('li')
     li.dataset.testid = 'field-modal-save-row'
     li.dataset.field = row.key
-    marcarPulsado(li, row.key)
+    markPicked(li, row.key)
     const d = document.createElement('div')
     d.className = 'row save'
 
-    const pick = casilla(sinGuardar, row.key, false, `field-modal-pick-${row.key}`)
+    const pick = trackedCheckbox(uncheckedSave, row.key, false, `field-modal-pick-${row.key}`)
 
     const n = document.createElement('span')
     n.className = 'name'
@@ -635,7 +635,7 @@ function paint () {
 
     const priv = document.createElement('label')
     priv.className = 'priv'
-    const pb = casilla(privadasMarcadas, row.key, true, `field-modal-private-${row.key}`)
+    const pb = trackedCheckbox(checkedPrivate, row.key, true, `field-modal-private-${row.key}`)
     pb.classList.add('private')
     // La contraseña es privada por naturaleza: no se pregunta.
     if (row.secret) { pb.checked = true; pb.disabled = true }
@@ -649,7 +649,7 @@ function paint () {
     b.dataset.testid = `field-modal-save-${row.key}`
     b.textContent = t(lang, row.status === 'changed' ? 'replace' : 'save')
     // Como el de rellenar: el de UNA fila no cierra el modal (dueño, 2026-09-16).
-    b.addEventListener('click', () => guardar([row.key], { cerrar: false }))
+    b.addEventListener('click', () => guardar([row.key], { closeAfter: false }))
 
     d.append(pick, n, priv, b)
     li.append(d)
@@ -689,7 +689,7 @@ const privadas = () => [...document.querySelectorAll('#saveList input.private')]
   .filter(b => b.checked)
   .map(b => b.dataset.key)
 
-$('fillAll').onclick = () => fill(puedeRellenar().map(f => f.key).filter(k => !sinRellenar.has(k)))
+$('fillAll').onclick = () => fill(puedeRellenar().map(f => f.key).filter(k => !uncheckedFill.has(k)))
 
 /**
  * Rellenar es pedirle a la página que escriba: este marco no alcanza su DOM.
@@ -697,7 +697,7 @@ $('fillAll').onclick = () => fill(puedeRellenar().map(f => f.key).filter(k => !s
  * El valor sale de la bóveda aquí y cruza a la página solo para los campos que se
  * rellenan — que es literalmente lo que rellenar significa.
  */
-async function fill (keys, { cerrar = true } = {}) {
+async function fill (keys, { closeAfter = true } = {}) {
   if (!keys.length) return
   const r = actual()
   if (!r.id) return
@@ -728,7 +728,7 @@ async function fill (keys, { cerrar = true } = {}) {
       return resize()
     }
     post({ op: 'fill-field-modal', values })
-    if (cerrar) return close()
+    if (closeAfter) return close()
     $('err').hidden = true
     for (const b of document.querySelectorAll('button')) b.disabled = false
     paintButtons()
@@ -769,7 +769,7 @@ $('q').addEventListener('input', () => {
   }, 220)
 })
 
-async function guardar (pick, { cerrar = true } = {}) {
+async function guardar (pick, { closeAfter = true } = {}) {
   if (!pick.length) return
   const priv = privadas().filter(k => pick.includes(k))
   for (const b of document.querySelectorAll('button')) b.disabled = false
@@ -790,9 +790,9 @@ async function guardar (pick, { cerrar = true } = {}) {
     // Si la entrada acaba de nacer, el siguiente campo va A ESA, no a otra nueva.
     await loadRecords(r.id || res?.id || '')
     try { detail = await ask('pending-detail') } catch (_) { detail = null }
-    if (cerrar && !rowsToSave().length && !ctx.page.some(f => (f.ids || []).includes(actual().id))) return close()
+    if (closeAfter && !rowsToSave().length && !ctx.page.some(f => (f.ids || []).includes(actual().id))) return close()
     render()
   } catch (e) { fail(e) }
 }
 
-$('save').onclick = () => guardar(rowsToSave().map(r => r.key).filter(k => !sinGuardar.has(k)))
+$('save').onclick = () => guardar(rowsToSave().map(r => r.key).filter(k => !uncheckedSave.has(k)))

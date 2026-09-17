@@ -18,7 +18,7 @@
     "test:field-button": "node extension/test/field-button.e2e.mjs",
     "test:generar": "node extension/test/generar.e2e.mjs",
     "test:reemplazos": "node extension/test/reemplazos.e2e.mjs",
-    "test:etiquetas": "node extension/test/etiquetas.e2e.mjs",
+    "test:labels": "node extension/test/labels.e2e.mjs",
     "test:gestor": "node extension/test/gestor.e2e.mjs",
     "store:shots": "node extension/store/tienda.mjs",
     "test:perfil": "node extension/test/perfil.e2e.mjs"

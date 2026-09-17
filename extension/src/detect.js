@@ -100,21 +100,21 @@ const MAX_LABEL = 60
 // Hasta dónde se sube buscando el grupo del campo.
 const MAX_UP = 5
 
-const esControl = (n) => n.nodeType === 1 && (n.matches(CONTROL) || !!n.querySelector(CONTROL))
+const hasControl = (n) => n.nodeType === 1 && (n.matches(CONTROL) || !!n.querySelector(CONTROL))
 
 /**
  * El texto de un vecino, si puede ser una etiqueta: corto y sin el asterisco de obligatorio.
  * Sin lo que llevan dentro sus botones y enlaces — el «?» de la ayuda no es parte del nombre.
  */
-function textoDeEtiqueta (n) {
-  const partes = []
-  const recoger = (x) => {
-    if (x.nodeType === 3) { partes.push(x.nodeValue); return }
+function labelTextFrom (n) {
+  const parts = []
+  const collect = (x) => {
+    if (x.nodeType === 3) { parts.push(x.nodeValue); return }
     if (x.nodeType !== 1 || NOT_LABEL.has(x.tagName.toUpperCase())) return
-    for (const hijo of x.childNodes) recoger(hijo)
+    for (const child of x.childNodes) collect(child)
   }
-  recoger(n)
-  const t = norm(partes.join('')).replace(/\s*[*:]+$/, '').trim()
+  collect(n)
+  const t = norm(parts.join('')).replace(/\s*[*:]+$/, '').trim()
   return t.length <= MAX_LABEL ? t : ''
 }
 
@@ -130,7 +130,7 @@ function textoDeEtiqueta (n) {
  * peor que ninguno —con él se rellena—:
  *
  *   · se mira el vecino MÁS CERCANO hacia atrás, nunca todo el texto de alrededor;
- *   · se sube de nivel solo mientras el contenedor tenga UN solo campo: en cuanto hay dos,
+ *   · se sube de level solo mientras el contenedor tenga UN solo campo: en cuanto hay dos,
  *     el texto de más arriba ya no es de este;
  *   · un vecino que contiene otro campo corta la búsqueda: lo que venga antes es suyo;
  *   · los títulos de sección, botones y enlaces no son etiquetas, y un texto largo tampoco.
@@ -139,30 +139,30 @@ function textoDeEtiqueta (n) {
  */
 export function inferredLabelOf (el) {
   let node = el
-  for (let nivel = 0; nivel < MAX_UP && node; nivel++) {
+  for (let level = 0; level < MAX_UP && node; level++) {
     for (let sib = node.previousSibling; sib; sib = sib.previousSibling) {
       if (sib.nodeType === 3) {
-        const t = textoDeEtiqueta(sib)
+        const t = labelTextFrom(sib)
         if (t) return t
         continue
       }
       if (sib.nodeType !== 1) continue
-      if (esControl(sib)) return ''
-      const t = textoDeEtiqueta(sib)
+      if (hasControl(sib)) return ''
+      const t = labelTextFrom(sib)
       if (t) return t
     }
     // La etiqueta flotante va DESPUÉS del campo (`<input><label>Usuario</label>`), pero
     // solo como `<label>`: cualquier otro texto de detrás suele ser la ayuda o el error.
     for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
-      if (esControl(sib)) break
+      if (hasControl(sib)) break
       if (sib.tagName.toUpperCase() !== 'LABEL') continue
-      const t = textoDeEtiqueta(sib)
+      const t = labelTextFrom(sib)
       if (t) return t
     }
-    const padre = node.parentElement
-    if (!padre || padre.tagName.toUpperCase() === 'FORM' || padre === el.ownerDocument.body) return ''
-    if (padre.querySelectorAll(CONTROL).length > 1) return ''
-    node = padre
+    const parent = node.parentElement
+    if (!parent || parent.tagName.toUpperCase() === 'FORM' || parent === el.ownerDocument.body) return ''
+    if (parent.querySelectorAll(CONTROL).length > 1) return ''
+    node = parent
   }
   return ''
 }

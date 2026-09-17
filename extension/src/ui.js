@@ -244,8 +244,8 @@ export function mountMarkers (fields, pick) {
   // modal cambia lo que el campo ofrece, eso remonta los marcadores, y el modal —que ya no
   // se cierra al rellenar una fila— se quedaba anclado a un nodo muerto.
   if (fieldModal && !fieldAnchor?.isConnected) {
-    const suyo = markers.find((m) => m.el === fieldEl)
-    if (suyo) { fieldAnchor = suyo.node; placeFieldModal() }
+    const own = markers.find((m) => m.el === fieldEl)
+    if (own) { fieldAnchor = own.node; placeFieldModal() }
   }
   return markers.length
 }
