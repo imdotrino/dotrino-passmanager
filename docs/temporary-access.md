@@ -138,17 +138,18 @@ y aún no tiene sus envolturas.
 - la **aprobación la elige quien lo crea**;
 - la contraseña se comprueba con **OPAQUE**;
 - el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
-- **5 intentos** de contraseña.
+- **5 intentos** de contraseña; al pasarlos, **una espera que se duplica** con cada fallo.
 
 **Pendientes:**
 
 1. ~~**Cuánto dura un inicio de sesión**~~ — **decidido: sin vencimiento en la bóveda, lo
    decide el cliente.** Propuesto a cambio: ver y cerrar los inicios de sesión abiertos
    desde tu consola.
-2. **Intentos: 5** (decidido). Falta **qué pasa al pasarlos**. Con un bloqueo que solo
-   levantas tú, cualquiera que sepa tu usuario te deja sin entrar con cinco intentos a
-   propósito; con una espera que crece, nadie te bloquea pero tampoco se para del todo a
-   quien prueba. Los intentos fallidos van a la bitácora.
+2. ~~**Intentos**~~ — **decidido: 5, y después una espera que se duplica** con cada fallo
+   (1 minuto, 2, 4…), por aparato. Se eligió frente al bloqueo porque con un bloqueo
+   cualquiera que sepa tu usuario te deja sin entrar a propósito. El precio: quien prueba
+   contraseñas no se para del todo, solo va muy despacio. Un acierto reinicia la cuenta, y
+   los fallos van a la bitácora.
 3. ~~**Cómo se encuentra tu bóveda**~~ — **decidido: `nombre@AB12-CD34-EF56`** (§3.2).
    **Idea del dueño, sin diseñar:** un directorio que dé a cada cuenta un **nombre al azar**
    gratis (`ana-tigre-47`) y uno **elegido de pago**. Encaja como capa ENCIMA —el alias solo
