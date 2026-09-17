@@ -164,6 +164,31 @@ Hasta convertir, la mesa **no entrega** y lo dice con un código que se pueda bu
 (`passwords-not-sealed: open the vault to convert`). Nada de servir con la llave vieja «mientras
 tanto»: eso es el agujero con otro nombre.
 
+### 2.8. Las passkeys, detrás de su propio permiso
+
+Una passkey es una **llave privada** que firma el reto de un sitio para entrar sin contraseña.
+Se guarda en una entrada como cualquier otro campo, pero no se parece a una contraseña: si
+se copia, sirve **hasta que la borres en cada sitio** donde la registraste, y no hay nada que
+«cambiar».
+
+Por eso va detrás de **un permiso aparte en el acta, `passkeys`**, que cualquier aparato tiene
+o no tiene:
+
+- **Solo los aparatos con `passwords` Y `passkeys`** reciben envoltura de la privada de una
+  passkey. La bóveda lo comprueba al guardar (el juego de envolturas de ese campo tiene que
+  ser exactamente ese) y filtra al entregar.
+- **Sin `passwords` no significa nada**: la passkey vive en una entrada de contraseñas.
+- **Quitarlo** (`caps <ID> -passkeys`) corta la entrega en cuanto se refresca el acta; sus
+  envolturas se borran al abrir la bóveda, como las de un aparato que sale.
+- **Una sesión nunca lo lleva**: entra en `SESSION_FORBIDDEN` junto a `passwords`.
+- **El aparato que se abre con contraseña** se crea **sin** él; quien lo crea puede dárselo,
+  y la pantalla dice lo que implica.
+
+Al añadirlo hay que tocar, a la vez: `CAPS` y `DEVICE_CAPS` en `@dotrino/identity`, la palabra
+del CLI en `CAP_BY_WORD` (`src/ctl.js`), y la lista de permisos de la TUI (`CAPS_ORDER`), que
+está escrita a mano y ya dejó invisibles tres permisos nuevos durante semanas;
+`test/tui-render.test.mjs` ata el nombre de la pantalla con el del CLI.
+
 ## 3. ~~El relevo: quien aprueba es quien descifra~~ — DESCARTADO
 
 > **Descartado por el dueño (2026-09-17):** *«abren sus propios paquetes, no hace falta que el
@@ -219,6 +244,7 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 | `@dotrino/passmanager` `lib/src/model.js` | formato v2: vista pública guardada, un sobre por campo con su generación, llavero de generaciones |
 | `@dotrino/passmanager` `lib/src/vault/` | una `SealedVault` para las **cuatro** bóvedas (el dueño: *«el vault embebido, el de la página y el demonio deben funcionar igual»*); `get` devuelve sobres + la envoltura de quien pide; `putSealed` en vez de `put`/`patch` con valores; `find` por huellas del sitio y filtro por destinatario; `match.js` en el aparato |
 | `@dotrino/identity/content` | nada: `makeGeneration`, `wrapForMember`, `openWrap`, `encryptWithCek`, `decryptWithCek` ya están |
+| `@dotrino/identity` (acta y sesión) | el permiso `passkeys` en `CAPS`/`DEVICE_CAPS`, y en `SESSION_FORBIDDEN` |
 | `dotrino-vault` | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; `resealAll` también de contraseñas; destinatarios elegibles por entrada; filtrar índice, vistas y resúmenes por destinatario |
 | la extensión | abrir sobres con su llave, construir sobres al guardar, `kcmp` para comparar |
 | `dotrino-test` | el smoke de reposo busca también contraseñas y la `cek` |
@@ -232,9 +258,8 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 2. ~~**Comparar**~~ — **decidido: con llave** (§2.6), de la que sale también la del índice.
 3. ~~**Hasta convertir, la mesa no entrega**~~ — **decidido: sí.** Se actualiza el vault y se
    abren las cuentas con su frase para convertir (§2.7).
-4. ~~**Passkeys**~~ — **decidido: nunca para un aparato que se abre con contraseña.** Una
-   passkey abierta en un equipo prestado se puede copiar y usar hasta que la borres en cada
-   sitio; una contraseña robada se cambia. La privada de la passkey no se envuelve a esos
-   aparatos aunque la entrada esté marcada. Tus aparatos enlazados la abren y firman como hoy.
+4. ~~**Passkeys**~~ — **decidido: un permiso del aparato, `passkeys`** (dueño, 2026-09-17:
+   *«podría definirse por permiso del dispositivo»*, en vez de una regla para un tipo de
+   aparato — *permisos, no tipos*). Detalle en §2.8.
 5. ~~**¿La vista pública también sellada?**~~ — **decidido: sí** (§2.2). Buscar por sitio va
    por huellas; buscar por texto lo hace el aparato.

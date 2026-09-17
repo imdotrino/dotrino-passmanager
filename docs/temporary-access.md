@@ -107,9 +107,10 @@ Marcar una entrada que ya existe es darle una envoltura nueva, y la hace quien y
 abierta (`sealed-passwords.md` §2.5); desmarcarla deja de mandársela en el acto y borra su
 envoltura al abrir la bóveda.
 
-**Passkeys, nunca** (decidido): la privada de una passkey no se envuelve a este aparato
-aunque su entrada esté marcada. Abierta en un equipo prestado se podría copiar y usar hasta
-que la borres en cada sitio. En un equipo prestado se entra con la contraseña del sitio.
+**Passkeys, por permiso** (decidido): la privada de una passkey solo se envuelve a aparatos
+con el permiso `passkeys` (`sealed-passwords.md` §2.8). Este aparato **se crea sin él**: abierta
+en un equipo prestado, una passkey se podría copiar y usar hasta que la borres en cada sitio.
+Quien lo crea puede dárselo, y la pantalla lo advierte.
 
 **Tampoco ve lo que no lleva**: la bóveda filtra por destinatario el índice de sitios, las
 vistas y los resúmenes, así que ese aparato no puede ni saber si tienes cuenta en un sitio que
@@ -144,7 +145,7 @@ y aún no tiene sus envolturas.
 - un aparato que se abre con usuario y contraseña, con su llave en la bóveda;
 - lleva **solo las entradas que marques**;
 - la **aprobación la elige quien lo crea**;
-- **nunca lleva passkeys**;
+- las passkeys van por el permiso `passkeys`, y este aparato **se crea sin él**;
 - la contraseña se comprueba con **OPAQUE**, con un paquete propio **`@dotrino/opaque`** que
   envuelve `opaque-ke`;
 - el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
