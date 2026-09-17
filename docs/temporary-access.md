@@ -81,16 +81,20 @@ lista el canal del código, comprueba el acta ──►   anuncio firmado
 OPAQUE (inicio) ◄──────────────────────────────►   comprueba sin ver la contraseña
                                                     ¿intentos dentro del límite?
 obtiene la export_key
-                ◄── bloque de las llaves + inicio de sesión con vencimiento ──
+                ◄── bloque de las llaves + inicio de sesión ──
 abre las llaves EN MEMORIA
 desde aquí es un aparato: find / get / put ────►   solo mientras el inicio de sesión esté vigente
 ```
 
 - **OPAQUE** (decidido): la bóveda nunca ve la contraseña y no entrega nada con qué
   adivinarla. Desde fuera solo se puede probar **en línea**, contra el límite de intentos.
-- **La llave sola no basta.** La bóveda solo le entrega sobres mientras haya un inicio de
-  sesión vigente. Al vencer, quien se haya quedado con la llave no consigue nada sin volver a
-  saber la contraseña.
+- **El inicio de sesión no vence en la bóveda** (decidido): cuánto dura lo decide el cliente.
+  La bóveda solo entrega sobres mientras haya un inicio de sesión abierto, y se cierra
+  cuando el cliente sale, cuando cambias la contraseña o cuando revocas el aparato.
+- **Consecuencia, dicha claro:** si alguien se queda con la llave y el inicio de sesión
+  abierto —olvidaste salir, o el equipo estaba comprometido—, sigue recibiendo las entradas
+  marcadas **hasta que lo cierres tú**. Por eso hace falta **ver y cerrar los inicios de
+  sesión abiertos desde tu consola** (propuesto, no decidido).
 - **Salir** suelta las llaves de memoria y cierra el inicio de sesión en la bóveda.
 
 ### 3.3. Qué entradas lleva
@@ -111,7 +115,8 @@ envoltura al abrir la bóveda.
 | una copia del disco de la bóveda | **probar contraseñas sin límite** contra el registro OPAQUE: el material del servidor está ahí. Lo que aguanta es la contraseña, así que tiene que ser larga |
 | el equipo prestado mientras estás dentro | **las entradas marcadas** para ese aparato, sin preguntar si lo creaste sin aprobación |
 | tu contraseña, capturada en ese equipo | entrar desde cualquier sitio **hasta que la cambies o revoques el aparato**, y solo a lo marcado |
-| la llave que quedó en el equipo, sin la contraseña | nada: sin inicio de sesión vigente no hay sobres |
+| la llave que quedó en el equipo, con el inicio de sesión abierto | las entradas marcadas, **hasta que lo cierres** desde tu consola, cambies la contraseña o revoques el aparato: la bóveda no lo corta sola |
+| la llave que quedó en el equipo, con el inicio de sesión cerrado | nada: sin inicio de sesión abierto no hay sobres, y abrir otro pide la contraseña |
 
 Y lo de siempre: **el equipo prestado ve lo que rellenas**. Nada de esto protege lo que
 escribes en una máquina comprometida.
@@ -131,14 +136,19 @@ y aún no tiene sus envolturas.
 - un aparato que se abre con usuario y contraseña, con su llave en la bóveda;
 - lleva **solo las entradas que marques**;
 - la **aprobación la elige quien lo crea**;
-- la contraseña se comprueba con **OPAQUE**.
+- la contraseña se comprueba con **OPAQUE**;
+- el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
+- **5 intentos** de contraseña.
 
 **Pendientes:**
 
-1. **Cuánto dura un inicio de sesión.** Para la sesión se había decidido 1 hora con tope de
-   4. ¿Vale lo mismo aquí?
-2. **Límite de intentos**: cuántos, y qué pasa al pasarlo (esperar, o bloquear hasta que
-   entres desde otro aparato). Los intentos fallidos van a la bitácora.
+1. ~~**Cuánto dura un inicio de sesión**~~ — **decidido: sin vencimiento en la bóveda, lo
+   decide el cliente.** Propuesto a cambio: ver y cerrar los inicios de sesión abiertos
+   desde tu consola.
+2. **Intentos: 5** (decidido). Falta **qué pasa al pasarlos**. Con un bloqueo que solo
+   levantas tú, cualquiera que sepa tu usuario te deja sin entrar con cinco intentos a
+   propósito; con una espera que crece, nadie te bloquea pero tampoco se para del todo a
+   quien prueba. Los intentos fallidos van a la bitácora.
 3. ~~**Cómo se encuentra tu bóveda**~~ — **decidido: `nombre@AB12-CD34-EF56`** (§3.2).
    **Idea del dueño, sin diseñar:** un directorio que dé a cada cuenta un **nombre al azar**
    gratis (`ana-tigre-47`) y uno **elegido de pago**. Encaja como capa ENCIMA —el alias solo
