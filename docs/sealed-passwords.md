@@ -48,19 +48,35 @@ afirme: **ninguna envoltura va dirigida a una llave que viva en la máquina de l
 
 ### 2.2. Qué queda en claro y qué no
 
-| En claro (la vista pública, la que ya viaja hoy) | Sellado |
+**La vista pública también va sellada** (decidido, 2026-09-17): una copia del disco de la
+bóveda no dice en qué sitios tienes cuenta ni con qué usuario.
+
+| En claro | Sellado |
 |---|---|
-| `id`, `type`, `title`, `sites`, fechas | `username`, `secret`, `totp`, `notes`, la privada de la passkey |
-| el nombre que se enseña (`hint`) | **cada campo libre por separado** |
-| `fieldKeys` y `privateKeys` | |
-| `credentialId` y `rpId` de la passkey | |
+| `id` y fechas | `username`, `secret`, `totp`, `notes`, la privada de la passkey |
+| el **índice de sitios**: `HMAC(kidx, sitio)` por cada sitio de la entrada | **cada campo libre por separado** |
+| el índice de passkeys: `HMAC(kidx, rpId)` y `HMAC(kidx, credentialId)` | **la vista pública**: `title`, `sites`, `type`, el nombre que se enseña (`hint`), `fieldKeys`, `privateKeys`, `rpId`, `credentialId` |
+| los resúmenes para comparar (§2.6) | |
 
-Dos cambios respecto de hoy:
+Tres cambios respecto de hoy:
 
-- **La vista pública se guarda, no se calcula.** La escribe quien escribe la entrada. Así
-  `find` y `search` funcionan con la bóveda cerrada sin abrir nada.
+- **La vista pública se guarda sellada, no se calcula.** La escribe quien escribe la
+  entrada, y la abre el aparato que pregunta.
 - **Los campos libres se sellan uno a uno**, no como un único bloque `fields`. Es lo que
   deja entregar **solo** los campos pedidos (`get(id, { keys })`) sin abrir la entrada.
+- **La bóveda busca por huellas, no por sitios.** `kidx` es una llave de tus aparatos
+  (§2.6). El aparato calcula la huella de cada variante del sitio que tiene delante
+  (`accounts.google.com`, `google.com`, y la de «sirve en cualquier sitio»), la bóveda
+  devuelve las entradas que la llevan, y el aparato abre su vista y decide. La lógica de
+  emparejar sitios (`match.js`) pasa entera al aparato.
+
+Lo que cuesta:
+
+- **Buscar por texto en toda la bóveda** (`search`, para traerte la cuenta de otro dominio)
+  ya no lo puede hacer la bóveda: el aparato pide las vistas selladas, las abre y busca él.
+  Son **vistas, no valores**: ninguna contraseña sale por ahí.
+- **`sites()`** (en qué dominios hay algo, para la consola) devuelve huellas; los nombres los
+  pone el aparato al abrir las vistas.
 
 ### 2.3. Leer
 
@@ -102,19 +118,29 @@ ningún campo (el mismo barrido de `secretos-sellados.md` §8.7).
 Nada de esto necesita la maestra desatendida: repartir lo hace un aparato, y reparar es el
 segundo trabajo de la maestra al abrir.
 
-### 2.6. Comparar sin abrir
+### 2.6. Comparar sin abrir, y buscar sin nombrar
 
-Hoy la bóveda calcula `fieldHashes` con el valor en claro y un `nonce` por respuesta. Cerrada
-no puede. Propuesta:
+**Decidido (2026-09-17): con llave.** Sirve para que el gestor sepa si lo que acabas de
+escribir **ya está guardado igual** —y no ofrezca guardarlo, o diga «reemplazar»— **sin abrir
+el valor**. Sin ella, comparar una contraseña pediría aprobación solo para decidir qué botón
+enseñar.
 
-- una **llave de comparación** del perfil (`kcmp`), aleatoria, sellada a los aparatos con
-  `passwords` como una generación más;
-- quien escribe guarda, en la vista pública, `HMAC(kcmp, id | campo | valor)`;
-- quien pregunta calcula lo mismo con lo que tiene delante y compara en su service worker.
+- Una **llave del perfil**, aleatoria, sellada a los aparatos con `passwords` como una
+  generación más. De ella salen dos, para que un uso no sirva para el otro: `kcmp` (comparar)
+  y `kidx` (el índice de sitios de §2.2).
+- Quien escribe guarda `HMAC(kcmp, id | campo | valor)`. El `id` va dentro: el mismo valor en
+  dos entradas da dos resúmenes distintos, así que no delata una contraseña repetida.
+- Quien pregunta calcula lo mismo con lo que tiene delante y compara en su service worker.
 
-La bóveda guarda resúmenes **que no puede poner a prueba**: sin `kcmp` no hay diccionario
-que valga. Lo que se pierde respecto de hoy es que el resumen es **estable**, no uno por
-respuesta. Decisión del dueño (§6).
+La bóveda guarda resúmenes **que no puede poner a prueba**: sin la llave no hay diccionario
+que valga. Lo que no cambia respecto de hoy: **un aparato con la llave puede adivinar un valor
+muy corto** (un PIN de 4 cifras) a partir de su resumen; por eso los resúmenes no salen del
+service worker.
+
+**La bóveda solo contesta con lo marcado para quien pregunta**: entradas del índice,
+vistas y resúmenes se filtran por destinatario antes de salir. Un aparato con una selección
+de entradas (el que se abre con contraseña) no puede ni saber si tienes cuenta en otro sitio,
+ni probar resúmenes de lo que no lleva.
 
 ### 2.7. Convertir lo que hay
 
@@ -172,10 +198,8 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
    §8.6.1). Perder uno obliga a revocar, abrir la bóveda y cambiar lo importante.
 2. **El aparato que aprueba por relevo necesita `passwords`**, o sea que puede abrir todas
    tus contraseñas.
-3. **La vista pública sigue en claro en el disco**: qué sitios, qué nombres de usuario, qué
-   campos. Igual que hoy viaja; ahora además está guardada así.
-4. **Un aparato nuevo no lee lo anterior** hasta que otro le reparta o se abra la bóveda (o
-   pide por relevo).
+3. **Buscar por texto en toda la bóveda lo hace el aparato**, abriendo las vistas (§2.2).
+4. **Un aparato nuevo no lee lo anterior** hasta que otro le reparta o se abra la bóveda.
 5. **El almacén crece** una generación por escritura, con su barrido.
 
 ## 5. Qué toca
@@ -195,10 +219,12 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
    pedidos a demanda y sin guardarlos. El aprobador **solo aprueba**: no abre nada por nadie.
    Con eso **el relevo de §3 se cae**: un aparato recién entrado espera a que le repartan su
    envoltura (§2.5) en vez de pedir por otro.
-2. **Comparar**: ¿llave de comparación con resúmenes estables (§2.6), o se quita comparar sin
-   abrir?
+2. ~~**Comparar**~~ — **decidido: con llave** (§2.6), de la que sale también la del índice.
 3. ~~**Hasta convertir, la mesa no entrega**~~ — **decidido: sí.** Se actualiza el vault y se
    abren las cuentas con su frase para convertir (§2.7).
-4. **Passkeys por relevo**: ¿fuera de la primera versión?
-5. **¿La vista pública también sellada?** Esconde sitios y usuarios de una copia del disco, a
-   cambio de que buscar con la bóveda cerrada no enseñe nombres.
+4. ~~**Passkeys**~~ — **decidido: nunca para un aparato que se abre con contraseña.** Una
+   passkey abierta en un equipo prestado se puede copiar y usar hasta que la borres en cada
+   sitio; una contraseña robada se cambia. La privada de la passkey no se envuelve a esos
+   aparatos aunque la entrada esté marcada. Tus aparatos enlazados la abren y firman como hoy.
+5. ~~**¿La vista pública también sellada?**~~ — **decidido: sí** (§2.2). Buscar por sitio va
+   por huellas; buscar por texto lo hace el aparato.
