@@ -1,8 +1,9 @@
 # Usar el gestor un rato en una máquina que no es tuya
 
-> **Estado: PROPUESTA, sin decidir** (2026-09-17). Sin código. La pidió el dueño: *«¿cómo
-> haría para loguearme en passmanager de forma temporal en otra máquina?»*. No se construye
-> hasta que el dueño conteste §6 — y la primera pregunta cambia una regla escrita.
+> **Estado: PROPUESTA** (2026-09-17). Sin código. La pidió el dueño: *«¿cómo haría para
+> loguearme en passmanager de forma temporal en otra máquina?»*. El mismo día decidió la
+> duración, qué pide aprobación y si se puede guardar (§6). **Falta la primera pregunta,
+> que cambia una regla escrita**, y sin ella no se construye.
 
 ## 1. Lo que se quiere
 
@@ -52,9 +53,9 @@ Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-f
 |---|---|
 | **Alcance** | uno nuevo, `passwords:ask`. `passwords` **sigue prohibido**: nada en una sesión lee sin aprobación. |
 | **Quién lo puede dar** | el aparato que respalda tiene que tener **hoy**, en el acta, `passwords` **y** `approve`. Nunca amplía. |
-| **Duración** | 1 hora por defecto, tope de 4 (las sesiones generales van 8 y 24). |
-| **Qué puede hacer** | `find` del sitio y `get`. **No** `search` (buscar en toda la bóveda), **no** `sites`, **no** escribe. |
-| **Aprobación** | en cada `get`, de uno en uno, sin la hora deslizante de los aparatos. |
+| **Duración** | 1 hora por defecto, tope de 4 (las sesiones generales van 8 y 24). **Decidido.** |
+| **Qué puede hacer** | `find` del sitio, `get` y **guardar** (`put`/`patch`). **No** `search` (buscar en toda la bóveda) ni `sites`. **Decidido.** |
+| **Aprobación** | en **cada** `get` —también un dato público, tu correo o tu teléfono— y en **cada** guardado, de uno en uno y sin la hora deslizante de los aparatos. `find` no pregunta: enseña qué cuentas hay en ese sitio para poder elegir, sin ningún valor. **Decidido.** |
 | **Dónde vale** | el `origin` firmado es el de la extensión del gestor; en otra aplicación el papel no vale. |
 | **Cerrar antes** | desde `profile.dotrino.com/sessions`, y **de verdad**: la bóveda guarda los `sid` cerrados hasta su `exp`, también si se reinicia. En las sesiones generales cerrar es cortesía (el papel muere al vencer); con contraseñas no basta. |
 | **Muere con quien respalda** | quitar el teléfono del acta invalida sus papeles. Sale del modelo de F1 y hay que probarlo aquí. |
@@ -76,10 +77,9 @@ Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-f
 1. **La regla.** `inicio-de-sesion.md` §8 dice que una sesión no lee secretos «ni con
    permiso». ¿Se acepta que **pida** contraseñas si cada entrega la aprueba el teléfono?
    **Sin este sí no se construye nada de lo demás.**
-2. **Duración**: ¿1 hora y tope de 4?
-3. **Qué pregunta**: ¿todo `get`, también un dato público (tu correo, tu teléfono)? ¿Y
-   `find`, que enseña qué cuentas tienes en ese sitio?
-4. **Escribir**: ¿puede guardar la contraseña que cambiaste en ese equipo, o solo leer?
+2. ~~**Duración**~~ — **decidido (2026-09-17): 1 hora, tope de 4.**
+3. ~~**Qué pregunta**~~ — **decidido: todo `get`, también lo público; `find` no.**
+4. ~~**Escribir**~~ — **decidido: puede guardar, y cada guardado pasa por el teléfono.**
 5. **Aprobar de uno en uno**, o una ventana corta (p. ej. 5 minutos) por sitio.
 
 ## 7. Qué tocaría, cuando se decida
@@ -87,8 +87,8 @@ Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-f
 | Pieza | Cambio |
 |---|---|
 | `@dotrino/identity` (`vault/session.js`) | `passwords:ask` en `SESSION_SCOPES`, con su capacidad exigida (`passwords` + `approve`) y su tope de duración |
-| `@dotrino/passmanager` (`VaultResponder`) | aceptar el papel en la petición y aplicar la política de sesión (operaciones cerradas, aprobación siempre). Va aquí y no en cada bóveda: son **cuatro** las que responden |
-| `dotrino-vault` (mesa de contraseñas) | verificar el papel contra el acta de hoy, lista de `sid` cerrados hasta su `exp`, y el aviso al teléfono con el sitio que se pide |
+| `@dotrino/passmanager` (`VaultResponder`) | aceptar el papel en la petición y aplicar la política de sesión (operaciones cerradas; aprobación en toda lectura y todo guardado). Va aquí y no en cada bóveda: son **cuatro** las que responden |
+| `dotrino-vault` (mesa de contraseñas) | verificar el papel contra el acta de hoy, lista de `sid` cerrados hasta su `exp`, y el aviso al teléfono con el sitio y si es leer o guardar |
 | `dotrino-passmanager/extension` | «Usar un rato»: llave S no extraíble, QR, papel en memoria de sesión, borrarlo al vencer |
 | `dotrino-profile-app` (`/sessions`) | cerrar una sesión del gestor avisando a la bóveda, firmado |
 | app del teléfono | nada nuevo: escanear y aprobar ya existen |
