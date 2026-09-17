@@ -127,7 +127,11 @@ Hasta convertir, la mesa **no entrega** y lo dice con un código que se pueda bu
 (`passwords-not-sealed: open the vault to convert`). Nada de servir con la llave vieja «mientras
 tanto»: eso es el agujero con otro nombre.
 
-## 3. El relevo: quien aprueba es quien descifra
+## 3. ~~El relevo: quien aprueba es quien descifra~~ — DESCARTADO
+
+> **Descartado por el dueño (2026-09-17):** *«abren sus propios paquetes, no hace falta que el
+> aprobador los abra»*. El aprobador solo aprueba. Se conserva lo que sigue para que se vea
+> qué se pensó y por qué no quedó.
 
 Para quien **no tiene envoltura** —un aparato recién entrado con la deuda sin pagar— la
 lectura pasa por un **aprobador**: **cualquier** aparato con `passwords` y `approve`, no
@@ -187,13 +191,14 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 
 ## 6. Lo que decide el dueño
 
-1. **¿Los aparatos enlazados con `passwords` reciben envoltura** y abren ellos (§2.3), o
-   **todo pasa por relevo** y solo un aprobador abre? Lo segundo obliga a tener un aprobador
-   encendido para rellenar cualquier contraseña, también en tu propio PC. Recomendación:
-   envoltura, pedida a demanda y sin guardarla en el aparato.
+1. ~~**¿Quién abre?**~~ — **decidido (2026-09-17): cada aparato abre sus propios sobres**,
+   pedidos a demanda y sin guardarlos. El aprobador **solo aprueba**: no abre nada por nadie.
+   Con eso **el relevo de §3 se cae**: un aparato recién entrado espera a que le repartan su
+   envoltura (§2.5) en vez de pedir por otro.
 2. **Comparar**: ¿llave de comparación con resúmenes estables (§2.6), o se quita comparar sin
    abrir?
-3. **Hasta convertir, la mesa no entrega** (§2.7). ¿De acuerdo?
+3. ~~**Hasta convertir, la mesa no entrega**~~ — **decidido: sí.** Se actualiza el vault y se
+   abren las cuentas con su frase para convertir (§2.7).
 4. **Passkeys por relevo**: ¿fuera de la primera versión?
 5. **¿La vista pública también sellada?** Esconde sitios y usuarios de una copia del disco, a
    cambio de que buscar con la bóveda cerrada no enseñe nombres.
