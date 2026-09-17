@@ -181,8 +181,12 @@ o no tiene:
 - **Quitarlo** (`caps <ID> -passkeys`) corta la entrega en cuanto se refresca el acta; sus
   envolturas se borran al abrir la bóveda, como las de un aparato que sale.
 - **Una sesión nunca lo lleva**: entra en `SESSION_FORBIDDEN` junto a `passwords`.
-- **El aparato que se abre con contraseña** se crea **sin** él; quien lo crea puede dárselo,
-  y la pantalla dice lo que implica.
+- **Quién lo tiene al empezar** (decidido, 2026-09-17): al **convertir**, todos los aparatos
+  que ya tienen `passwords` reciben también `passkeys` —hoy ya abren passkeys, así que nada
+  deja de funcionar; se sella en el acta durante la conversión, que es con la bóveda
+  abierta—. Al **enlazar** uno nuevo con `passwords` va incluido salvo que se quite.
+- **El aparato que se abre con contraseña** es la excepción: se crea **sin** él; quien lo crea
+  puede dárselo, y la pantalla dice lo que implica.
 
 Al añadirlo hay que tocar, a la vez: `CAPS` y `DEVICE_CAPS` en `@dotrino/identity`, la palabra
 del CLI en `CAP_BY_WORD` (`src/ctl.js`), y la lista de permisos de la TUI (`CAPS_ORDER`), que
