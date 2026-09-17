@@ -57,6 +57,13 @@ function ensureHost () {
 function styles () {
   const s = document.createElement('style')
   s.textContent = `
+    /* NADA DEL GESTOR SE IMPRIME. La capa cuelga del <html>, fuera del <body>, así que la
+       hoja de impresión de un sitio —que suele ocultar lo que no es su documento mirando
+       dentro del body— no la alcanza: el aviso de guardar salía impreso en el PDF de una
+       factura (facturero, 2026-09-16). Un marcador o un aviso en un papel no sirven de nada. */
+    @media print {
+      :host { display: none !important; }
+    }
     /* El botón es la caja del PÁJARO; el disco es una pieza suya, y más pequeña. */
     .marker {
       position: absolute;

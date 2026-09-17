@@ -98,6 +98,15 @@ try {
   // A que esté PINTADO: el botón existe en el HTML antes de que el aviso sepa qué va a
   // escribir. Se espera a la primera fila de campo, que solo aparece ya cargado.
   await frame.locator('[data-testid=save-prompt-field]').first().waitFor({ timeout: 8000 })
+
+  // AL IMPRIMIR NO SALE. La capa cuelga del <html>, fuera del <body>, y la hoja de impresión
+  // de un sitio no la alcanza: el aviso acababa en el PDF de una factura de facturero.
+  const marco = await frame.frameElement()
+  ok(await marco.isVisible(), 'en pantalla, el aviso se ve')
+  await page.emulateMedia({ media: 'print' })
+  ok(!(await marco.isVisible()), 'al imprimir, el aviso no sale')
+  await page.emulateMedia({ media: 'screen' })
+  ok(await marco.isVisible(), 'y vuelve al dejar de imprimir')
   await guardar.waitFor({ state: 'visible', timeout: 8000 })
 
   // Arriba, la marca; debajo, a dónde va a parar esto — que sigue a lo elegido abajo.

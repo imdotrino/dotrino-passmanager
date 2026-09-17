@@ -62,7 +62,9 @@ execFileSync('node', [join(here, 'build.mjs')], { stdio: 'inherit' })
 // rechaza un `update_url`, porque ahí quien actualiza es ella.
 const stage = join(await mkdtempDir(), 'dotrino-passmanager')
 await mkdir(stage, { recursive: true })
-for (const f of ['manifest.json', 'src', 'icons', '_locales']) {
+// La MISMA lista que el zip (`package.mjs`). `fonts` faltaba desde 0.37.0: la extensión del
+// canal propio pedía las fuentes del tema y no estaban en el paquete.
+for (const f of ['manifest.json', 'src', 'icons', '_locales', 'fonts']) {
   await cp(join(here, f), join(stage, f), { recursive: true })
 }
 await writeFile(join(stage, 'manifest.json'), JSON.stringify({

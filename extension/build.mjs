@@ -66,7 +66,11 @@ await writeFile(topbarPath, (await readFile(topbarPath, 'utf8'))
 // Y fuera el contador de aperturas, con su import remoto.
 const supportPath = join(vendor, 'support/index.js')
 const support = await readFile(supportPath, 'utf8')
-const remoto = `const _STORE_CDN = 'https://cdn.jsdelivr.net/npm/@dotrino/store@0.4/src/index.js'
+// La versión fijada en la URL cambia con cada support (0.9.0 la subió de @0.4 a @0.8): se lee
+// del archivo, y todo lo demás del bloque tiene que ser idéntico o se para.
+const pin = support.match(/const _STORE_CDN = 'https:\/\/cdn\.jsdelivr\.net\/npm\/@dotrino\/store@([0-9.]+)\/src\/index\.js'/)?.[1]
+if (!pin) throw new Error('support: no encuentro el import remoto del store; revisa el recorte del vendor')
+const remoto = `const _STORE_CDN = 'https://cdn.jsdelivr.net/npm/@dotrino/store@${pin}/src/index.js'
 async function _loadStore() {
   try { return await import('@dotrino/store') }
   catch { return await import(/* @vite-ignore */ _STORE_CDN) }
@@ -82,13 +86,15 @@ function recordAppOpen(appId) {
 if (!support.includes(remoto)) {
   throw new Error('support: el contador de aperturas cambió de forma; revisa el recorte del vendor')
 }
-await writeFile(supportPath, support.replace(remoto,
+const recortado = support.replace(remoto,
   `// RECORTADO AL VENDORIZAR (extension/build.mjs): aquí no hay contador de aperturas.
 // Llegaba al store por un import() de jsDelivr, que es código remoto — MV3 lo bloquea y
 // la tienda lo rechaza —, y de paso avisaba a un servidor cada vez que se abre un gestor
 // de contraseñas. Lo que se publica no lleva ni la URL ni el import.
-function recordAppOpen() {}`))
-console.log('vendor: support sin el contador de aperturas (nada de código remoto)')
+function recordAppOpen() {}`)
+if (recortado.includes('cdn.jsdelivr.net')) throw new Error('support: queda una URL de jsDelivr después del recorte')
+await writeFile(supportPath, recortado)
+console.log(`vendor: support sin el contador de aperturas (store@${pin} fuera, nada de código remoto)`)
 
 // LA TARJETA DE PERFIL del ecosistema (CONVENCIONES §6.1). Trae el editor —nombre, foto,
 // redes, datos— y además SU PROPIO conmutador de perfiles, con borrado, cuando se le pasa

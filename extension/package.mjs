@@ -70,6 +70,6 @@ const updates = await readFile(join(appDir, 'updates.xml'), 'utf8').catch(() => 
 const anunciada = updates.match(/<updatecheck[^>]*\sversion='([^']+)'/)?.[1]
 if (anunciada && anunciada !== manifest.version) {
   console.error('\nEl canal propio se queda en %s y esto es %s.', anunciada, manifest.version)
-  console.error('Arma también el .crx:  npm run crx   (o las dos cosas:  npm run release)')
+  console.error('Arma antes el .crx:  npm run crx   (o las dos cosas, en ese orden:  npm run release)')
   process.exit(1)
 }

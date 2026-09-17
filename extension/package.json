@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/passmanager-extension",
-  "version": "0.37.0",
+  "version": "0.37.1",
   "private": true,
   "type": "module",
   "description": "Extensi\u00f3n Chrome MV3 del gestor de contrase\u00f1as de Dotrino",
@@ -8,7 +8,7 @@
     "build": "node build.mjs",
     "package": "node package.mjs",
     "crx": "node crx.mjs",
-    "release": "node package.mjs && dotrino-env run --ns passmanager -- node crx.mjs",
+    "release": "dotrino-env run --ns passmanager -- node crx.mjs && node package.mjs",
     "publish:store": "node publish.mjs"
   }
 }
