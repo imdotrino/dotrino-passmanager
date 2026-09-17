@@ -157,8 +157,10 @@ las cuentas con su frase** (decidido). Al abrir:
 Durante ese paso la bóveda ve los valores —los tiene que reescribir—, igual que en la
 conversión de los cajones a v5; después, ya no. Un aparato con `passwords` **sin `encPub`** en
 el acta no puede recibir envolturas: la conversión lo dice por su nombre en vez de saltárselo.
-Las otras tres bóvedas (la pestaña, la de la extensión y `passmanager serve`) se convierten
-con el mismo formato al abrirlas.
+**Las otras tres bóvedas se quedan, las tres con el mismo formato** (decidido, 2026-09-17): la
+pestaña del vault, la bóveda de la extensión y `dotrino-passmanager serve`. Mismos
+destinatarios que el vault —los aparatos con `passwords` (y `passkeys` para las passkeys) y la
+copia de recuperación, nunca la propia bóveda— y se convierten al abrirlas.
 
 Hasta convertir, la mesa **no entrega** y lo dice con un código que se pueda buscar
 (`passwords-not-sealed: open the vault to convert`). Nada de servir con la llave vieja «mientras
