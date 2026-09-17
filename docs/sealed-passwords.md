@@ -113,7 +113,7 @@ ningún campo (el mismo barrido de `secretos-sellados.md` §8.7).
 | | Qué pasa |
 |---|---|
 | **Sale** (pierde `passwords` o se revoca) | la bóveda le deja de mandar sobres **al refrescar el acta** (5 s). Sus envolturas viejas se borran al abrir la bóveda (`resealAll`). Lo que ya abrió, ya lo tiene: la pantalla lo dice y recomienda cambiar esas contraseñas |
-| **Entra** | no tiene envolturas de lo anterior: es una **deuda a la vista** (`incompleteMembers`). La paga **quien ya tiene la llave abierta** —otro aparato con `passwords`, con los cuatro cerrojos de `secretos-sellados.md` §8.11— o la maestra al abrir la bóveda. Mientras tanto puede pedir **por relevo** (§3) |
+| **Entra** | no tiene envolturas de lo anterior: es una **deuda a la vista** (`incompleteMembers`). La paga **quien ya tiene la llave abierta** —otro aparato con `passwords`, con los cuatro cerrojos de `secretos-sellados.md` §8.11— o la maestra al abrir la bóveda. Mientras tanto **no lee lo anterior**: no hay relevo (§3) |
 
 Nada de esto necesita la maestra desatendida: repartir lo hace un aparato, y reparar es el
 segundo trabajo de la maestra al abrir.
@@ -144,10 +144,21 @@ ni probar resúmenes de lo que no lleva.
 
 ### 2.7. Convertir lo que hay
 
-Es un acto único y es **segundo trabajo de la maestra**: al abrir la bóveda con la frase, se
-abre `passwords.json` con la `cek` vieja, se reescribe cada entrada sellada a los
-destinatarios del acta, se guarda la vista pública, **se borra la `cek` del archivo** y se
-recorre el disco comprobando que no queda (como `dotrino-test/smoke/reposo.mjs`).
+Es un acto único y es **segundo trabajo de la maestra**: se actualiza el vault y **se abren
+las cuentas con su frase** (decidido). Al abrir:
+
+1. se abre `passwords.json` con la `cek` vieja;
+2. se estrena la **llave del perfil** de §2.6 y se envuelve a los destinatarios;
+3. cada entrada se reescribe: un sobre por campo, la vista pública sellada, sus huellas de
+   sitio y sus resúmenes;
+4. **se borra la `cek` del archivo** y se recorre el disco comprobando que no queda (como
+   `dotrino-test/smoke/reposo.mjs`).
+
+Durante ese paso la bóveda ve los valores —los tiene que reescribir—, igual que en la
+conversión de los cajones a v5; después, ya no. Un aparato con `passwords` **sin `encPub`** en
+el acta no puede recibir envolturas: la conversión lo dice por su nombre en vez de saltárselo.
+Las otras tres bóvedas (la pestaña, la de la extensión y `passmanager serve`) se convierten
+con el mismo formato al abrirlas.
 
 Hasta convertir, la mesa **no entrega** y lo dice con un código que se pueda buscar
 (`passwords-not-sealed: open the vault to convert`). Nada de servir con la llave vieja «mientras
@@ -196,8 +207,7 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 1. **Un aparato con `passwords` más una copia del disco de la bóveda lo abren todo.** Es el
    mismo trato que los aparatos que administran en los cajones (`secretos-sellados.md`
    §8.6.1). Perder uno obliga a revocar, abrir la bóveda y cambiar lo importante.
-2. **El aparato que aprueba por relevo necesita `passwords`**, o sea que puede abrir todas
-   tus contraseñas.
+2. **Aprobar no requiere `passwords`**: el aprobador solo dice sí o no, no abre nada.
 3. **Buscar por texto en toda la bóveda lo hace el aparato**, abriendo las vistas (§2.2).
 4. **Un aparato nuevo no lee lo anterior** hasta que otro le reparta o se abra la bóveda.
 5. **El almacén crece** una generación por escritura, con su barrido.
@@ -207,9 +217,9 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 | Pieza | Cambio |
 |---|---|
 | `@dotrino/passmanager` `lib/src/model.js` | formato v2: vista pública guardada, un sobre por campo con su generación, llavero de generaciones |
-| `@dotrino/passmanager` `lib/src/vault/` | una `SealedVault` para las **cuatro** bóvedas (el dueño: *«el vault embebido, el de la página y el demonio deben funcionar igual»*); `get` devuelve sobres + la envoltura de quien pide; `putSealed` en vez de `put`/`patch` con valores; el relevo (§3) |
+| `@dotrino/passmanager` `lib/src/vault/` | una `SealedVault` para las **cuatro** bóvedas (el dueño: *«el vault embebido, el de la página y el demonio deben funcionar igual»*); `get` devuelve sobres + la envoltura de quien pide; `putSealed` en vez de `put`/`patch` con valores; `find` por huellas del sitio y filtro por destinatario; `match.js` en el aparato |
 | `@dotrino/identity/content` | nada: `makeGeneration`, `wrapForMember`, `openWrap`, `encryptWithCek`, `decryptWithCek` ya están |
-| `dotrino-vault` | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; `resealAll` también de contraseñas; aviso de relevo al aprobador (sin sobres); destinatarios elegibles por entrada |
+| `dotrino-vault` | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; `resealAll` también de contraseñas; destinatarios elegibles por entrada; filtrar índice, vistas y resúmenes por destinatario |
 | la extensión | abrir sobres con su llave, construir sobres al guardar, `kcmp` para comparar |
 | `dotrino-test` | el smoke de reposo busca también contraseñas y la `cek` |
 
