@@ -995,6 +995,15 @@ Lo que hay que leer ahí, dicho en palabras:
   libres** del §4.2 y su identidad es la **etiqueta** que les pone la página. Y también se
   **rellenan**, y se comparan, aunque no se abra nada: la vista pública dice **qué campos
   lleva** cada entrada y **un resumen de cada uno** (§4.0.2).
+- **De dónde sale la etiqueta, en este orden** (`fieldLabel` en `detect.js`): lo que el
+  sitio **ata** al campo (`<label for>`, la etiqueta que lo envuelve, `aria-labelledby`),
+  lo que **declara** en el propio campo (`aria-label`, `placeholder`), lo que se **ve
+  justo antes** aunque no esté atado, y por último `name` e `id`. El tercer paso nació el
+  2026-09-16 en un panel hecho con Next.js: las etiquetas estaban encima pero sueltas, las
+  casillas no tenían ni `name`, todas se quedaban con la clave `other` y **solo se marcaba
+  una**. Deducir es estrecho a propósito —el vecino más cercano, sin subir más allá de un
+  contenedor con otro campo, sin títulos, botones ni textos largos— porque con esa
+  etiqueta se rellena, y un nombre equivocado es peor que ninguno.
 - **Lo que se guarda es ESE campo.** Los demás del mismo formulario van en el aviso pero
   **sin marcar**, para que estén a un clic sin volver a empezar. Igual al enviar un
   formulario: lo reconocido va marcado y los libres acompañan sin marcar — enviar un

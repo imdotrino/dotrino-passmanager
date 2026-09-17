@@ -208,6 +208,7 @@ async function onPick (field) {
     key: keyOf(field),
     name: nameOf(field),
     anchor: field.node,
+    el: field.el,
   })
 }
 

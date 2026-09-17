@@ -98,10 +98,12 @@
     align-items: center; gap: 8px; padding: 4px 5px;
   }
   .row input[type=checkbox] { margin: 0; accent-color: var(--accent); }
-  /* La fila de guardar no lleva casilla de elegir: es el nombre, si es privado, y su
-     botón —que dice guardar o reemplazar según lo que vaya a hacer. */
-  .row.save { grid-template-columns: minmax(0,1fr) auto auto; }
+  /* La fila de guardar: casilla (qué se lleva el botón de abajo) · nombre · si es privado ·
+     su botón, que dice guardar o reemplazar según lo que vaya a hacer. */
+  .row.save { grid-template-columns: auto minmax(0,1fr) auto auto; }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* El campo cuyo marcador se pulsó, en negrilla en las dos listas (dueño, 2026-09-16). */
+  li.current .name { font-weight: 700; }
   /* Con qué se va a rellenar: pequeño, tenue y truncado (dueño, 2026-08-29). Está para
      distinguir dos filas que se llaman igual, no para leerlo entero. */
   .val {

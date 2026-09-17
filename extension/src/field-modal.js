@@ -55,7 +55,6 @@ $('save').textContent = t(lang, 'save')
 $('whereTitle').textContent = t(lang, 'saveWhere')
 $('fillTitle').textContent = t(lang, 'fillSection')
 $('saveTitle').textContent = t(lang, 'saveSection')
-$('fillAll').textContent = t(lang, 'fillAllChecked')
 $('genTitle').textContent = t(lang, 'genSection')
 $('genUse').textContent = t(lang, 'genUse')
 $('genHint').textContent = t(lang, 'genHint')
@@ -73,6 +72,7 @@ function fail (e) {
         : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink') : (e?.message || String(e))
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
+  paintButtons()
   resize()
 }
 
@@ -510,6 +510,62 @@ $('genUse').onclick = () => {
   close()
 }
 
+// --- lo que el usuario marcó y desmarcó ---------------------------------------------
+//
+// `paint()` rehace las listas enteras —al llegar los valores, al cambiar de entrada, en
+// cada tecla del buscador—, así que una casilla que solo viviera en el DOM volvería a su
+// estado inicial sin que nadie la tocara. Se apunta aquí, por clave de campo.
+const sinRellenar = new Set()   // casillas de rellenar desmarcadas (nacen marcadas)
+const sinGuardar = new Set()    // casillas de guardar desmarcadas (nacen marcadas)
+const privadasMarcadas = new Set()
+
+/** Una casilla que apunta su estado en `set`: `dentro` = lo que significa estar en él. */
+function casilla (set, key, dentro, testid) {
+  const box = document.createElement('input')
+  box.type = 'checkbox'
+  box.checked = dentro ? set.has(key) : !set.has(key)
+  box.dataset.testid = testid
+  box.dataset.key = key
+  box.addEventListener('change', () => {
+    if (box.checked === dentro) set.add(key)
+    else set.delete(key)
+    paintButtons()
+  })
+  return box
+}
+
+/**
+ * EL CAMPO QUE SE PULSÓ va en negrilla, en rellenar y en guardar (dueño, 2026-09-16): con
+ * seis filas iguales de tamaño hay que leerlas todas para encontrar la del campo que tienes
+ * al lado.
+ */
+function marcarPulsado (li, fieldKey) {
+  if (!key || fieldKey !== key) return
+  li.classList.add('current')
+  li.setAttribute('aria-current', 'true')
+}
+
+/**
+ * Los botones de abajo dicen lo que harán con lo marcado: «todos» si no falta ninguna fila,
+ * «seleccionados» en cuanto se desmarca una (dueño, 2026-09-16) —«todos» deja de ser
+ * verdad—, y no hacen nada si no hay nada marcado.
+ */
+function paintButtons () {
+  const puede = puedeRellenar()
+  const aRellenar = puede.filter(f => !sinRellenar.has(f.key))
+  $('fillAll').textContent = t(lang, aRellenar.length < puede.length ? 'fillSelected' : 'fillAllChecked')
+  $('fillAll').disabled = !aRellenar.length
+
+  const filas = rowsToSave()
+  const marcadas = filas.filter(r => !sinGuardar.has(r.key))
+  const reemplaza = marcadas.some(r => r.status === 'changed')
+  const todas = marcadas.length === filas.length
+  $('save').textContent = t(lang, reemplaza
+    ? (todas ? 'replaceAll' : 'replaceSelected')
+    : (todas ? 'saveAll' : 'saveSelected'))
+  $('save').disabled = !marcadas.length
+}
+
 function paint () {
   renderTargets()
   paintGen()
@@ -523,12 +579,10 @@ function paint () {
     const li = document.createElement('li')
     li.dataset.testid = 'field-modal-fill-row'
     li.dataset.field = f.key
+    marcarPulsado(li, f.key)
     const row = document.createElement('div')
     row.className = 'row'
-    const box = document.createElement('input')
-    box.type = 'checkbox'
-    box.checked = true
-    box.dataset.testid = `field-modal-check-${f.key}`
+    const box = casilla(sinRellenar, f.key, false, `field-modal-check-${f.key}`)
     const n = document.createElement('span')
     n.className = 'name'
     n.textContent = f.name || kindLabel(lang, f.key)
@@ -544,17 +598,21 @@ function paint () {
     b.type = 'button'
     b.dataset.testid = `field-modal-fill-${f.key}`
     b.textContent = t(lang, 'fillOne')
-    b.addEventListener('click', () => fill([f.key]))
+    // El de UNA fila no cierra el modal (dueño, 2026-09-16): quien rellena de uno en uno
+    // suele ir a por el siguiente, y cerrarlo le obligaba a volver a pulsar el marcador.
+    b.addEventListener('click', () => fill([f.key], { cerrar: false }))
     row.append(box, n, v, b)
     li.append(row)
     ul.append(li)
   }
 
-  // Guardar: todos los campos escritos que hagan algo en ESTA entrada. El que se pulsó
-  // viene marcado; los demás, a un clic.
   // Guardar: cada campo escrito con su botón. Dice **guardar** si ese dato es nuevo en la
   // entrada elegida y **reemplazar** si ya estaba con otro valor — que no es lo mismo, y
   // el usuario tiene que saber cuál de las dos está pulsando.
+  //
+  // Y con su casilla, marcada de entrada: decide qué se lleva el botón de abajo (dueño,
+  // 2026-09-16). El botón de la fila guarda esa fila, esté marcada o no — igual que en
+  // rellenar.
   const filas = rowsToSave()
   $('saveBox').hidden = !filas.length
   $('save').hidden = !filas.length
@@ -564,8 +622,11 @@ function paint () {
     const li = document.createElement('li')
     li.dataset.testid = 'field-modal-save-row'
     li.dataset.field = row.key
+    marcarPulsado(li, row.key)
     const d = document.createElement('div')
     d.className = 'row save'
+
+    const pick = casilla(sinGuardar, row.key, false, `field-modal-pick-${row.key}`)
 
     const n = document.createElement('span')
     n.className = 'name'
@@ -574,9 +635,8 @@ function paint () {
 
     const priv = document.createElement('label')
     priv.className = 'priv'
-    const pb = document.createElement('input')
-    pb.type = 'checkbox'
-    pb.dataset.testid = `field-modal-private-${row.key}`
+    const pb = casilla(privadasMarcadas, row.key, true, `field-modal-private-${row.key}`)
+    pb.classList.add('private')
     // La contraseña es privada por naturaleza: no se pregunta.
     if (row.secret) { pb.checked = true; pb.disabled = true }
     const pt = document.createElement('span')
@@ -588,15 +648,15 @@ function paint () {
     b.type = 'button'
     b.dataset.testid = `field-modal-save-${row.key}`
     b.textContent = t(lang, row.status === 'changed' ? 'replace' : 'save')
-    b.addEventListener('click', () => guardar([row.key]))
+    // Como el de rellenar: el de UNA fila no cierra el modal (dueño, 2026-09-16).
+    b.addEventListener('click', () => guardar([row.key], { cerrar: false }))
 
-    d.append(n, priv, b)
+    d.append(pick, n, priv, b)
     li.append(d)
     sl.append(li)
   }
-  // Y el de abajo, los de todas las filas de una vez.
-  $('save').textContent = t(lang, filas.some(r => r.status === 'changed') ? 'replaceAll' : 'saveAll')
-  $('save').disabled = false
+  // Y los de abajo: los de las filas marcadas, de una vez.
+  paintButtons()
   // Para las pruebas: ya está pintado, con su lista y sus secciones.
   document.body.dataset.ready = '1'
   resize()
@@ -625,18 +685,11 @@ function rowsToSave () {
   return out
 }
 
-const privadas = () => [...document.querySelectorAll('#saveList input[type=checkbox]')]
+const privadas = () => [...document.querySelectorAll('#saveList input.private')]
   .filter(b => b.checked)
-  .map(b => b.dataset.testid.replace('field-modal-private-', ''))
+  .map(b => b.dataset.key)
 
-
-
-$('fillAll').onclick = () => {
-  const marcados = [...document.querySelectorAll('#fillList input[type=checkbox]')]
-    .filter(b => b.checked)
-    .map(b => b.dataset.testid.replace('field-modal-check-', ''))
-  fill(marcados)
-}
+$('fillAll').onclick = () => fill(puedeRellenar().map(f => f.key).filter(k => !sinRellenar.has(k)))
 
 /**
  * Rellenar es pedirle a la página que escriba: este marco no alcanza su DOM.
@@ -644,7 +697,7 @@ $('fillAll').onclick = () => {
  * El valor sale de la bóveda aquí y cruza a la página solo para los campos que se
  * rellenan — que es literalmente lo que rellenar significa.
  */
-async function fill (keys) {
+async function fill (keys, { cerrar = true } = {}) {
   if (!keys.length) return
   const r = actual()
   if (!r.id) return
@@ -675,7 +728,11 @@ async function fill (keys) {
       return resize()
     }
     post({ op: 'fill-field-modal', values })
-    close()
+    if (cerrar) return close()
+    $('err').hidden = true
+    for (const b of document.querySelectorAll('button')) b.disabled = false
+    paintButtons()
+    resize()
   } catch (e) { fail(e) }
 }
 
@@ -684,7 +741,8 @@ async function fill (keys) {
  *
  * Lo que NO se guarda **sigue apuntado** (`keepRest`): aquí se guarda de a uno, y tirar
  * lo demás dejaría media lista de botones muertos. Al terminar se vuelve a mirar qué
- * queda, y si ya no queda nada que hacer el modal se va.
+ * queda, y si ya no queda nada que hacer el modal se va — salvo que se guardara UNA fila
+ * con su botón, que nunca cierra (dueño, 2026-09-16).
  */
 $('qBtn').onclick = async () => {
   abierto = !buscadorAbierto()
@@ -711,7 +769,7 @@ $('q').addEventListener('input', () => {
   }, 220)
 })
 
-async function guardar (pick) {
+async function guardar (pick, { cerrar = true } = {}) {
   if (!pick.length) return
   const priv = privadas().filter(k => pick.includes(k))
   for (const b of document.querySelectorAll('button')) b.disabled = false
@@ -732,9 +790,9 @@ async function guardar (pick) {
     // Si la entrada acaba de nacer, el siguiente campo va A ESA, no a otra nueva.
     await loadRecords(r.id || res?.id || '')
     try { detail = await ask('pending-detail') } catch (_) { detail = null }
-    if (!rowsToSave().length && !ctx.page.some(f => (f.ids || []).includes(actual().id))) return close()
+    if (cerrar && !rowsToSave().length && !ctx.page.some(f => (f.ids || []).includes(actual().id))) return close()
     render()
   } catch (e) { fail(e) }
 }
 
-$('save').onclick = () => guardar(rowsToSave().map(r => r.key))
+$('save').onclick = () => guardar(rowsToSave().map(r => r.key).filter(k => !sinGuardar.has(k)))

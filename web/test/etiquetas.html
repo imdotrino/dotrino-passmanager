@@ -1,0 +1,56 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow"><title>Etiquetas sin atar · caso 16</title><link rel="stylesheet" href="bench.css">
+<style>
+  .grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  label, span.l, p.l { display: block; font-size: .85rem; opacity: .8; }
+  .help { font-size: .75rem; opacity: .55; }
+</style>
+</head><body>
+<nav><a href="./">← banco de pruebas</a></nav>
+<!--
+  Lo que hace un panel hecho con React y Tailwind: la etiqueta se VE encima de la casilla,
+  pero no está atada a ella —ni `for`, ni envolviendo, ni `aria-labelledby`— y la casilla no
+  tiene `name`, `id` ni `placeholder`. Sin inferir la etiqueta, todos estos campos se
+  llamaban «otro dato» y solo se marcaba el primero.
+
+  `data-expect` es lo que tiene que salir como nombre; vacío = que no se invente ninguno.
+-->
+<h3>Editar dispositivo</h3>
+<form id="f1" onsubmit="event.preventDefault(); location.href='inside.html'">
+  <div>
+    <label class="block">Usuario</label>
+    <input class="w-full" data-expect="Usuario">
+  </div>
+
+  <div>
+    <label>Host *</label>
+    <div class="relative"><div class="flex"><input class="w-full" data-expect="Host"></div></div>
+    <p class="help">La dirección con la que el panel encuentra el aparato en tu red, sin el puerto.</p>
+  </div>
+
+  <div>
+    <span class="l">Puerto:</span>
+    <input data-expect="Puerto">
+  </div>
+
+  <div>
+    <p class="l">Código de activación <a href="#">¿qué es?</a></p>
+    <input data-expect="Código de activación">
+  </div>
+
+  <div class="grid">
+    <span>Marca</span><input data-expect="Marca">
+    <span>Modelo</span><input data-expect="Modelo">
+  </div>
+
+  <div>
+    <div class="relative"><input data-expect="Número de serie"><label>Número de serie</label></div>
+  </div>
+
+  <!-- Nada que lo nombre: el título de la sección NO es su etiqueta. -->
+  <div><input data-expect=""></div>
+
+  <button type="submit">Guardar</button>
+</form>
+</body></html>

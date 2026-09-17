@@ -240,6 +240,13 @@ export function mountMarkers (fields, pick) {
     markers.push(marker)
     place(node, f.el)
   }
+  // El modal abierto sigue a SU campo aunque el marcador se haya rehecho: rellenar desde el
+  // modal cambia lo que el campo ofrece, eso remonta los marcadores, y el modal —que ya no
+  // se cierra al rellenar una fila— se quedaba anclado a un nodo muerto.
+  if (fieldModal && !fieldAnchor?.isConnected) {
+    const suyo = markers.find((m) => m.el === fieldEl)
+    if (suyo) { fieldAnchor = suyo.node; placeFieldModal() }
+  }
   return markers.length
 }
 
@@ -411,8 +418,9 @@ export function promptWindow () {
 const MODAL_W = 336
 let fieldModal = null
 let fieldAnchor = null
+let fieldEl = null   // el campo de la página, para volver a encontrar su marcador
 
-export function mountFieldModal ({ key, name, anchor }) {
+export function mountFieldModal ({ key, name, anchor, el }) {
   const sr = ensureHost()
   closeFieldModal()
   const frame = document.createElement('iframe')
@@ -423,6 +431,7 @@ export function mountFieldModal ({ key, name, anchor }) {
   sr.append(frame)
   fieldModal = frame
   fieldAnchor = anchor || null
+  fieldEl = el || null
   placeFieldModal()
   return frame
 }
@@ -431,6 +440,7 @@ export function closeFieldModal () {
   fieldModal?.remove()
   fieldModal = null
   fieldAnchor = null
+  fieldEl = null
 }
 
 export function fieldModalWindow () {

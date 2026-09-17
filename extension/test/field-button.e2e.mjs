@@ -190,11 +190,18 @@ try {
   const filas = m.locator('[data-testid=field-modal-fill-row]')
   ok(await filas.count() >= 2, 'y la lista de lo que puede rellenar (' + (await filas.count()) + ')')
   ok(await m.locator('[data-testid=field-modal-check-email]').isChecked(), 'con las casillas marcadas')
+  // El campo cuyo marcador se pulsó va en negrilla; los demás, no (dueño, 2026-09-16).
+  const negrilla = (fila) => fila.locator('.name').evaluate((el) => +getComputedStyle(el).fontWeight)
+  ok(await negrilla(m.locator('[data-testid=field-modal-fill-row][data-field=email]')) >= 700,
+    'la fila del campo pulsado va en negrilla')
+  ok(await negrilla(m.locator('[data-testid=field-modal-fill-row][data-field=tel]')) < 700,
+    'y las demás no')
   await m.locator('[data-testid=field-modal-fill-all]').click()
   // Son datos PÚBLICOS: no se pide permiso para escribir tu nombre en el formulario donde
   // lo acabas de teclear (dueño, 2026-08-29). Lo privado sí — ver `reemplazos.e2e.mjs`.
   ok(!(await autorizar(m, 2000)), 'rellenar datos públicos no pide autorización')
   await page.waitForTimeout(1200)
+  ok(!page.frames().some((x) => x.url().includes('field-modal.html')), '«Completar todos» cierra el modal')
   const puesto = await page.evaluate(() =>
     Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
   ok(puesto.email === 'ana@datos.com', 'rellena el campo que se pulsó')
@@ -361,6 +368,17 @@ try {
     const nombres = await mm.locator('[data-testid=field-modal-fill-row] .name').allTextContents()
     ok(nombres.some(n => /usuario|username/i.test(n)), 'sale la fila del usuario: ' + nombres.join(' / '))
     ok(nombres.some(n => /contraseña|password/i.test(n)), 'y la de la contraseña, aparte')
+    const gruesa = (k) => mm.locator(`[data-testid=field-modal-fill-row][data-field=${k}] .name`)
+      .evaluate((el) => +getComputedStyle(el).fontWeight)
+    ok(await gruesa('username') >= 700 && await gruesa('secret') < 700,
+      'en negrilla el usuario, que es el marcador pulsado, y no la contraseña')
+    const completar = mm.locator('[data-testid=field-modal-fill-all]')
+    ok(/todos|all/i.test(await completar.textContent()), 'con todo marcado, abajo dice «todos»: ' + await completar.textContent())
+    await mm.locator('[data-testid=field-modal-check-secret]').uncheck()
+    ok(/seleccionados|selected/i.test(await completar.textContent()),
+      'y al desmarcar una, «seleccionados»: ' + await completar.textContent())
+    await mm.locator('[data-testid=field-modal-check-secret]').check()
+    ok(/todos|all/i.test(await completar.textContent()), 'y al volver a marcarla, «todos» otra vez')
     // Y cada una rellena lo suyo.
     await mm.locator('[data-testid=field-modal-fill-secret]').click()
     ok(await autorizar(mm), 'y la contraseña sí pide autorización, siempre')
@@ -368,6 +386,14 @@ try {
     const soloClave = await page.evaluate(() =>
       Object.fromEntries([...document.querySelectorAll('input')].map(i => [i.name, i.value])))
     ok(!!soloClave.password && !soloClave.user, 'la de contraseña rellena SOLO la contraseña')
+    // Rellenar UNA fila no cierra el modal (dueño, 2026-09-16): se sigue con la siguiente.
+    ok(page.frames().some((x) => x.url().includes('field-modal.html')), 'y el modal sigue abierto')
+    await mm.locator('[data-testid=field-modal-fill-username]').click()
+    await autorizar(mm, 1500)
+    await page.waitForTimeout(900)
+    ok(!!(await page.inputValue('input[name=user]')), 'y desde él se rellena la fila siguiente')
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
   }
 
   console.log('\nbuscar la cuenta de OTRO dominio (el subdominio que cambió)')
@@ -459,6 +485,68 @@ try {
   }
   ok(ciudades.some((c) => c.value === 'Quito'), 'el campo queda guardado')
   ok(ciudades.find((c) => c.value === 'Quito')?.private === true, 'y marcado como privado')
+
+  console.log('\nguardar abajo se lleva solo las filas marcadas')
+  await page.goto(`${SITE}/profile.html`)
+  await page.waitForTimeout(1000)
+  await page.fill('input[name=city]', 'Ibarra')
+  await page.fill('input[name=tel]', '0988777666')
+  await page.waitForTimeout(800)
+  const cajaIbarra = await page.locator('input[name=city]').boundingBox()
+  await page.mouse.click(cajaIbarra.x + cajaIbarra.width - 10, cajaIbarra.y + 8)
+  const ms = await modal()
+  ok(!!ms, 'el modal sale')
+  if (ms) {
+    await ms.locator('[data-testid=field-modal-target-new]').check()
+    await page.waitForTimeout(400)
+    const filaCity = ms.locator('[data-testid=field-modal-save-row][data-field=city]')
+    const filaTel = ms.locator('[data-testid=field-modal-save-row][data-field=tel]')
+    ok(await filaCity.count() === 1 && await filaTel.count() === 1, 'con una fila por dato escrito')
+    ok(await ms.locator('[data-testid=field-modal-pick-city]').isChecked() &&
+       await ms.locator('[data-testid=field-modal-pick-tel]').isChecked(),
+      'y cada fila con su casilla, marcada de entrada')
+    const peso = (fila) => fila.locator('.name').evaluate((el) => +getComputedStyle(el).fontWeight)
+    ok(await peso(filaCity) >= 700 && await peso(filaTel) < 700,
+      'en guardar también va en negrilla el campo pulsado')
+    await ms.locator('[data-testid=field-modal-pick-tel]').uncheck()
+    // Cambiar de entrada repinta la lista: la casilla no puede volver a marcarse sola.
+    await ms.locator('[data-testid=field-modal-search-toggle]').click()
+    await ms.locator('[data-testid=field-modal-search-toggle]').click()
+    await page.waitForTimeout(500)
+    ok(!(await ms.locator('[data-testid=field-modal-pick-tel]').isChecked()), 'lo desmarcado sigue desmarcado al repintar')
+    const abajo = ms.locator('[data-testid=field-modal-save]')
+    ok(/seleccionados|selected/i.test(await abajo.textContent()),
+      'con una fila desmarcada, abajo dice «seleccionados»: ' + await abajo.textContent())
+    await ms.locator('[data-testid=field-modal-pick-city]').uncheck()
+    ok(await ms.locator('[data-testid=field-modal-save]').isDisabled(), 'sin nada marcado, el botón de abajo no hace nada')
+    await ms.locator('[data-testid=field-modal-pick-city]').check()
+    const antesIds = new Set(((await pedir('find', { url: `${SITE}/profile.html` }))?.result || []).map((e) => e.id))
+    await ms.locator('[data-testid=field-modal-save]').click()
+    await page.waitForTimeout(1600)
+    const nueva = ((await pedir('find', { url: `${SITE}/profile.html` }))?.result || [])
+      .find((e) => !antesIds.has(e.id))
+    ok(!!nueva, 'se crea la entrada')
+    const abierta = nueva ? JSON.parse((await abrir(nueva.id))?.result?.fields || '[]') : []
+    ok(abierta.some((c) => c.kind === 'city' && c.value === 'Ibarra'), 'con la fila marcada')
+    ok(!abierta.some((c) => c.kind === 'tel'), 'y sin la desmarcada')
+    await page.bringToFront()
+    await page.waitForTimeout(300)
+
+    // Guardar UNA fila con su botón no cierra el modal, aunque no quede nada más que hacer
+    // (dueño, 2026-09-16) — lo mismo que rellenar una.
+    if (nueva) {
+      await ms.locator(`[data-testid=field-modal-target-${nueva.id}]`).check()
+      await page.waitForTimeout(400)
+      await ms.locator('[data-testid=field-modal-save-tel]').click()
+      await page.waitForTimeout(1600)
+      ok(page.frames().some((x) => x.url().includes('field-modal.html')), 'guardar UNA fila no cierra el modal')
+      const conTel = JSON.parse((await abrir(nueva.id))?.result?.fields || '[]')
+      ok(conTel.some((c) => c.kind === 'tel' && c.value === '0988777666'), 'y la fila queda guardada')
+      await pedir('remove', { id: nueva.id, url: `${SITE}/profile.html` })
+    }
+    await page.mouse.click(200, 120)
+    await page.waitForTimeout(400)
+  }
 
   // La pregunta cuando NO hay ninguna pantalla de la extensión delante (un sitio pidiendo
   // una passkey) sale en una ventana propia, y eso **no se puede simular aquí**: en

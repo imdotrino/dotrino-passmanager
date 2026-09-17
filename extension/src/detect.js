@@ -88,6 +88,85 @@ export function labelTextOf (el) {
 /** El texto de un nodo en una sola línea, que es como se compara y como se enseña. */
 const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim()
 
+// Lo que puede llevar un dato. Los botones no cuentan: el ojo de «ver contraseña» vive en
+// el mismo grupo que su casilla, y contarlo partiría el grupo en dos.
+const CONTROL = 'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]):not([type=image]), select, textarea'
+// Texto que está al lado de un campo y NO lo nombra: el título de la sección, un botón,
+// un enlace de «¿la olvidaste?», o lo que no se pinta.
+const NOT_LABEL = new Set(['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LEGEND', 'BUTTON', 'A',
+  'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT', 'SVG'])
+// Una etiqueta es corta. Un párrafo al lado de un campo es ayuda, no su nombre.
+const MAX_LABEL = 60
+// Hasta dónde se sube buscando el grupo del campo.
+const MAX_UP = 5
+
+const esControl = (n) => n.nodeType === 1 && (n.matches(CONTROL) || !!n.querySelector(CONTROL))
+
+/**
+ * El texto de un vecino, si puede ser una etiqueta: corto y sin el asterisco de obligatorio.
+ * Sin lo que llevan dentro sus botones y enlaces — el «?» de la ayuda no es parte del nombre.
+ */
+function textoDeEtiqueta (n) {
+  const partes = []
+  const recoger = (x) => {
+    if (x.nodeType === 3) { partes.push(x.nodeValue); return }
+    if (x.nodeType !== 1 || NOT_LABEL.has(x.tagName.toUpperCase())) return
+    for (const hijo of x.childNodes) recoger(hijo)
+  }
+  recoger(n)
+  const t = norm(partes.join('')).replace(/\s*[*:]+$/, '').trim()
+  return t.length <= MAX_LABEL ? t : ''
+}
+
+/**
+ * LA ETIQUETA QUE SE VE pero que el sitio no ATÓ al campo: un `<label>` sin `for`, un
+ * `<span>` o un `<p>` encima de la casilla. Es lo más corriente en las apps hechas con React
+ * y Tailwind, y sin esto todos sus campos se quedaban sin nombre — y como un campo libre se
+ * identifica por su nombre (§4.2), acababan todos con la clave `other` y solo se marcaba el
+ * primero (dueño, 2026-09-16, en el editor de un panel hecho con Next.js).
+ *
+ * Es lo mismo que hace el autocompletado de Chrome cuando no hay `<label for>`: mirar lo que
+ * hay justo antes del campo. Y es **estrecho a propósito**, porque un nombre equivocado es
+ * peor que ninguno —con él se rellena—:
+ *
+ *   · se mira el vecino MÁS CERCANO hacia atrás, nunca todo el texto de alrededor;
+ *   · se sube de nivel solo mientras el contenedor tenga UN solo campo: en cuanto hay dos,
+ *     el texto de más arriba ya no es de este;
+ *   · un vecino que contiene otro campo corta la búsqueda: lo que venga antes es suyo;
+ *   · los títulos de sección, botones y enlaces no son etiquetas, y un texto largo tampoco.
+ *
+ * Si no aparece nada así, no se inventa: sale vacío.
+ */
+export function inferredLabelOf (el) {
+  let node = el
+  for (let nivel = 0; nivel < MAX_UP && node; nivel++) {
+    for (let sib = node.previousSibling; sib; sib = sib.previousSibling) {
+      if (sib.nodeType === 3) {
+        const t = textoDeEtiqueta(sib)
+        if (t) return t
+        continue
+      }
+      if (sib.nodeType !== 1) continue
+      if (esControl(sib)) return ''
+      const t = textoDeEtiqueta(sib)
+      if (t) return t
+    }
+    // La etiqueta flotante va DESPUÉS del campo (`<input><label>Usuario</label>`), pero
+    // solo como `<label>`: cualquier otro texto de detrás suele ser la ayuda o el error.
+    for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
+      if (esControl(sib)) break
+      if (sib.tagName.toUpperCase() !== 'LABEL') continue
+      const t = textoDeEtiqueta(sib)
+      if (t) return t
+    }
+    const padre = node.parentElement
+    if (!padre || padre.tagName.toUpperCase() === 'FORM' || padre === el.ownerDocument.body) return ''
+    if (padre.querySelectorAll(CONTROL).length > 1) return ''
+    node = padre
+  }
+  return ''
+}
+
 /**
  * Compara una pista con el texto de un campo POR PALABRAS, no por subcadena.
  *
@@ -119,8 +198,11 @@ function tokenize (texto) {
  */
 export function fieldLabel (el) {
   const visto = labelTextOf(el)
+  // Lo que el sitio DECLARA va antes que lo que se deduce de la posición, y lo deducido
+  // antes que `name` e `id`, que son para la máquina (`field_2847`).
   const texto = visto ||
-    el.getAttribute('aria-label') || el.placeholder || el.name || el.id || ''
+    el.getAttribute('aria-label') || el.placeholder || inferredLabelOf(el) ||
+    el.name || el.id || ''
   return String(texto).replace(/\s+/g, ' ').trim().slice(0, 60)
 }
 
@@ -140,7 +222,7 @@ function haystack (el) {
   return [
     // La etiqueta primero: es lo que el usuario lee, y suele ser lo único fiable
     // cuando el formulario está generado.
-    labelTextOf(el),
+    labelTextOf(el) || inferredLabelOf(el),
     el.name, el.id, el.getAttribute('autocomplete'), el.getAttribute('aria-label'),
     el.placeholder, el.getAttribute('data-testid'), el.getAttribute('data-test'),
   ].filter(Boolean).join(' ').toLowerCase()
