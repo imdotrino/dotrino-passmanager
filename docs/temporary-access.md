@@ -136,7 +136,8 @@ y aún no tiene sus envolturas.
 - un aparato que se abre con usuario y contraseña, con su llave en la bóveda;
 - lleva **solo las entradas que marques**;
 - la **aprobación la elige quien lo crea**;
-- la contraseña se comprueba con **OPAQUE**;
+- la contraseña se comprueba con **OPAQUE**, con un paquete propio **`@dotrino/opaque`** que
+  envuelve `opaque-ke`;
 - el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
 - **5 intentos** de contraseña; al pasarlos, **una espera que se duplica** con cada fallo.
 
@@ -162,10 +163,19 @@ y aún no tiene sus envolturas.
      cuentas; mejor un servicio aparte con registros firmados;
    - **reasignaciones a la vista** (un registro de solo añadir);
    - **privacidad**: el directorio es una lista de quién tiene cuenta y ve quién busca a quién.
-4. **La librería de OPAQUE.** Tiene que ser JS puro o WASM embebido —el vault va en un
-   ejecutable único y ahí no entra nada nativo— y pasar por la revisión de dependencias
-   (`CONVENCIONES-APPS.md` §1.1). Candidatas: `@cloudflare/opaque-ts` (TypeScript, dos
-   dependencias) y `@serenity-kit/opaque` (WASM de `opaque-ke`).
+4. ~~**La librería de OPAQUE**~~ — **decidido: `@dotrino/opaque`, un paquete del ecosistema
+   sobre `opaque-ke`** (Rust, de Meta, RFC 9807, auditado por NCC Group en 2021). No se
+   escribe criptografía: el paquete da la API que usan el vault y el gestor, se prueba con
+   los vectores del RFC 9807 y **compila el WASM en nuestro CI desde el fuente** de
+   `opaque-ke`, fijado a una versión exacta, en vez de fiarse de un binario ya compilado. El
+   WASM va dentro del JS, que es lo que entra en el ejecutable único del vault.
+
+   Comparadas el 2026-09-17 y descartadas: **`@cloudflare/opaque-ts`** implementa el borrador
+   07 de 2021, no el RFC final, y no publica desde febrero de 2022; **`@serenity-kit/opaque`**
+   usa `opaque-ke` y está al día (1.1.0, febrero 2026), pero trae el WASM ya compilado —435 KB
+   que nadie puede revisar—; sirve de referencia para compilarlo. **Implementarlo desde cero**
+   se descartó: rompe la regla de no escribir cifrado propio, y WebCrypto no da las
+   operaciones de curva que hacen falta, así que irían en `BigInt`, sin tiempo constante.
 5. **Guardar desde ese aparato**: ¿puede, y con aprobación si la tiene?
 
 ## 7. Qué tocaría
@@ -177,4 +187,4 @@ y aún no tiene sus envolturas.
 | `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: buscar la bóveda por el código, comprobar el acta, OPAQUE, llaves solo en memoria, salir |
 | `dotrino-vault` (anuncio) | anunciar cada cuenta que atiende en el canal de su código, firmado y con vencimiento |
 | consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña |
-| dependencia nueva | la librería de OPAQUE, en las dos puntas |
+| **`@dotrino/opaque`** (repo nuevo) | API de registro e inicio para las dos puntas, vectores del RFC 9807, WASM de `opaque-ke` compilado en CI y publicado desde CI con su procedencia |
