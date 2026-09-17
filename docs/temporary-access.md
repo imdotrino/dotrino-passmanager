@@ -5,14 +5,11 @@
 > duración, qué pide aprobación y si se puede guardar (§6). **Falta la primera pregunta,
 > que cambia una regla escrita**, y sin ella no se construye.
 >
-> ⚠️ **NO SE PUEDE CONSTRUIR TAL CUAL** (dueño, el mismo día: *«la prueba de firma no
-> desencripta las cosas»*). §3 da por hecho que la bóveda descifra la credencial y se la
-> sella a la sesión **aunque esté cerrada**. Eso solo es posible hoy porque la mesa de
-> contraseñas del demonio guarda su llave (`cek`) dentro de `passwords.json`, cifrado con
-> la llave de la **máquina** y no con la del perfil: descifra con el perfil cerrado, que es
-> lo que el modelo de sobres prohíbe. La propuesta se apoyaba en ese agujero. Quién
-> descifra tiene que ser un aparato con su sobre —el teléfono que aprueba, por ejemplo—,
-> y eso se decide antes de rehacer §3.
+> ⚠️ **Depende de [`sealed-passwords.md`](./sealed-passwords.md).** La primera versión de §3
+> daba por hecho que la bóveda descifra la credencial **aunque esté cerrada** (dueño: *«la
+> prueba de firma no desencripta las cosas»*). Hoy solo es posible por un agujero —la `cek`
+> bajo la llave de la máquina— y se cierra con las contraseñas selladas por aparato. §3 ya
+> está rehecha sobre eso: **quien descifra es el teléfono que aprueba**, por relevo.
 
 ## 1. Lo que se quiere
 
@@ -28,29 +25,34 @@ equipo **deje de recibir nada sin que nadie tenga que acordarse de quitarlo**.
 | Una sesión (`profile.dotrino.com/sessions`) | `passwords` está en la lista prohibida del papel (`SESSION_FORBIDDEN`, `@dotrino/identity/session`), y el plan lo dice sin matices: *«Sesiones que sellen, administren, aprueben o lean secretos. Ni con permiso.»* (`dotrino-vault/docs/inicio-de-sesion.md` §8). |
 | «Entrar con Dotrino» (SSO) | Dice quién eres a una aplicación. No da acceso a ninguna contraseña. |
 
-## 3. La propuesta: la sesión PIDE, y cada entrega la aprueba el teléfono
+## 3. La propuesta: la sesión PIDE, y el teléfono que aprueba es el que DESCIFRA
 
-La sesión **no recibe la capacidad de leer contraseñas**. Recibe la de **pedirlas**, y lo
-que decide cada entrega es la aprobación de un aparato tuyo, en ese momento. Es la regla que
-el plan de sesiones ya aplica a firmar (§6: *lo sensible lo hace el aparato que respalda, a
-demanda*), llevada a las contraseñas.
+La sesión **no recibe ninguna llave**: ni la capacidad de leer, ni una envoltura. Recibe la
+de **pedir**. Cada entrega pasa por el **relevo** de `sealed-passwords.md` §3: la bóveda
+—abierta o cerrada, da igual, porque no puede abrir nada— le manda al teléfono los sobres y
+**su** envoltura; el teléfono pregunta, abre, y le sella a la sesión **solo lo pedido**.
+Aprobar es descifrar.
 
 ```
-  equipo prestado (extensión)              teléfono (miembro con `approve`)
-  ───────────────────────────              ────────────────────────────────
+  equipo prestado (extensión)              teléfono (`passwords` + `approve`)
+  ───────────────────────────              ──────────────────────────────────
   «Usar un rato» → genera S
   muestra QR + código de 6  ──escanea──►   «Gestor de contraseñas · 1 hora»
                                             [Permitir]  [No]
         ◄──── papel { scopes: [passwords:ask], exp } ────
 
-  pide la contraseña de x.com
-  (con el papel) ──────► bóveda ──avisa──►  «Sesión 3F2A pide x.com»
-                                            [Permitir]  [No]
-        ◄──── esa credencial, sellada a S ──
+  pide la contraseña de x.com ──► bóveda ── sobres + SU envoltura ──►
+                                            «Sesión 3F2A pide x.com»
+                                            [Permitir] → abre
+        ◄──────────── solo lo pedido, sellado a S ────────────────
 ```
 
-Al pasar `exp`, la bóveda deja de contestar. **Al vencer no hay que firmar ni sellar
-nada**, así que se retira sola aunque la bóveda esté cerrada y nadie se acuerde.
+Al pasar `exp`, **ni la bóveda suelta sobres ni el teléfono abre**. Al vencer no hay que
+firmar ni sellar nada, así que se retira sola y nadie tiene que acordarse.
+
+De un código de dos pasos el teléfono manda **el código**, no la semilla. Guardar va al
+revés: la sesión le sella el valor al teléfono, el teléfono lo enseña, y si se aprueba hace
+él el sobre y lo firma como autor.
 
 Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-flow`,
 `@dotrino/qr`), el aviso al teléfono de la mesa de contraseñas, y el sellado del transporte
@@ -61,7 +63,7 @@ Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-f
 | | |
 |---|---|
 | **Alcance** | uno nuevo, `passwords:ask`. `passwords` **sigue prohibido**: nada en una sesión lee sin aprobación. |
-| **Quién lo puede dar** | el aparato que respalda tiene que tener **hoy**, en el acta, `passwords` **y** `approve`. Nunca amplía. |
+| **Quién lo puede dar** | el aparato que respalda tiene que tener **hoy**, en el acta, `passwords` **y** `approve`: es el que va a abrir los sobres. Nunca amplía. |
 | **Duración** | 1 hora por defecto, tope de 4 (las sesiones generales van 8 y 24). **Decidido.** |
 | **Qué puede hacer** | `find` del sitio, `get` y **guardar** (`put`/`patch`). **No** `search` (buscar en toda la bóveda) ni `sites`. **Decidido.** |
 | **Aprobación** | en **cada** `get` —también un dato público, tu correo o tu teléfono— y en **cada** guardado, de uno en uno y sin la hora deslizante de los aparatos. `find` no pregunta: enseña qué cuentas hay en ese sitio para poder elegir, sin ningún valor. **Decidido.** |
@@ -78,8 +80,9 @@ Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-f
   él (la llave S) no se puede garantizar borrado; lo que se garantiza es que **la bóveda
   deja de contestarle**.
 - **Tu bóveda tiene que estar atendiendo** (el demonio, o la pestaña abierta) **y tu
-  teléfono a mano**. Sin teléfono no hay acceso: es la pregunta abierta «sesión sin
-  teléfono» de `inicio-de-sesion.md` §9, y aquí la respuesta tiene que ser que no.
+  teléfono a mano y con `passwords`**, porque es quien descifra. Sin teléfono no hay
+  acceso: es la pregunta abierta «sesión sin teléfono» de `inicio-de-sesion.md` §9, y aquí
+  la respuesta tiene que ser que no.
 
 ## 6. Lo que decide el dueño
 
@@ -97,7 +100,8 @@ Reutiliza lo que ya existe: el flujo de la sesión y el QR al revés (`session-f
 |---|---|
 | `@dotrino/identity` (`vault/session.js`) | `passwords:ask` en `SESSION_SCOPES`, con su capacidad exigida (`passwords` + `approve`) y su tope de duración |
 | `@dotrino/passmanager` (`VaultResponder`) | aceptar el papel en la petición y aplicar la política de sesión (operaciones cerradas; aprobación en toda lectura y todo guardado). Va aquí y no en cada bóveda: son **cuatro** las que responden |
-| `dotrino-vault` (mesa de contraseñas) | verificar el papel contra el acta de hoy, lista de `sid` cerrados hasta su `exp`, y el aviso al teléfono con el sitio y si es leer o guardar |
+| `dotrino-vault` (mesa de contraseñas) | verificar el papel contra el acta de hoy, lista de `sid` cerrados hasta su `exp`, y mandarle al teléfono los sobres con el sitio y si es leer o guardar |
+| **antes que todo lo anterior** | las contraseñas selladas por aparato (`sealed-passwords.md`): sin eso no hay quién descifre sin que la bóveda vea el claro |
 | `dotrino-passmanager/extension` | «Usar un rato»: llave S no extraíble, QR, papel en memoria de sesión, borrarlo al vencer |
 | `dotrino-profile-app` (`/sessions`) | cerrar una sesión del gestor avisando a la bóveda, firmado |
 | app del teléfono | nada nuevo: escanear y aprobar ya existen |
