@@ -161,8 +161,12 @@ el acta no puede recibir envolturas: la conversión lo dice por su nombre en vez
 (regla del dueño, 2026-09-17: *«se deben mantener las 3 versiones del vault siempre, el de
 pestaña, el de la extensión y el binario»* — *«deben ser compatibles»* — *«y con las mismas
 características»*). Ninguna se retira, ninguna se queda atrás y ninguna tiene una función que
-las otras no tengan. Lo único que cambia es **cuándo están encendidas**: el binario atiende con
-el navegador cerrado, las otras dos mientras su navegador esté abierto.
+las otras no tengan. **Funcionan igual en todo, menos en las limitaciones de su contexto**: el
+binario atiende con el navegador cerrado, las otras dos mientras su navegador esté abierto.
+
+**El binario es la fuente de verdad** (dueño, el mismo día). Es la referencia: si la pestaña o
+la extensión se comportan distinto, se corrigen ellas; y el formato y la política se definen
+primero en él. «El binario» es el demonio `dotrino-vault`, no `dotrino-passmanager serve`.
 
 | Versión | Dónde vive |
 |---|---|

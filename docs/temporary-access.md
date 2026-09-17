@@ -205,17 +205,19 @@ Ninguna.
    contraseñas no se para del todo, solo va muy despacio. Un acierto reinicia la cuenta, y
    los fallos van a la bitácora.
 3. ~~**Cómo se encuentra tu bóveda**~~ — **decidido: `nombre@AB12-CD34-EF56`** (§3.2).
-   **Idea del dueño, sin diseñar:** un directorio que dé a cada cuenta un **nombre al azar**
-   gratis (`ana-tigre-47`) y uno **elegido de pago**. Encaja como capa ENCIMA —el alias solo
-   traduce al código, y el acta se sigue comprobando contra él, así que un directorio
-   comprometido puede desviar o negar, no robar la contraseña—, pero antes hay que resolver:
-   - **cobrar choca con reglas escritas**: *«no se monetiza al usuario de las apps»*
-     (`MODELO-NEGOCIO.md`), la moneda de soporte como única monetización (`CONVENCIONES-APPS.md`
-     §6), y `dotrino-sso` descartó cobrar por el puente alojado por el mismo motivo;
-   - **dónde vive**: dos proxios federados que asignan nombres pueden dar el mismo a dos
-     cuentas; mejor un servicio aparte con registros firmados;
-   - **reasignaciones a la vista** (un registro de solo añadir);
-   - **privacidad**: el directorio es una lista de quién tiene cuenta y ve quién busca a quién.
+   **Directorio de nombres: PENDIENTE, sin construir** (dueño, 2026-09-17). Lo decidido:
+   - **un servicio aparte**, no el proxio;
+   - **solo traduce un nombre al id de la bóveda**, y nada más: **no hay búsqueda** ni lista.
+     Sin poder enumerar, deja de ser una lista de quién tiene cuenta; lo que sí ve es qué
+     nombre se consulta;
+   - **se cobra por reservar un nombre**; sin reservar, el nombre sale al azar.
+
+   Encaja como capa ENCIMA: el nombre solo lleva al código, y el acta se sigue comprobando
+   contra él, así que un directorio comprometido puede desviar o negar, no robar la
+   contraseña. **Cuando se construya** hay que cambiar lo que choca con cobrar: *«no se
+   monetiza al usuario de las apps»* (`MODELO-NEGOCIO.md`) y la moneda de soporte como única
+   monetización (`CONVENCIONES-APPS.md` §6). Falta diseñar las reasignaciones a la vista (un
+   registro de solo añadir).
 4. ~~**La librería de OPAQUE**~~ — **decidido: `@dotrino/opaque`, un paquete del ecosistema
    sobre `opaque-ke`** (Rust, de Meta, RFC 9807, auditado por NCC Group en 2021). No se
    escribe criptografía: el paquete da la API que usan el vault y el gestor, se prueba con
