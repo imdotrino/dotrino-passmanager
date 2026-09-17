@@ -149,7 +149,8 @@ y aún no tiene sus envolturas.
 - la contraseña se comprueba con **OPAQUE**, con un paquete propio **`@dotrino/opaque`** que
   envuelve `opaque-ke`;
 - el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
-- **5 intentos** de contraseña; al pasarlos, **una espera que se duplica** con cada fallo.
+- **5 intentos** de contraseña; al pasarlos, **una espera que se duplica** con cada fallo;
+- **puede guardar**, como cualquier aparato con `passwords`.
 
 **Pendientes:**
 
@@ -186,7 +187,9 @@ y aún no tiene sus envolturas.
    que nadie puede revisar—; sirve de referencia para compilarlo. **Implementarlo desde cero**
    se descartó: rompe la regla de no escribir cifrado propio, y WebCrypto no da las
    operaciones de curva que hacen falta, así que irían en `BigInt`, sin tiempo constante.
-5. **Guardar desde ese aparato**: ¿puede, y con aprobación si la tiene?
+5. ~~**Guardar desde ese aparato**~~ — **decidido: sí, puede guardar**, como cualquier aparato
+   con `passwords`. Guardar no pide aprobación (tampoco hoy: al guardar no sale nada de la
+   bóveda); la aprobación, si se eligió al crearlo, es para abrir lo privado.
 
 ## 7. Qué tocaría
 
