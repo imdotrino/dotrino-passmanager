@@ -118,6 +118,25 @@ Quien lo crea puede dárselo, y la pantalla lo advierte.
 vistas y los resúmenes, así que ese aparato no puede ni saber si tienes cuenta en un sitio que
 no marcaste (`sealed-passwords.md` §2.6).
 
+### 3.4. Dónde se entra: «Iniciar sesión» en el botón de perfil
+
+**Decidido por el dueño (2026-09-17):** el menú del botón de perfil, que hoy tiene «Abrir mi
+perfil», «Crear perfil» y «Adoptar un perfil», **suma «Iniciar sesión»**. Ese menú está en todas
+las apps (`@dotrino/topbar`), así que se entra igual desde cualquiera.
+
+- **El topbar** gana el elemento y su atributo `profile-login-href`, como `profile-new-href` y
+  `profile-adopt-href`: por defecto va a `profile.dotrino.com/login?return=…`, y la extensión del
+  gestor —que tiene su propia identidad— lo redirige a su pantalla.
+- **La página** pide `nombre@AB12-CD34-EF56` y la contraseña, hace el inicio OPAQUE y abre la llave
+  del aparato **en la identidad de ese navegador** (`id.dotrino.com`). Desde ahí, ese navegador
+  es ese aparato para **todas las apps** mientras dure el inicio de sesión, y aparece en la lista
+  de perfiles del menú con su «Salir».
+
+**Lo que implica, dicho claro:** no es un inicio de sesión «del gestor», es **de la cuenta**. Lo
+que ese navegador puede hacer lo dicen los permisos del aparato: con `sign` firma por ti (un eco,
+una calificación); con `passwords`, rellena lo marcado. Por eso los permisos se eligen al crearlo
+y la pantalla de alta los enseña uno por uno.
+
 ## 4. Qué protege y qué no
 
 | Quien tiene… | …consigue |
@@ -153,9 +172,18 @@ y aún no tiene sus envolturas.
 - el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
 - **5 intentos** de contraseña; al pasarlos, **una espera que se duplica** con cada fallo;
 - **puede guardar**, como cualquier aparato con `passwords`;
-- la consola **lista y cierra** los inicios de sesión abiertos.
+- la consola **lista y cierra** los inicios de sesión abiertos;
+- se entra desde **«Iniciar sesión» en el botón de perfil** de cualquier app (§3.4).
 
 **Pendientes:**
+
+- **Cuánto se queda la llave en el navegador** tras iniciar sesión desde el menú: solo esa
+  pestaña, o todas las del ecosistema hasta cerrar el navegador. El dueño decidió que el cliente
+  decide la duración; falta decir qué hace este cliente.
+- **¿«Iniciar sesión» ofrece también la sesión con QR** que ya existe en
+  `profile.dotrino.com/sessions`, o solo usuario y contraseña?
+
+**Decididas por el camino:**
 
 1. ~~**Cuánto dura un inicio de sesión**~~ — **decidido: sin vencimiento en la bóveda, lo
    decide el cliente**, y **la consola lista los inicios abiertos con un botón para
@@ -202,5 +230,7 @@ y aún no tiene sus envolturas.
 | `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, inicio de sesión con vencimiento, límite de intentos, cambio de contraseña |
 | `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: buscar la bóveda por el código, comprobar el acta, OPAQUE, llaves solo en memoria, salir |
 | `dotrino-vault` (anuncio) | anunciar cada cuenta que atiende en el canal de su código, firmado y con vencimiento |
+| `@dotrino/topbar` | «Iniciar sesión» en el menú del perfil, `profile-login-href`, textos es/en; y `CONVENCIONES-APPS.md` §6.1, que enumera los elementos del menú |
+| `dotrino-profile-app` | la página `/login`: usuario, contraseña, OPAQUE, abrir la llave en la identidad del navegador |
 | consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña, y **listar y cerrar sus inicios de sesión abiertos** (inicio y último uso) |
 | **`@dotrino/opaque`** (repo nuevo) | API de registro e inicio para las dos puntas, vectores del RFC 9807, WASM de `opaque-ke` compilado en CI y publicado desde CI con su procedencia |

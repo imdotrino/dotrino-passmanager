@@ -157,10 +157,29 @@ las cuentas con su frase** (decidido). Al abrir:
 Durante ese paso la bóveda ve los valores —los tiene que reescribir—, igual que en la
 conversión de los cajones a v5; después, ya no. Un aparato con `passwords` **sin `encPub`** en
 el acta no puede recibir envolturas: la conversión lo dice por su nombre en vez de saltárselo.
-**Las otras tres bóvedas se quedan, las tres con el mismo formato** (decidido, 2026-09-17): la
-pestaña del vault, la bóveda de la extensión y `dotrino-passmanager serve`. Mismos
-destinatarios que el vault —los aparatos con `passwords` (y `passkeys` para las passkeys) y la
-copia de recuperación, nunca la propia bóveda— y se convierten al abrirlas.
+**El vault existe siempre en tres versiones, y tienen que ser COMPATIBLES** (regla del dueño,
+2026-09-17: *«se deben mantener las 3 versiones del vault siempre, el de pestaña, el de la
+extensión y el binario»* — *«deben ser compatibles»*). Ninguna se retira ni se queda atrás:
+
+| Versión | Dónde vive |
+|---|---|
+| **la pestaña** | `vault.dotrino.com`, atiende mientras está abierta |
+| **la extensión** | dentro del gestor, cuando no hay otra bóveda enlazada |
+| **el binario** | el demonio `dotrino-vault` (ejecutable único) |
+
+Compatibles quiere decir, y así se prueba:
+
+- **el mismo formato de almacén**: lo que escribe una lo abre otra, porque los sobres van a los
+  aparatos y no a la bóveda que los guarda;
+- **el mismo protocolo**: un aparato habla igual con cualquiera de las tres;
+- **la misma política**: destinatarios (`passwords`, `passkeys`, recuperación), aprobación de lo
+  privado, filtro por destinatario — una sola pieza en `@dotrino/passmanager`, no tres copias;
+- **una prueba cruzada**: escribir con una y leer con las otras dos, en CI;
+- **cada una anuncia su versión y su protocolo** con `@dotrino/compat` (`CONVENCIONES-APPS.md`
+  §14), para que un desfase se vea en vez de manifestarse como silencio.
+
+Las tres se convierten al formato nuevo **al abrirlas**. `dotrino-passmanager serve` también se
+mantiene, con el mismo formato (decidido el mismo día).
 
 Hasta convertir, la mesa **no entrega** y lo dice con un código que se pueda buscar
 (`passwords-not-sealed: open the vault to convert`). Nada de servir con la llave vieja «mientras
