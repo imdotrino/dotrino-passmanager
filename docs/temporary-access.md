@@ -58,10 +58,26 @@ cifra las privadas con la export_key   ────────►   guarda ese 
 
 ### 3.2. Entrar en el equipo prestado
 
+**El usuario dice dónde está tu cuenta** (decidido): `nombre@AB12-CD34-EF56`. Lo de antes de la
+`@` es el aparato; lo de después, los **primeros 48 bits de la huella de tu cuenta**
+(`pubkeyId(profileId)`, con el mismo formato de `keyLabel` y un grupo más). Se ata a la
+cuenta y no a una máquina porque la cuenta no cambia nunca, y la bóveda puede mudarse o
+tener réplicas. La dirección **nunca va en la contraseña**: hay que mandarla antes de
+comprobar nada.
+
+Cada bóveda que atiende esa cuenta, réplicas incluidas, **se anuncia en un canal del proxio**
+(firmado y con vencimiento). El gestor lista el canal, y antes de hablar con ninguna
+comprueba que el acta que le enseña es de una cuenta cuya huella empieza por ese código.
+Una bóveda falsa no puede fabricar eso; con 48 bits, fabricar otra cuenta con el mismo
+código cuesta siglos en una máquina normal (con los 32 de `keyLabel` serían horas). El precio:
+el canal deja ver que detrás de ese código hay una bóveda encendida, no de quién es ni qué
+guarda.
+
 ```
 equipo prestado (extensión)                        bóveda (abierta o cerrada)
 ───────────────────────────                        ──────────────────────────
-usuario + contraseña
+nombre@AB12-CD34-EF56 + contraseña
+lista el canal del código, comprueba el acta ──►   anuncio firmado
 OPAQUE (inicio) ◄──────────────────────────────►   comprueba sin ver la contraseña
                                                     ¿intentos dentro del límite?
 obtiene la export_key
@@ -123,9 +139,18 @@ y aún no tiene sus envolturas.
    4. ¿Vale lo mismo aquí?
 2. **Límite de intentos**: cuántos, y qué pasa al pasarlo (esperar, o bloquear hasta que
    entres desde otro aparato). Los intentos fallidos van a la bitácora.
-3. **Cómo se encuentra tu bóveda con un usuario.** Hoy no hay nada que traduzca un nombre a
-   un perfil y a su bóveda. Lo mínimo es escribir también el código de la bóveda; un
-   directorio de nombres es otra pieza.
+3. ~~**Cómo se encuentra tu bóveda**~~ — **decidido: `nombre@AB12-CD34-EF56`** (§3.2).
+   **Idea del dueño, sin diseñar:** un directorio que dé a cada cuenta un **nombre al azar**
+   gratis (`ana-tigre-47`) y uno **elegido de pago**. Encaja como capa ENCIMA —el alias solo
+   traduce al código, y el acta se sigue comprobando contra él, así que un directorio
+   comprometido puede desviar o negar, no robar la contraseña—, pero antes hay que resolver:
+   - **cobrar choca con reglas escritas**: *«no se monetiza al usuario de las apps»*
+     (`MODELO-NEGOCIO.md`), la moneda de soporte como única monetización (`CONVENCIONES-APPS.md`
+     §6), y `dotrino-sso` descartó cobrar por el puente alojado por el mismo motivo;
+   - **dónde vive**: dos proxios federados que asignan nombres pueden dar el mismo a dos
+     cuentas; mejor un servicio aparte con registros firmados;
+   - **reasignaciones a la vista** (un registro de solo añadir);
+   - **privacidad**: el directorio es una lista de quién tiene cuenta y ve quién busca a quién.
 4. **La librería de OPAQUE.** Tiene que ser JS puro o WASM embebido —el vault va en un
    ejecutable único y ahí no entra nada nativo— y pasar por la revisión de dependencias
    (`CONVENCIONES-APPS.md` §1.1). Candidatas: `@cloudflare/opaque-ts` (TypeScript, dos
@@ -138,6 +163,7 @@ y aún no tiene sus envolturas.
 |---|---|
 | **antes que todo** | las contraseñas selladas por aparato (`sealed-passwords.md`), con destinatarios elegibles por entrada |
 | `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, inicio de sesión con vencimiento, límite de intentos, cambio de contraseña |
-| `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: OPAQUE, llaves solo en memoria, salir |
+| `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: buscar la bóveda por el código, comprobar el acta, OPAQUE, llaves solo en memoria, salir |
+| `dotrino-vault` (anuncio) | anunciar cada cuenta que atiende en el canal de su código, firmado y con vencimiento |
 | consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña |
 | dependencia nueva | la librería de OPAQUE, en las dos puntas |
