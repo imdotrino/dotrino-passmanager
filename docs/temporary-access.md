@@ -93,8 +93,10 @@ desde aquí es un aparato: find / get / put ────►   solo mientras el i
   cuando el cliente sale, cuando cambias la contraseña o cuando revocas el aparato.
 - **Consecuencia, dicha claro:** si alguien se queda con la llave y el inicio de sesión
   abierto —olvidaste salir, o el equipo estaba comprometido—, sigue recibiendo las entradas
-  marcadas **hasta que lo cierres tú**. Por eso hace falta **ver y cerrar los inicios de
-  sesión abiertos desde tu consola** (propuesto, no decidido).
+  marcadas **hasta que lo cierres tú**. Por eso **tu consola lista los inicios de sesión
+  abiertos de cada aparato** —cuándo empezó y cuándo se usó por última vez— **con un botón
+  para cerrarlos** (decidido). Cerrar uno no cambia la contraseña ni quita el aparato: el
+  siguiente inicio vuelve a pedir la contraseña.
 - **Salir** suelta las llaves de memoria y cierra el inicio de sesión en la bóveda.
 
 ### 3.3. Qué entradas lleva
@@ -150,13 +152,14 @@ y aún no tiene sus envolturas.
   envuelve `opaque-ke`;
 - el inicio de sesión **no vence en la bóveda**: lo decide el cliente;
 - **5 intentos** de contraseña; al pasarlos, **una espera que se duplica** con cada fallo;
-- **puede guardar**, como cualquier aparato con `passwords`.
+- **puede guardar**, como cualquier aparato con `passwords`;
+- la consola **lista y cierra** los inicios de sesión abiertos.
 
 **Pendientes:**
 
 1. ~~**Cuánto dura un inicio de sesión**~~ — **decidido: sin vencimiento en la bóveda, lo
-   decide el cliente.** Propuesto a cambio: ver y cerrar los inicios de sesión abiertos
-   desde tu consola.
+   decide el cliente**, y **la consola lista los inicios abiertos con un botón para
+   cerrarlos**.
 2. ~~**Intentos**~~ — **decidido: 5, y después una espera que se duplica** con cada fallo
    (1 minuto, 2, 4…), por aparato. Se eligió frente al bloqueo porque con un bloqueo
    cualquiera que sepa tu usuario te deja sin entrar a propósito. El precio: quien prueba
@@ -199,5 +202,5 @@ y aún no tiene sus envolturas.
 | `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, inicio de sesión con vencimiento, límite de intentos, cambio de contraseña |
 | `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: buscar la bóveda por el código, comprobar el acta, OPAQUE, llaves solo en memoria, salir |
 | `dotrino-vault` (anuncio) | anunciar cada cuenta que atiende en el canal de su código, firmado y con vencimiento |
-| consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña |
+| consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña, y **listar y cerrar sus inicios de sesión abiertos** (inicio y último uso) |
 | **`@dotrino/opaque`** (repo nuevo) | API de registro e inicio para las dos puntas, vectores del RFC 9807, WASM de `opaque-ke` compilado en CI y publicado desde CI con su procedencia |
