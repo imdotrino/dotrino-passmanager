@@ -29,5 +29,8 @@
     "@dotrino/identity": "0.99.0",
     "@dotrino/proxy-client": "0.23.1",
     "@dotrino/vault": "0.69.0"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0"
   }
 }
