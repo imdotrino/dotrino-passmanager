@@ -20,6 +20,17 @@ const sealed = await readFile(sealedPath, 'utf8')
 await writeFile(sealedPath, sealed.replace(
   "from '@dotrino/proxy-client/sealing'", "from '../../proxy-client/sealing.js'"))
 
+// LAS CONTRASEÑAS SELLADAS usan la cripto de los sobres de `@dotrino/identity`. El
+// especificador desnudo no resuelve en un navegador, así que apunta a la copia que viaja
+// al lado — la misma que ya usa el sellado del transporte.
+for (const f of ['entry.js', 'device.js', 'store.js']) {
+  const ruta = join(vendor, 'passmanager/sealed/', f)
+  const txt = await readFile(ruta, 'utf8')
+  await writeFile(ruta, txt.replace(
+    "from '@dotrino/identity/content'", "from '../../identity/content.js'"))
+}
+console.log('vendor: sealed/* → la copia de @dotrino/identity/content')
+
 // El transporte del ecosistema viaja con la extensión: MV3 solo importa de su propia
 // carpeta. Se toma del repo hermano mientras 0.12.0 no esté en npm — es la versión
 // que sabe persistir la identidad en un service worker.
@@ -33,7 +44,11 @@ console.log('vendor: dotrino-proxy-client/src → extension/src/vendor/proxy-cli
 // de qué es una invitación, que es justo lo que se acaba de quitar.
 await mkdir(join(vendor, 'vault'), { recursive: true })
 await cp(join(here, '../../dotrino-vault/lib/src/invite.js'), join(vendor, 'vault/invite.js'))
-console.log('vendor: dotrino-vault/lib/src/invite.js → extension/src/vendor/vault/invite.js')
+// …y lo que ELLA importa. `invite.js` pasó a sacar su base64url de `b64.js` —una sola
+// implementación para el binario, la pestaña y esto— y aquí nadie lo copiaba: el grafo no
+// resolvía y el service worker no arrancaba. Se copia al lado, que es donde lo busca.
+await cp(join(here, '../../dotrino-vault/lib/src/b64.js'), join(vendor, 'vault/b64.js'))
+console.log('vendor: dotrino-vault/lib/src/{invite,b64}.js → extension/src/vendor/vault/')
 
 // LA BARRA SUPERIOR del ecosistema (CONVENCIONES §5). Viaja con la extensión, como todo
 // lo demás: MV3 solo importa de su propia carpeta.

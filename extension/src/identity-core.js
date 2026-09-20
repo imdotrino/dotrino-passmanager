@@ -227,6 +227,18 @@ export const identity = {
     return (await handlers.decrypt({ senderEncryptionPubkey, myToken: null, envelope })).plaintext
   },
 
+  /**
+   * ABRE UN SOBRE SELLADO A ESTE APARATO: primero la envoltura de la llave —con la privada
+   * de cifrado, que no sale de este núcleo— y con ella el sobre.
+   *
+   * Es lo que hace falta para las contraseñas selladas: la bóveda ya no abre nada, así que
+   * cada aparato abre lo suyo (`docs/sealed-passwords.md` §2.3).
+   */
+  async openSealed ({ wrap, envelope }) {
+    const { handlers } = await identityCore()
+    return handlers.openSealedValue({ wrap, envelope })
+  },
+
   // ----- emparejamiento con la bóveda: el del ecosistema, sin nada propio -----
 
   /** Con qué bóveda está emparejado este perfil (`{ paired, master, proxy, … }`). */

@@ -20,7 +20,7 @@
 // pueden cruzar lo que hace uno con lo que hace el otro.
 
 import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
-import { RemoteVault } from './vendor/passmanager/vault/remote.js'
+import { SealedVault } from './vendor/passmanager/vault/sealed.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { GuardedVault } from './vendor/passmanager/vault/guard.js'
 import { ApprovalGate } from './vendor/passmanager/vault/approval.js'
@@ -438,7 +438,17 @@ async function connect () {
     peerPubkey: v.master,
     peerEncPub,
   })
-  vault = new RemoteVault(transport)
+  // LA BÓVEDA YA NO ABRE NADA: guarda sobres dirigidos a este aparato, y abrirlos es cosa
+  // de aquí (`docs/sealed-passwords.md`). Por eso `SealedVault` y no `RemoteVault` — cumple
+  // el mismo contrato (`find`, `get`, `put`, `patch`, `search`, `sites`), así que nada de
+  // lo que hay encima cambia; lo que cambia es que ahora la llave está de este lado.
+  vault = new SealedVault(transport, {
+    identity: {
+      publickey,
+      sign: (body) => identity.sign(body),
+      openSealed: (x) => identity.openSealed(x),
+    },
+  })
   vaultOf = prof.id
   return vault
 }
@@ -706,7 +716,10 @@ async function candidatesFor (p, v) {
       ...(Array.isArray(h.fieldKeys) ? { fieldKeys: h.fieldKeys } : {}),
       // Y el resumen de cada uno, para comparar SIN abrir. Se queda dentro del service
       // worker: `pendingDetail` lo usa y lo quita antes de contestar (`stripDigest`).
-      ...(h.nonce && h.fieldHashes ? { nonce: h.nonce, fieldHashes: h.fieldHashes } : {}),
+      // Con la bóveda sellada no hay `nonce`: los resúmenes están GUARDADOS y se comparan
+      // con la llave del perfil (§2.6), que solo tiene este aparato. Con una bóveda de las
+      // de antes seguían viniendo con su nonce, así que se pasan los dos y compara quien sabe.
+      ...(h.fieldHashes ? { ...(h.nonce ? { nonce: h.nonce } : {}), fieldHashes: h.fieldHashes } : {}),
       // Sin sitios sirve en cualquier parte (§4.2). Se ofrece, pero al final y dicho:
       // pisar tu dirección de siempre desde el formulario de una tienda cualquiera
       // tiene que ser una decisión, no un descuido.
@@ -748,7 +761,7 @@ async function diffByDigest (candidates, p) {
   const iguales = await sameAs(candidates, pares)
   const out = {}
   for (const c of candidates) {
-    if (!c.nonce || !c.fieldHashes) continue
+    if (!c.fieldHashes) continue
     out[c.id] = pares.map(({ key }) => ({
       key,
       status: iguales.has(`${c.id}|${key}`) ? 'same' : (c.fieldHashes[key] ? 'changed' : 'new'),
@@ -1048,8 +1061,27 @@ async function findFor (url) {
  */
 async function sameAs (metas, pares) {
   const out = new Set()
+  if (!pares.length) return out
+
+  // BÓVEDA SELLADA: el resumen está guardado y lo calcula este aparato con la llave del
+  // perfil (§2.6). No hay nonce que compartir — el `id` de la entrada va dentro del
+  // resumen, que es lo que impide que un valor repetido en dos entradas se note.
+  const selladas = metas.filter(m => m.fieldHashes && !m.nonce)
+  if (selladas.length) {
+    const v = await connect()
+    if (typeof v.digest === 'function') {
+      for (const m of selladas) {
+        for (const { key, value } of pares) {
+          const guardado = m.fieldHashes[key]
+          if (!guardado) continue
+          if (await v.digest(m.id, key, value) === guardado) out.add(`${m.id}|${key}`)
+        }
+      }
+    }
+  }
+
   const conNonce = metas.filter(m => m.nonce && m.fieldHashes)
-  if (!conNonce.length || !pares.length) return out
+  if (!conNonce.length) return out
   // Un hasheador por nonce: todas las entradas de una misma respuesta lo comparten, así
   // que en la práctica es uno.
   const hashers = new Map()
