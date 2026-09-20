@@ -1,9 +1,19 @@
 # Contraseñas selladas por aparato
 
-> **Estado: PROPUESTA** (2026-09-17). Sin código. La pidió el dueño al ver que el acceso
-> temporal (`temporary-access.md`) daba por hecho algo imposible: *«los sobres están
-> encriptados por dispositivo, y la bóveda está cerrada, ¿de dónde saca la información
-> desencriptada?»* — *«la prueba de firma no desencripta las cosas»*.
+> **Estado: HECHO EN EL BINARIO** (2026-09-19). El demonio `dotrino-vault` (0.123.0) ya no
+> puede leer las contraseñas: guarda sobres dirigidos a los aparatos y no tiene ninguna
+> llave. La extensión abre los suyos. Lo que SIGUE en el formato viejo, y por lo tanto con
+> el agujero abierto, es cada una de las otras bóvedas —la de la pestaña, la de dentro de
+> la extensión y `passmanager serve`—: son almacenes aparte y a cada una le toca su
+> conversión (§7).
+>
+> Las piezas: `@dotrino/passmanager/sealed` (formato y las dos puntas), `SealedVault` /
+> `SealedResponder` (protocolo `pm2.*`), y en el vault la conversión al abrir el perfil.
+>
+> La pidió el dueño al ver que el acceso temporal (`temporary-access.md`) daba por hecho
+> algo imposible: *«los sobres están encriptados por dispositivo, y la bóveda está cerrada,
+> ¿de dónde saca la información desencriptada?»* — *«la prueba de firma no desencripta las
+> cosas»*.
 >
 > Es el modelo de los cajones de secretos (`dotrino-vault/docs/secretos-sellados.md` y la
 > política de sobres del 2026-09-02) llevado a las contraseñas. **No se escribe criptografía
@@ -262,6 +272,33 @@ solicitante ◄── solo lo pedido, sellado a SU encPub ─── aprobador   
 Para el **equipo prestado** el relevo se descartó: el dueño eligió un aparato que se abre con
 usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 
+## 3.1. Lo que se decidió AL CONSTRUIRLO (2026-09-19)
+
+Cuatro cosas que el diseño no traía y hubo que resolver escribiendo el código.
+
+- **La marca de PRIVADO de un campo vive en la vista, no dentro de su sobre.** Estaba dentro
+  del valor, y eso obligaba a ABRIR el campo para cambiarle la marca: marcar un teléfono
+  como privado sacaba el teléfono de la bóveda. Ahora es `privateKeys` de la vista, que
+  quien edita ya tiene abierta.
+- **Los NOMBRES de los campos privados van EN CLARO** (`priv`), y solo los nombres. La
+  aprobación es de la bóveda (§2.3) y la bóveda no ve la vista: sin esta lista no podría
+  distinguir «rellena mi nombre» de «dame la contraseña», y acabaría pidiendo un dedo encima
+  para todo — que es como se enseña a decir que sí sin mirar. El precio, dicho: una copia
+  del disco sabe que una entrada tiene un campo privado llamado `id-number`; no sabe de qué
+  entrada es (el título va sellado), ni su valor, ni en qué sitio se usa. Y es lo mismo que
+  ya revela cualquier petición, porque la clave viaja en ella.
+- **Una passkey que ningún aparato podría abrir NO se guarda.** Si no hay nadie con
+  `passkeys`, quedaría viva solo para la frase del perfil: no se pierde, pero no sirve, y eso
+  se descubre el día que hace falta. Se para con `no-passkeys-device`.
+- **La copia de recuperación es LA MISMA que la de los cajones de secretos**, no una segunda.
+  Una segunda sería otra llave que custodiar, otra que rotar y otra que se queda atrás. El
+  almacén de secretos asoma `openRecoveryWrap` para que las contraseñas la usen sin que la
+  privada salga de allí.
+
+Y una que el diseño sí traía y conviene subrayar, porque es la que cierra el agujero: **la
+bóveda nunca está entre los destinatarios**. Ni su maestra ni su llave de comunicación. Hay
+una prueba que lo afirma mirando el disco (`dotrino-vault/test/passwords.test.mjs`).
+
 ## 4. El precio, dicho claro
 
 1. **Un aparato con `passwords` más una copia del disco de la bóveda lo abren todo.** Es el
@@ -276,6 +313,16 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 
 | Pieza | Cambio |
 |---|---|
+| ✅ `@dotrino/passmanager` `lib/src/sealed/` | formato v2: vista pública guardada, un sobre por campo con su generación, llavero de generaciones. Va en un módulo nuevo y no en `model.js`: el formato viejo sigue vivo en las bóvedas que aún no se convierten |
+| ✅ `@dotrino/passmanager` `SealedStore` / `SealedVault` / `SealedResponder` | las dos puntas y la política. `SealedVault` cumple el contrato de siempre, así que la interfaz no cambió |
+| ✅ `dotrino-vault` (el binario) | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; repaso de envolturas con la copia de recuperación; destinatarios del acta SIN la bóveda |
+| ✅ `@dotrino/identity` | el permiso `passkeys` en `CAPS`/`DEVICE_CAPS` y en `SESSION_FORBIDDEN` |
+| ✅ la extensión | abre sus sobres, los construye al guardar y compara con la llave del perfil |
+| PENDIENTE la bóveda de la PESTAÑA (`vault.dotrino.com/vault`) | sigue con el formato viejo |
+| PENDIENTE la bóveda DENTRO de la extensión | ídem |
+| PENDIENTE `dotrino-passmanager serve` | ídem |
+| PENDIENTE `dotrino-test` | que el smoke de reposo busque también contraseñas y la `cek` |
+| — lo de abajo es la tabla original — | |
 | `@dotrino/passmanager` `lib/src/model.js` | formato v2: vista pública guardada, un sobre por campo con su generación, llavero de generaciones |
 | `@dotrino/passmanager` `lib/src/vault/` | una `SealedVault` para las **cuatro** bóvedas (el dueño: *«el vault embebido, el de la página y el demonio deben funcionar igual»*); `get` devuelve sobres + la envoltura de quien pide; `putSealed` en vez de `put`/`patch` con valores; `find` por huellas del sitio y filtro por destinatario; `match.js` en el aparato |
 | `@dotrino/identity/content` | nada: `makeGeneration`, `wrapForMember`, `openWrap`, `encryptWithCek`, `decryptWithCek` ya están |
