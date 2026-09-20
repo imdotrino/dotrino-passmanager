@@ -143,3 +143,16 @@ ul.values { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   .newrow { grid-template-columns: minmax(0, 1fr) auto auto; }
   .newrow select, .newrow input { grid-column: 1 / -1; }
 }
+
+/* ENTRAR CON USUARIO Y CONTRASEÑA (docs/temporary-access.md). Pantalla administrativa:
+   una fila por aparato, con lo que hace falta para operar y los botones que operan. */
+.login-row { padding: 10px 0; border-bottom: 1px solid var(--border, #2a2a35); }
+.login-row .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.lg-form { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.lg-form input, .lg-pass input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border, #2a2a35); background: var(--bg-1, #16161d); color: inherit; font: inherit; }
+.lg-pass { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.lg-sure { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 13px; }
+.caps { display: flex; gap: 6px; flex-wrap: wrap; }
+.cap { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border, #2a2a35); background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.cap.on { background: var(--accent, #7c3aed); border-color: transparent; color: #fff; }
+.hint.warn { border-left: 3px solid var(--warn, #d9a520); padding-left: 10px; }

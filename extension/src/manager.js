@@ -115,11 +115,12 @@ const dominioDe = (patron) => String(patron || '').replace(/^\*\./, '')
 
 function ruta () {
   const p = new URLSearchParams(location.hash.slice(1))
-  return { site: p.get('site') || '', id: p.get('id') || '', only: p.get('only') || '' }
+  return { site: p.get('site') || '', id: p.get('id') || '', only: p.get('only') || '', view: p.get('view') || '' }
 }
 
-function ir ({ site, id, only }) {
+function ir ({ site, id, only, view }) {
   const p = new URLSearchParams()
+  if (view) p.set('view', view)
   if (site) p.set('site', site)
   if (id) p.set('id', id)
   if (only) p.set('only', only)
@@ -194,7 +195,13 @@ async function renderList () {
     nota.hidden = !!items.length
   }
 
-  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota)
+  // La puerta a la otra pantalla administrativa de esta bóveda: los aparatos que se abren
+  // con usuario y contraseña. Va aquí porque es donde se administra todo lo demás.
+  const aLogins = el('button', { className: 'link', textContent: t(lang, 'lgLink') })
+  aLogins.dataset.testid = 'go-logins'
+  aLogins.onclick = () => ir({ view: 'logins' })
+
+  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota, aLogins)
 
   /**
    * Los dominios donde hay algo. Pulsar uno es lo mismo que abrir el gestor desde esa
@@ -691,10 +698,150 @@ async function aplicar ({ id, site, filas, original, estado, nombre, nombre0, si
   await ask('patch', { id, changes })
 }
 
+// --- entrar con usuario y contraseña ------------------------------------------
+//
+// `docs/temporary-access.md`. Pantalla ADMINISTRATIVA (CONVENCIONES §5.1): la lista con lo
+// que hace falta para operar y los botones que operan. Lo único que se explica es lo que
+// sin decirlo llevaría a un error — que esta bóveda se apaga cuando cierras la pestaña —,
+// y eso no es documentación: es un aviso.
+
+async function renderLogins () {
+  const caps = ['sign', 'read', 'store', 'passwords', 'approve']
+  const elegidos = new Set(['sign', 'read', 'store'])
+
+  const volver = el('button', { className: 'link', textContent: t(lang, 'lgBack') })
+  volver.onclick = () => ir({})
+
+  const lista = el('div', { className: 'logins' })
+  const msg = el('p', { className: 'hint' })
+
+  const pinta = async () => {
+    lista.replaceChildren()
+    let filas = []
+    try { filas = await ask('logins') } catch (e) { msg.textContent = humanError(e); return }
+    if (!filas.length) { lista.append(el('p', { className: 'hint', textContent: t(lang, 'lgNone') })); return }
+    for (const l of filas) lista.append(fila(l))
+  }
+
+  const fila = (l) => {
+    const espera = l.blockedUntil > Date.now() ? Math.ceil((l.blockedUntil - Date.now()) / 1000) : 0
+    const quien = el('div', {}, [
+      el('strong', { textContent: l.user }),
+      el('div', { className: 'hint', textContent: `${l.address || ''} · ${l.deviceId || '????-????'}` }),
+      el('div', {
+        className: 'hint',
+        textContent: [
+          t(lang, 'lgOpen', l.sessions.length),
+          l.label || '',
+          espera ? t(lang, 'lgWait', espera) : ''
+        ].filter(Boolean).join(' · ')
+      })
+    ])
+
+    const cerrar = el('button', { className: 'btn ghost sm', textContent: t(lang, 'lgCloseAll'), disabled: !l.sessions.length })
+    cerrar.onclick = () => correr(() => ask('logins-close', { user: l.user }))
+    const desbloquear = el('button', { className: 'btn ghost sm', textContent: t(lang, 'lgUnblock'), disabled: !espera })
+    desbloquear.onclick = () => correr(() => ask('logins-unblock', { user: l.user }))
+
+    const vieja = el('input', { type: 'password', placeholder: t(lang, 'lgOld'), autocomplete: 'off' })
+    const nueva = el('input', { type: 'password', placeholder: t(lang, 'lgNew'), autocomplete: 'new-password' })
+    const cambiar = el('button', { className: 'btn ghost sm', textContent: t(lang, 'lgPasswd') })
+    const formPass = el('div', { className: 'lg-pass', hidden: true }, [vieja, nueva,
+      el('button', { className: 'btn sm', textContent: t(lang, 'lgPasswd'), onclick: () => correr(async () => {
+        if (nueva.value.length < 12) throw Object.assign(new Error(t(lang, 'lgShort')), { code: 'weak-password' })
+        await ask('logins-passwd', { user: l.user, oldPassword: vieja.value, newPassword: nueva.value })
+        vieja.value = ''; nueva.value = ''; formPass.hidden = true
+      }) })])
+    cambiar.onclick = () => { formPass.hidden = !formPass.hidden }
+
+    // La confirmación es de esta pantalla: nada de `confirm()` (CONVENCIONES §5).
+    const seguro = el('div', { className: 'lg-sure', hidden: true }, [
+      el('span', { textContent: t(lang, 'lgRemoveSure', l.user) }),
+      el('button', { className: 'btn sm danger', textContent: t(lang, 'lgRemove'),
+        onclick: () => correr(() => ask('logins-remove', { user: l.user })) }),
+      el('button', { className: 'btn ghost sm', textContent: t(lang, 'cancel'), onclick: () => { seguro.hidden = true } })
+    ])
+    const quitar = el('button', { className: 'btn ghost sm danger', textContent: t(lang, 'lgRemove') })
+    quitar.onclick = () => { seguro.hidden = false }
+
+    return el('div', { className: 'login-row' }, [
+      quien,
+      el('div', { className: 'row' }, [cerrar, desbloquear, cambiar, quitar]),
+      formPass,
+      seguro
+    ])
+  }
+
+  const correr = async (fn) => {
+    msg.textContent = ''
+    try { await fn(); await pinta() }
+    catch (e) { msg.textContent = humanError(e) }
+  }
+
+  // --- alta ---
+  const usuario = el('input', { placeholder: t(lang, 'lgUser'), autocomplete: 'off' })
+  usuario.dataset.testid = 'lg-user'
+  const equipo = el('input', { placeholder: t(lang, 'lgFor'), autocomplete: 'off' })
+  const pass = el('input', { type: 'password', placeholder: t(lang, 'lgPass'), autocomplete: 'new-password' })
+  pass.dataset.testid = 'lg-pass'
+  const pass2 = el('input', { type: 'password', placeholder: t(lang, 'lgPass2'), autocomplete: 'new-password' })
+  const permisos = el('div', { className: 'caps' }, caps.map((c) => {
+    const b = el('button', { className: 'cap' + (elegidos.has(c) ? ' on' : ''), textContent: c })
+    b.dataset.cap = c
+    b.onclick = () => {
+      if (elegidos.has(c)) elegidos.delete(c); else elegidos.add(c)
+      b.className = 'cap' + (elegidos.has(c) ? ' on' : '')
+    }
+    return b
+  }))
+  const crear = el('button', { className: 'btn', textContent: t(lang, 'lgCreate') })
+  crear.dataset.testid = 'lg-add'
+  crear.onclick = () => correr(async () => {
+    if (pass.value.length < 12) throw Object.assign(new Error(t(lang, 'lgShort')), { code: 'weak-password' })
+    if (pass.value !== pass2.value) throw Object.assign(new Error(t(lang, 'lgMismatch')), { code: 'mismatch' })
+    const r = await ask('logins-add', {
+      user: usuario.value.trim().toLowerCase(),
+      password: pass.value,
+      label: equipo.value.trim(),
+      caps: [...elegidos]
+    })
+    usuario.value = ''; equipo.value = ''; pass.value = ''; pass2.value = ''
+    toast(t(lang, 'lgMade', r.address || ''))
+  })
+
+  // --- atender ---
+  const estado = await ask('logins-serving').catch(() => ({ serving: false }))
+  const atender = el('button', {
+    className: 'btn ghost',
+    textContent: estado.serving ? t(lang, 'lgStop') : t(lang, 'lgServe')
+  })
+  atender.onclick = () => correr(async () => {
+    if (estado.serving) { await ask('logins-stop'); estado.serving = false } else { await ask('logins-serve'); estado.serving = true }
+    atender.textContent = estado.serving ? t(lang, 'lgStop') : t(lang, 'lgServe')
+  })
+
+  view.replaceChildren(
+    volver,
+    el('h2', { textContent: t(lang, 'lgTitle') }),
+    el('p', { className: 'hint', textContent: t(lang, 'lgIntro') }),
+    lista,
+    el('div', { className: 'lg-form' }, [usuario, equipo, pass, pass2,
+      el('p', { className: 'hint', textContent: t(lang, 'lgCan') }), permisos, crear]),
+    el('div', { className: 'row' }, [atender]),
+    // EL AVISO no se esconde detrás de nada: sin él, alguien deja esto «atendiendo» y se
+    // encuentra con que desde el otro equipo no entra (§5.1: una advertencia no es una
+    // explicación).
+    el('p', { className: 'hint warn', textContent: t(lang, 'lgWorker') }),
+    msg
+  )
+  await pinta()
+}
+
 // --- arranque -----------------------------------------------------------------
 
 function render () {
-  const { id } = ruta()
+  const { id, view } = ruta()
+  if (view === 'logins') return renderLogins()
   return id ? renderRecord(id) : renderList()
 }
 

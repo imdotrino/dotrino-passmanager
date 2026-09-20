@@ -31,6 +31,53 @@ for (const f of ['entry.js', 'device.js', 'store.js']) {
 }
 console.log('vendor: sealed/* → la copia de @dotrino/identity/content')
 
+// ENTRAR CON USUARIO Y CONTRASEÑA, dentro de la extensión: el mostrador del ecosistema
+// (`@dotrino/vault`) y el OPAQUE que comprueba la contraseña sin verla.
+//
+// El OPAQUE es WASM —sale de `opaque-ke`, que es Rust— y MV3 bloquea instanciarlo con su
+// CSP por defecto. Por eso el manifiesto declara `'wasm-unsafe-eval'`: NO habilita `eval()`
+// de JavaScript ni código remoto, solo deja instanciar el módulo que ya viaja aquí dentro
+// (`build/wasm-bytes.js`, dentro del propio JS).
+for (const f of ['passwordLogins.js', 'enroll.js', 'protocol.js', 'index.js']) {
+  await cp(join(here, '../../dotrino-vault/lib/src/', f), join(vendor, 'vault/', f))
+}
+await cp(join(here, '../../dotrino-opaque/src/index.js'), join(vendor, 'opaque/index.js'))
+await mkdir(join(vendor, 'opaque/build'), { recursive: true })
+for (const f of ['opaque.js', 'wasm-bytes.js']) {
+  await cp(join(here, '../../dotrino-opaque/build/', f), join(vendor, 'opaque/build/', f))
+}
+console.log('vendor: @dotrino/{vault,opaque} → extension/src/vendor/ (usuario y contraseña)')
+
+// Los imports desnudos de esas copias pasan a ser las que viajan al lado.
+for (const f of ['passwordLogins.js', 'enroll.js', 'index.js']) {
+  const ruta = join(vendor, 'vault/', f)
+  await writeFile(ruta, (await readFile(ruta, 'utf8'))
+    .replace(/from '@dotrino\/identity\/capabilities'/g, "from '../identity/capabilities.js'")
+    .replace(/from '@dotrino\/identity\/acta'/g, "from '../identity/acta.js'")
+    .replace(/from '@dotrino\/opaque'/g, "from '../opaque/index.js'"))
+}
+// UN SERVICE WORKER NO ADMITE `import()` DINÁMICO (lo prohíbe la especificación). El
+// mostrador carga así el alta —en una página es lo correcto, porque arrastra el WASM— y
+// aquí hay que dejarlo estático.
+{
+  const ruta = join(vendor, 'vault/index.js')
+  await writeFile(ruta, (await readFile(ruta, 'utf8'))
+    .replace("import { MSG, SCOPE } from './protocol.js'",
+      "import { MSG, SCOPE } from './protocol.js'\nimport { registerLogin } from './passwordLogins.js'")
+    .replace("      const { registerLogin } = await import('./passwordLogins.js')\n", '')
+    // Y el cliente del proxio: el mostrador lo levantaría solo con otro `import()`
+    // dinámico. Aquí SIEMPRE se le pasa hecho (`logins.js`), así que esa rama no existe —
+    // y en vez de dejarla muerta, se dice.
+    .replace(
+      "  const client = injectedClient || await (async () => {",
+      "  if (!injectedClient) throw new Error('device vault: pass a connected client (a service worker cannot import() the transport)')\n  const client = injectedClient || await (async () => {"))
+}
+// La copia del OPAQUE resuelve su WASM por ruta relativa: se conserva `build/`.
+{
+  const ruta = join(vendor, 'opaque/index.js')
+  await writeFile(ruta, (await readFile(ruta, 'utf8')).replace(/from '\.\.\/build\//g, "from './build/"))
+}
+
 // El transporte del ecosistema viaja con la extensión: MV3 solo importa de su propia
 // carpeta. Se toma del repo hermano mientras 0.12.0 no esté en npm — es la versión
 // que sabe persistir la identidad en un service worker.
@@ -201,7 +248,10 @@ async function verificarGrafo (entradas) {
     visto.add(f)
     let code
     try { code = await readFile(f, 'utf8') } catch { rotos.push(f); return }
-    const re = /(?:^|\n)\s*(?:import|export)\s[^'"\n]*from\s*['"](\.[^'"]+)['"]|(?:^|\n)\s*import\s*['"](\.[^'"]+)['"]/g
+    // `[^;]*?` y no `[^'\"\n]*`: un import con llaves EN VARIAS LÍNEAS no casaba, así que
+    // el grafo lo saltaba en silencio — justo lo que esta comprobación viene a evitar. El
+    // `[^;]` corta en el punto y coma para no cruzar de una sentencia a la siguiente.
+    const re = /(?:^|\n)\s*(?:import|export)\b[^;]*?from\s*['"](\.[^'"]+)['"]|(?:^|\n)\s*import\s*['"](\.[^'"]+)['"]/g
     let m
     while ((m = re.exec(code))) await ir(join(dirname(f), m[1] || m[2]))
   }
