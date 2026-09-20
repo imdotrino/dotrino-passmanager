@@ -1,7 +1,20 @@
 # Usar el gestor en un equipo que no es tuyo
 
-> **Estado: PROPUESTA** (2026-09-17). Sin código. La pidió el dueño: *«¿cómo haría para
-> loguearme en passmanager de forma temporal en otra máquina?»*.
+> **Estado: EN PIE, salvo las contraseñas** (2026-09-19). Se puede entrar con usuario y
+> contraseña desde cualquier app del ecosistema —el aparato entra en el acta, firma y lee—,
+> y lo único que todavía NO lleva es lo que le da nombre a este documento: las entradas del
+> gestor, porque faltan las contraseñas selladas (`sealed-passwords.md`). Un aparato así se
+> crea hoy sin el permiso `contrasenas`, y pedirlo se rechaza con `passwords-not-yet`.
+>
+> Qué existe: `@dotrino/opaque`, el mostrador en las tres bóvedas (binario y pestaña), el
+> alta y la administración por CLI (`dotrino-vault logins`), el cliente que entra
+> (`@dotrino/vault/login-client`), la adopción en el navegador (`@dotrino/identity`), la
+> pantalla `profile.dotrino.com/login` y la entrada «Iniciar sesión» del menú del botón de
+> perfil (`@dotrino/topbar`). Lo que falta, además de las contraseñas: que la consola web
+> liste y cierre los inicios de sesión abiertos (hoy solo el CLI).
+>
+> La pidió el dueño: *«¿cómo haría para loguearme en passmanager de forma temporal en otra
+> máquina?»*.
 >
 > **El modelo lo fijó el dueño el mismo día**, después de una primera versión con sesión y
 > aprobador: *«en el vault debería poderse crear un dispositivo que se abra con contraseña;
@@ -235,15 +248,49 @@ Ninguna.
    con `passwords`. Guardar no pide aprobación (tampoco hoy: al guardar no sale nada de la
    bóveda); la aprobación, si se eligió al crearlo, es para abrir lo privado.
 
+## 6.1. Lo que se decidió AL CONSTRUIRLO (2026-09-19)
+
+Tres cosas que el diseño no decía y hubo que resolver escribiendo el código. Van aquí para
+que no se vuelvan a discutir y para que quien lea el doc no encuentre otra cosa en el código.
+
+- **«Sin recordar» es una CUENTA DE PASO, no una cuenta en memoria.** La primera versión
+  tenía la llave solo en la memoria del iframe de identidad, que suena mejor y no sirve: ese
+  iframe muere con cada navegación, así que entrar y pulsar el primer enlace te dejaba fuera.
+  Ahora se guarda como cualquier otra cuenta del navegador —la llave, `CryptoKey` **no
+  extraíble**, nunca en claro— y lo que cambia es **quién la ve y cuánto dura**: no entra en
+  la lista de perfiles del equipo (ninguna otra pestaña la ve ni puede cambiarse a ella), no
+  toca la cuenta por defecto, **la reclama la pestaña** (`sessionStorage`, que sobrevive a
+  navegar) con un latido cada 20 s, y **el primer arranque que vea una sin latido la borra
+  entera**. Salir la borra en el acto.
+
+  El residuo, dicho en voz alta: si el navegador se cierra de golpe y nadie vuelve a abrir
+  Dotrino en esa máquina, la llave se queda ahí —cifrada y no extraíble— hasta que alguien lo
+  haga, y ese alguien la borra antes de poder usarla.
+- **La huella de la cuenta sale del `profileId` del acta**, no de la llave de la bóveda. El
+  código de la dirección y el canal se derivaban de la llave de ESTA bóveda: coinciden
+  mientras la cuenta haya nacido ahí, y dejan de coincidir con una réplica o con una cuenta
+  adoptada — cada bóveda daba entonces una dirección distinta para la misma cuenta, que es
+  justo lo contrario de lo que el canal viene a hacer.
+- **El acta se comprueba DESPUÉS de OPAQUE, no antes.** El §3.2 dibuja «lista el canal,
+  comprueba el acta» y luego el intercambio; del canal solo salen tokens y un token no dice
+  de quién es, así que la comprobación va sobre lo que contesta: OPAQUE autentica a las dos
+  partes —una bóveda falsa no tiene tu registro y el intercambio revienta en tu lado, sin
+  haberle dicho la contraseña a nadie—, y sobre su respuesta se comprueba que la huella de la
+  cuenta cuadra con la dirección, que el papel y el acta se sostienen (`checkVaultReply`) y
+  que la llave que salió del paquete es la del papel. Lo mismo que promete el dibujo, en el
+  único orden posible.
+
 ## 7. Qué tocaría
 
 | Pieza | Cambio |
 |---|---|
-| **antes que todo** | las contraseñas selladas por aparato (`sealed-passwords.md`), con destinatarios elegibles por entrada |
-| `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, inicio de sesión con vencimiento, límite de intentos, cambio de contraseña |
-| `@dotrino/passmanager` (extensión) | «Entrar con usuario y contraseña»: buscar la bóveda por el código, comprobar el acta, OPAQUE, llaves solo en memoria, salir |
-| `dotrino-vault` (anuncio) | anunciar cada cuenta que atiende en el canal de su código, firmado y con vencimiento |
-| `@dotrino/topbar` | «Iniciar sesión» en el menú del perfil, `profile-login-href`, textos es/en; y `CONVENCIONES-APPS.md` §6.1, que enumera los elementos del menú |
-| `dotrino-profile-app` | la página `/login`: usuario, contraseña, OPAQUE, abrir la llave en la identidad del navegador |
-| consola y TUI del vault | crear el aparato, marcar sus entradas, cambiar su contraseña, y **listar y cerrar sus inicios de sesión abiertos** (inicio y último uso) |
-| **`@dotrino/opaque`** (repo nuevo) | API de registro e inicio para las dos puntas, vectores del RFC 9807, WASM de `opaque-ke` compilado en CI y publicado desde CI con su procedencia |
+| **PENDIENTE — antes que las contraseñas** | las contraseñas selladas por aparato (`sealed-passwords.md`), con destinatarios elegibles por entrada. Hasta entonces, `contrasenas` se rechaza con `passwords-not-yet` |
+| ✅ `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, límite de intentos, cambio de contraseña — `lib/src/passwordLogins.js`, una sola pieza para las tres bóvedas |
+| ✅ `dotrino-vault` (anuncio) | cada bóveda se anuncia en el canal de su cuenta al identificarse: el binario en `src/transport.js`, **y la bóveda-pestaña también** (faltaba, así que quien la tenía solo en una pestaña no era encontrable por dirección) |
+| ✅ `@dotrino/vault/login-client` | el lado del que ENTRA: leer la dirección, listar el canal, OPAQUE, abrir el paquete y comprobarlo todo. Vive en el pilar porque lo van a hacer la página, la extensión y cualquier app |
+| ✅ `@dotrino/identity` | adoptar ese aparato como cuenta de ESTE navegador (`loginWithPassword` / `logoutLogin`), con la cuenta de paso del §6.1 |
+| ✅ `dotrino-profile-app` | la página `/login`: dirección, contraseña, «Recordar», y debajo «Con otro aparato tuyo» (la sesión con QR que ya existía) |
+| ✅ `@dotrino/topbar` | «Iniciar sesión» en el menú del perfil (y «Salir» cuando ya se entró), `profile-login-href`, textos es/en |
+| PENDIENTE `@dotrino/passmanager` (extensión) | su propia pantalla de entrada: tiene identidad propia, así que apunta el menú a la suya con `profile-login-href` |
+| PENDIENTE consola web del vault | listar y cerrar los inicios de sesión abiertos (inicio y último uso). Hoy solo el CLI: `dotrino-vault logins ls` / `logins close` |
+| ✅ **`@dotrino/opaque`** (repo nuevo) | API de registro e inicio para las dos puntas, vectores del RFC 9807, WASM de `opaque-ke` compilado en CI y publicado desde CI con su procedencia |
