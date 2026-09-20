@@ -12,7 +12,8 @@
     "./import": "./src/import.js",
     "./fields": "./src/fields.js",
     "./generate": "./src/generate.js",
-    "./vault": "./src/vault/local.js"
+    "./vault": "./src/vault/local.js",
+    "./sealed": "./src/sealed/index.js"
   },
   "files": [
     "src",
