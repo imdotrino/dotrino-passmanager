@@ -276,17 +276,25 @@ usuario y contraseña y tiene sus propias envolturas (`temporary-access.md`).
 
 Cuatro cosas que el diseño no traía y hubo que resolver escribiendo el código.
 
-- **La marca de PRIVADO de un campo vive en la vista, no dentro de su sobre.** Estaba dentro
-  del valor, y eso obligaba a ABRIR el campo para cambiarle la marca: marcar un teléfono
-  como privado sacaba el teléfono de la bóveda. Ahora es `privateKeys` de la vista, que
-  quien edita ya tiene abierta.
-- **Los NOMBRES de los campos privados van EN CLARO** (`priv`), y solo los nombres. La
-  aprobación es de la bóveda (§2.3) y la bóveda no ve la vista: sin esta lista no podría
-  distinguir «rellena mi nombre» de «dame la contraseña», y acabaría pidiendo un dedo encima
-  para todo — que es como se enseña a decir que sí sin mirar. El precio, dicho: una copia
-  del disco sabe que una entrada tiene un campo privado llamado `id-number`; no sabe de qué
-  entrada es (el título va sellado), ni su valor, ni en qué sitio se usa. Y es lo mismo que
-  ya revela cualquier petición, porque la clave viaja en ella.
+- **La marca de PRIVADO es del SOBRE**, con su valor (corregido por el dueño el 2026-09-19:
+  *«privado es una propiedad del sobre»*). Se llegó a sacar a la vista para que cambiarla no
+  obligara a abrir el campo, y estaba mal: dejaba el sobre incompleto —quien lo abre solo no
+  sabría si es privado— y dos verdades que se pueden desincronizar. Lo que va en la vista
+  (`privateKeys`) y en el índice de la bóveda (`priv`) son COPIAS derivadas, que se rehacen
+  al escribir.
+
+  El precio, y se asume: cambiar la marca reescribe el campo, o sea hay que tenerlo delante.
+  Marcar uno PÚBLICO como privado no cuesta aprobación (leerlo es gratis); quitársela a uno
+  privado sí — y está bien, porque vas a exponerlo.
+- **Los NOMBRES de los campos libres van POR HUELLA**, con la misma llave del perfil que ya
+  usa el índice de sitios: `HMAC(kidx, 'field ' + clave)`. La bóveda empareja la clave que le
+  piden con el sobre que guarda sin saber qué es «cédula». Va así también en el índice de
+  privados (`priv`) y en los resúmenes.
+
+  Los campos FIJOS (`username`, `secret`, `totp`, `notes`, `wa.*`) sí viajan por su nombre, y
+  es a propósito: son un vocabulario cerrado, idéntico en todas las entradas de todo el
+  mundo, así que no dicen nada de nadie — y son los que dejan a la bóveda aplicar su propia
+  regla (*una contraseña es privada siempre*) sin fiarse de una lista que escribe el aparato.
 - **Una passkey que ningún aparato podría abrir NO se guarda.** Si no hay nadie con
   `passkeys`, quedaría viva solo para la frase del perfil: no se pierde, pero no sirve, y eso
   se descubre el día que hace falta. Se para con `no-passkeys-device`.
