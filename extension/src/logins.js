@@ -1,224 +1,92 @@
-// ENTRAR CON USUARIO Y CONTRASEÑA, dentro de la extensión.
+// ENTRAR CON USUARIO Y CONTRASEÑA, desde el service worker: la puerta al documento offscreen.
 //
-// `dotrino-passmanager/docs/temporary-access.md`. El binario y la bóveda-pestaña ya sabían
-// crear y atender estos aparatos; esta era la tercera versión y no sabía ninguna de las dos
-// cosas — y las tres tienen que hacer lo mismo salvo por las limitaciones de su contexto
-// (`sealed-passwords.md` §2.7).
+// `dotrino-passmanager/docs/temporary-access.md`. Aquí no hay ni criptografía ni socket —
+// están en `offscreen.js`, y el motivo es el que cuenta: **un service worker MV3 se duerme**
+// a los ~30 s y se lleva la conexión con él. Atender a alguien que entra desde otro equipo
+// funcionaba entonces a ratos, que es la peor forma de funcionar.
 //
-// LA LIMITACIÓN DE ESTE CONTEXTO, dicha antes que nada: **un service worker MV3 se duerme**
-// (unos 30 s sin trabajo). Crear y administrar funciona siempre, porque es local; ATENDER a
-// alguien que entra desde otro equipo solo funciona mientras el worker esté despierto, o sea
-// en la práctica mientras tengas el gestor abierto. La bóveda que está encendida de verdad
-// es el binario.
+// Un documento offscreen es una página: no se duerme como el worker, así que el socket
+// aguanta mientras exista. Y el WASM del OPAQUE (268 KB) se carga UNA vez allí, en vez de en
+// cada arranque de este worker.
 //
-// El OPAQUE es WASM y MV3 lo bloquea con su CSP por defecto: el manifiesto declara
-// `'wasm-unsafe-eval'`, que NO habilita `eval()` de JavaScript ni código remoto — solo deja
-// instanciar el módulo que ya viaja dentro del paquete. Se instancia perezosamente, en la
-// primera operación, así que arrancar el worker no lo paga.
+// Lo que sí se queda aquí es la IDENTIDAD, que es de este worker (`identity-core.js`): dos
+// núcleos sobre el mismo almacén se pisarían las llaves. El offscreen le pide lo que
+// necesita —firmar, emitir el papel, meter al aparato en el acta— y nunca ve una privada.
 
-import { createLoginDesk, registerLogin, loginAddress, accountFingerprint, sealDeviceKeys, openDeviceKeys } from './vendor/vault/passwordLogins.js'
-import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
-import { startDeviceVault } from './vendor/vault/index.js'
-import { client as opaque } from './vendor/opaque/index.js'
-import { makeDeviceKey, makeDeviceEncKey } from './vendor/identity/capabilities.js'
-import { capScope } from './vendor/identity/acta.js'
-import { identityCore } from './identity-core.js'
-
-const KEY = (pid) => `logins/${pid}`
+const DOC = 'src/offscreen.html'
 
 /**
- * El escritorio quiere `load`/`save` SÍNCRONOS y `chrome.storage` es asíncrono: se hidrata
- * entero al abrirlo y se escribe detrás. Es el mismo trato que hace `identity-core.js` con
- * el kv, y se puede por lo mismo — lo que guarda son registros cortos, no la bóveda.
+ * El documento, creándolo si no está. Chrome solo admite UNO por extensión, así que se
+ * comprueba antes: crearlo dos veces es un error, y encima uno que aparece «a veces».
  */
-async function abrirEscritorio (pid) {
-  const clave = KEY(pid)
-  const guardado = (await chrome.storage.local.get(clave))[clave] || null
-  let estado = guardado
-  let cola = Promise.resolve()
-  const desk = createLoginDesk({
-    load: () => estado,
-    save: (s) => {
-      estado = s
-      cola = cola.then(() => chrome.storage.local.set({ [clave]: s }))
-      cola.catch((e) => console.error('[logins] no se pudo guardar: %s', e?.message || e))
-    }
+let creando = null
+async function asegurarDocumento () {
+  if (await hayDocumento()) return
+  // Dos peticiones a la vez no pueden crear dos documentos: se comparte la promesa.
+  creando ||= chrome.offscreen.createDocument({
+    url: DOC,
+    // `WORKERS` es el motivo honesto: lo que corre ahí es trabajo de fondo que el service
+    // worker no puede sostener —una conexión que tiene que seguir abierta—. La
+    // justificación se lee tal cual en la revisión de la tienda.
+    reasons: ['WORKERS'],
+    justification: 'Mantiene la conexión de la bóveda y el cálculo de OPAQUE, que un service worker no puede sostener porque se suspende.'
+  }).catch((e) => {
+    // Chrome solo admite UNO. Si otra llamada lo creó entre la comprobación y esto, no es
+    // un fallo: es la carrera, y el documento que hace falta ya está.
+    if (/single offscreen/i.test(e?.message || '')) return
+    throw e
+  }).finally(() => { creando = null })
+  await creando
+}
+
+/**
+ * ¿Existe ya? `hasDocument()` es de Chrome 116; antes hay que mirar los contextos. Sin una
+ * de las dos, crear dos veces revienta con un error que solo aparece «a veces».
+ */
+async function hayDocumento () {
+  if (typeof chrome.offscreen?.hasDocument === 'function') return chrome.offscreen.hasDocument()
+  if (typeof chrome.runtime?.getContexts === 'function') {
+    const c = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })
+    return !!c.length
+  }
+  return false
+}
+
+/** Una llamada al documento. Si no está, se crea; si contesta un error, se propaga con su `code`. */
+async function alOffscreen (op, payload = {}) {
+  await asegurarDocumento()
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ target: 'offscreen', op, payload }, (r) => {
+      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
+      if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
+      resolve(r?.result)
+    })
   })
-  return { desk, flushed: () => cola }
 }
 
-/** El perfil activo. Los inicios de sesión son de UNA cuenta, no del navegador. */
-async function perfilActivo () {
-  const { handlers } = await identityCore()
-  const { id } = await handlers.currentProfile()
-  if (!id) throw Object.assign(new Error('no hay perfil abierto'), { code: 'no-profile' })
-  return id
-}
-
-/** El adaptador que `startDeviceVault` espera: el mismo que usa el iframe de identidad. */
-async function comoBoveda () {
-  const { handlers, me } = await identityCore()
-  return {
-    get me () { return me },
-    signData: (data) => handlers.signData({ data }),
-    signDelegation: (sub, scope, opts) => handlers.signDelegation({ sub, scope, ...(opts || {}) }),
-    listDelegations: () => handlers.listDelegations({}),
-    revokeDelegation: (nonce) => handlers.revokeDelegation({ nonce }),
-    revokeDevice: (sub) => handlers.revokeDevice({ sub }),
-    admitMember: (m) => handlers.admitMember(m),
-    profileActa: () => handlers.profileActa({}),
-    joinProfile: (acta) => handlers.joinProfile({ acta })
-  }
-}
-
-let mostrador = null       // { pid, desk, flushed, vault }
-let atendiendo = null      // el handle de `startDeviceVault`, si se está atendiendo
-
-/** El escritorio de ESTE perfil, abierto una vez. Cambiar de perfil lo tira. */
-async function escritorio () {
-  const pid = await perfilActivo()
-  if (mostrador?.pid === pid) return mostrador
-  if (atendiendo) { try { atendiendo.close() } catch (_) {} atendiendo = null }
-  mostrador = { pid, ...(await abrirEscritorio(pid)) }
-  return mostrador
-}
-
-/** Los aparatos de usuario y contraseña de este perfil, con sus sesiones abiertas. */
-export async function listLogins () {
-  const { desk } = await escritorio()
-  const lista = desk.list()
-  if (!lista.length) return []
-  const huella = await accountFingerprint(await comoBoveda())
-  return lista.map((l) => ({ ...l, address: loginAddress(l.user, huella) }))
-}
+export const listLogins = () => alOffscreen('list')
+export const addLogin = (p) => alOffscreen('add', p)
+export const passwdLogin = (p) => alOffscreen('passwd', p)
+export const closeLogin = (p) => alOffscreen('close', p)
+export const unblockLogin = (p) => alOffscreen('unblock', p)
+export const removeLogin = (p) => alOffscreen('remove', p)
+export const serveLogins = (p) => alOffscreen('serve', p)
 
 /**
- * DAR DE ALTA uno. Las llaves del aparato NACEN aquí y salen ya cerradas con lo que deriva
- * de la contraseña: lo que queda guardado es un paquete que esta extensión no puede abrir.
- *
- * Se pueden tener VARIOS por perfil y cada uno con sus permisos: son miembros del acta como
- * cualquier otro aparato.
+ * Dejar de atender **y cerrar el documento**. Lo segundo importa: mientras exista, la
+ * extensión mantiene una página abierta, y dejarla ahí sin nada que hacer es gastar memoria
+ * y batería por costumbre.
  */
-export async function addLogin ({ user, password, label = '', caps = ['sign', 'read', 'store'] } = {}) {
-  if (typeof password !== 'string' || password.length < 12) {
-    throw Object.assign(new Error('la contraseña tiene que tener al menos 12 caracteres'), { code: 'weak-password' })
-  }
-  const { desk, flushed } = await escritorio()
-  const identidad = await comoBoveda()
-  const nombre = String(label || 'equipo prestado')
-
-  const reg = opaque.registrationStart({ password })
-  const { response } = desk.registerBegin({ user, request: reg.request })
-  const fin = opaque.registrationFinish({ state: reg.state, response, password })
-  const device = await makeDeviceKey({ label: nombre })
-  const enc = await makeDeviceEncKey()
-  const blob = await sealDeviceKeys(fin.exportKey, { sign: device.privateJwk, enc: enc.encPrivateJwk })
-
-  const r = await registerLogin({
-    identity: identidad,
-    logins: desk,
-    user,
-    upload: fin.upload,
-    pub: device.publickey,
-    encPub: enc.encPublickey,
-    label: nombre,
-    blob,
-    scope: caps.filter((c) => c !== 'unattended').map((c) => capScope(c)).filter(Boolean),
-    unattended: caps.includes('unattended')
-  })
-  await flushed()
-  return { ...r, address: loginAddress(user, await accountFingerprint(identidad)) }
-}
-
-/**
- * CAMBIAR LA CONTRASEÑA es abrir y volver a cerrar: el aparato, su llave y su papel siguen
- * siendo los mismos. Por eso hace falta la vieja, y por eso lo que estuviera abierto se cierra.
- */
-export async function passwdLogin ({ user, oldPassword, newPassword } = {}) {
-  if (typeof newPassword !== 'string' || newPassword.length < 12) {
-    throw Object.assign(new Error('la contraseña tiene que tener al menos 12 caracteres'), { code: 'weak-password' })
-  }
-  const { desk, flushed } = await escritorio()
-  const start = opaque.loginStart({ password: oldPassword })
-  const begun = desk.loginBegin({ user, request: start.request })
-  let fin
-  try { fin = opaque.loginFinish({ state: start.state, response: begun.response, password: oldPassword }) }
-  catch (_) { throw Object.assign(new Error('contraseña incorrecta'), { code: 'login-failed' }) }
-  const entrada = desk.loginEnd({ lid: begun.lid, finalization: fin.finalization, label: 'gestor' })
-  const keys = await openDeviceKeys(fin.exportKey, entrada.blob)
-
-  const reg = opaque.registrationStart({ password: newPassword })
-  const { response } = desk.registerBegin({ user, request: reg.request, replace: true })
-  const nueva = opaque.registrationFinish({ state: reg.state, response, password: newPassword })
-  desk.registerFinish({ user, upload: nueva.upload, blob: await sealDeviceKeys(nueva.exportKey, keys), replace: true })
-  await flushed()
-  return { ok: true, user }
-}
-
-/** Cerrar lo que quedó abierto (sin `sid`, todo lo de ese usuario). */
-export async function closeLogin ({ user, sid = null } = {}) {
-  const { desk, flushed } = await escritorio()
-  if (sid) { const r = desk.closeSession({ user, sid }); await flushed(); return r }
-  const fila = desk.list().find((x) => x.user === user)
-  for (const s of fila?.sessions || []) desk.closeSession({ user, sid: s.sid })
-  await flushed()
-  return { ok: true, closed: (fila?.sessions || []).length }
-}
-
-/** Quitar la espera que dejan los intentos fallidos. */
-export async function unblockLogin ({ user } = {}) {
-  const { desk, flushed } = await escritorio()
-  const r = desk.clearBlock({ user })
-  await flushed()
+export async function stopServing () {
+  if (!(await hayDocumento())) return { ok: false }
+  const r = await alOffscreen('stop')
+  try { await chrome.offscreen.closeDocument() } catch (_) {}
   return r
 }
 
-/**
- * QUITARLO: se va de aquí **y su llave sale del acta**. Borrar solo el inicio de sesión
- * dejaba un miembro que ya no puede entrar y sigue siendo de la cuenta.
- */
-export async function removeLogin ({ user } = {}) {
-  const { desk, flushed } = await escritorio()
-  const fila = desk.list().find((x) => x.user === user)
-  if (!fila) return { ok: false }
-  desk.remove({ user })
-  await flushed()
-  // Su llave sale del acta. Si eso falla, se dice: un inicio de sesión borrado que deja al
-  // miembro dentro es justo el fantasma que `logins rm` vino a evitar.
-  const { handlers } = await identityCore()
-  await handlers.revokeDevice({ sub: fila.pub })
-  return { ok: true, deviceId: fila.deviceId }
+/** Sin documento no se atiende: se contesta sin crearlo, que preguntarlo no es usarlo. */
+export async function serving () {
+  if (!(await hayDocumento())) return false
+  const r = await alOffscreen('serving')
+  return !!r?.serving
 }
-
-/**
- * ATENDER desde otro equipo. Levanta el mostrador del ecosistema con este escritorio, y se
- * anuncia en el canal de la cuenta para que un equipo prestado la encuentre por su dirección.
- *
- * Se para solo cuando el worker se duerme, que es la limitación de este contexto y no un
- * fallo: mientras tanto, la bóveda del PC sigue siendo la que está encendida de verdad.
- */
-export async function serveLogins ({ proxyUrl = null } = {}) {
-  const { desk, pid } = await escritorio()
-  if (atendiendo) return { ok: true, already: true }
-  if (!desk.list().length) return { ok: false, reason: 'sin-inicios-de-sesion' }
-  // EL CLIENTE SE PASA HECHO. `startDeviceVault` lo levantaría solo con un `import()`
-  // dinámico, y eso un service worker no lo admite.
-  const client = new WebSocketProxyClient({
-    url: proxyUrl || 'wss://proxy.dotrino.com',
-    // No hay `RTCPeerConnection` en un worker: con WebRTC encendido la negociación revienta.
-    enableWebRTC: false,
-    autoReconnect: true
-  })
-  await client.connect()
-  atendiendo = await startDeviceVault(await comoBoveda(), { client, logins: desk })
-  return { ok: true, pid }
-}
-
-export function stopServing () {
-  if (!atendiendo) return { ok: false }
-  try { atendiendo.close() } catch (_) {}
-  atendiendo = null
-  return { ok: true }
-}
-
-export const serving = () => !!atendiendo

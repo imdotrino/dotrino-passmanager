@@ -265,6 +265,9 @@ async function verificarGrafo (entradas) {
 
 const cuantos = await verificarGrafo([
   join(here, 'src/background.js'),
+  // El documento offscreen es OTRA entrada: de él cuelgan el OPAQUE, el mostrador y el
+  // transporte, y si sus imports no resuelven no arranca — en silencio, porque no se ve.
+  join(here, 'src/offscreen.js'),
   join(here, 'src/content.js'),
   join(here, 'src/detect.js'),
   join(here, 'src/ui.js'),

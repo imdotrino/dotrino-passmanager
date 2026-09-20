@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "short_name": "__MSG_extShortName__",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "description": "__MSG_extDescription__",
   "default_locale": "es",
   "permissions": [
-    "storage"
+    "storage",
+    "offscreen"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

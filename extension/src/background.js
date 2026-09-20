@@ -44,7 +44,7 @@ import { KINDS } from './vendor/passmanager/fields.js'
 import { fieldKey, fieldOffers } from './detect.js'
 import { t, pickLang, KIND_LABEL } from './i18n.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
-import { identity } from './identity-core.js'
+import { identity, identityCore } from './identity-core.js'
 
 const PROXY_URL = 'wss://proxy.dotrino.com'
 
@@ -1390,11 +1390,41 @@ const OPS = {
   'logins-remove': p => removeLogin(p),
   'logins-serve': p => serveLogins(p || {}),
   'logins-stop': () => stopServing(),
-  'logins-serving': async () => ({ serving: serving() }),
+  'logins-serving': async () => ({ serving: await serving() }),
+}
+
+/**
+ * LO QUE EL DOCUMENTO OFFSCREEN LE PIDE A LA IDENTIDAD.
+ *
+ * El núcleo vive aquí y no puede haber dos sobre el mismo almacén (`identity-core.js`), así
+ * que el offscreen —que tiene el WASM y el socket— pide por mensaje lo que necesita de ella.
+ * **Ninguna llave privada cruza**: se pide una firma, no la llave.
+ *
+ * Solo lo atiende lo que venga de la propia extensión; el filtro de origen de abajo ya lo
+ * garantiza, y estas operaciones no están en la lista que puede pedir una página.
+ */
+const ID_OPS = {
+  'id.whoami': async () => {
+    const { handlers } = await identityCore()
+    const { id } = await handlers.currentProfile()
+    return { id, publickey: await identity.publickey() }
+  },
+  'id.signData': async ({ data }) => (await identityCore()).handlers.signData({ data }),
+  'id.signDelegation': async ({ sub, scope, opts }) =>
+    (await identityCore()).handlers.signDelegation({ sub, scope, ...(opts || {}) }),
+  'id.listDelegations': async () => (await identityCore()).handlers.listDelegations({}),
+  'id.revokeDelegation': async ({ nonce }) => (await identityCore()).handlers.revokeDelegation({ nonce }),
+  'id.revokeDevice': async ({ sub }) => (await identityCore()).handlers.revokeDevice({ sub }),
+  'id.admitMember': async (m) => (await identityCore()).handlers.admitMember(m),
+  'id.profileActa': async () => (await identityCore()).handlers.profileActa({}),
+  'id.joinProfile': async ({ acta }) => (await identityCore()).handlers.joinProfile({ acta })
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  const op = OPS[msg?.op]
+  // Lo dirigido al OFFSCREEN no es de aquí: lo contesta él. Sin esto, este oyente
+  // respondería `unknown-op` a la vez que el otro responde bien, y gana el que llegue antes.
+  if (msg?.target === 'offscreen') return false
+  const op = ID_OPS[msg?.op] || OPS[msg?.op]
   if (!op) { sendResponse({ error: { code: 'unknown-op' } }); return false }
 
   // Una PÁGINA solo puede preguntar qué hay para su sitio y pedir una credencial;

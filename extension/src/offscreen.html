@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dotrino — bóveda</title>
+</head>
+<body>
+<!--
+  NO SE VE, y no tiene por qué: un documento offscreen es una página sin pestaña. Existe
+  por dos cosas que un service worker MV3 no puede sostener:
+
+    · el SOCKET con el proxio, para atender a quien entra con usuario y contraseña desde
+      otro equipo. El worker se duerme a los ~30 s y se lleva la conexión con él; una
+      página no;
+    · el WASM del OPAQUE, que así se carga UNA vez aquí en vez de en cada arranque del
+      worker.
+
+  Lo que NO está aquí es la identidad: su núcleo vive en el worker y no puede haber dos
+  sobre el mismo almacén. Lo que hace falta de ella se le pide por mensaje.
+-->
+<script type="module" src="offscreen.js"></script>
+</body>
+</html>
