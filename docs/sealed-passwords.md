@@ -298,6 +298,13 @@ Cuatro cosas que el diseño no traía y hubo que resolver escribiendo el código
 - **Una passkey que ningún aparato podría abrir NO se guarda.** Si no hay nadie con
   `passkeys`, quedaría viva solo para la frase del perfil: no se pierde, pero no sirve, y eso
   se descubre el día que hace falta. Se para con `no-passkeys-device`.
+- **La bóveda de la extensión es la excepción a «la bóveda nunca está entre los
+  destinatarios»**, y conviene decir por qué no es un descuido: esa regla existe porque hay
+  alguien MÁS a quien entregarle lo suyo. En la extensión ese alguien es ella misma. Lo que
+  gana al convertirse no es secreto frente a sí misma —no lo tendría— sino **el mismo
+  formato que las otras tres**, una **copia de recuperación** que antes no existía (si la
+  extensión se va, lo guardado se perdía entero) y **destinatarios por entrada**, que es lo
+  que hace falta para que otro aparato pueda pedirle credenciales.
 - **De dónde sale la copia de recuperación en cada bóveda** (dueño, 2026-09-20): **de una
   contraseña, en las cuatro**. El binario usa la del perfil y `passmanager serve` la suya
   —las dos ya existían—; la pestaña y la bóveda de dentro de la extensión no tenían
@@ -333,7 +340,7 @@ una prueba que lo afirma mirando el disco (`dotrino-vault/test/passwords.test.mj
 | ✅ `@dotrino/identity` | el permiso `passkeys` en `CAPS`/`DEVICE_CAPS` y en `SESSION_FORBIDDEN` |
 | ✅ la extensión | abre sus sobres, los construye al guardar y compara con la llave del perfil |
 | ✅ la bóveda de la PESTAÑA (`vault.dotrino.com/vault`) | fuera su `cek` de IndexedDB; pide la contraseña de la copia de recuperación al convertir y ya no atiende hasta tenerla. Deja de listar lo guardado —no puede leerlo— y solo dice cuántas hay; importar lo hace el dueño con su contraseña, que es quien puede cerrar una entrada |
-| PENDIENTE la bóveda DENTRO de la extensión | ídem |
+| ✅ la bóveda DENTRO de la extensión | mismo formato. Pide la contraseña de su copia de recuperación al convertir (`manager.html#view=convert`) y **no atiende hasta tenerla**. Aquí, y solo aquí, **la bóveda SÍ está entre los destinatarios**: no hay cartero y aparato, hay uno solo — excluirse dejaría una bóveda que solo se abre escribiendo la contraseña en cada campo, que no es más segura, es inusable |
 | PENDIENTE `dotrino-passmanager serve` | ídem |
 | PENDIENTE `dotrino-test` | que el smoke de reposo busque también contraseñas y la `cek` |
 | — lo de abajo es la tabla original — | |

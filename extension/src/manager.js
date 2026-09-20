@@ -927,7 +927,29 @@ document.addEventListener('dotrino-lang', (ev) => {
   render()
 })
 
-render()
+/**
+ * Antes de nada: ¿hay que convertir? Si esta bóveda sigue con el formato viejo, su lista no
+ * se puede abrir, así que enseñarla sería enseñar un error por cada fila. Se va derecho a
+ * la pantalla que lo arregla.
+ */
+/** Las pantallas que NO leen la bóveda de contraseñas, y por tanto no hay que convertir. */
+const SIN_BOVEDA = ['convert', 'login', 'logins']
+
+async function arrancar () {
+  // Solo se desvía lo que va a leer la bóveda. Entrar con usuario y contraseña y
+  // administrar los inicios de sesión son de la IDENTIDAD, no de las contraseñas: mandar
+  // a convertir a quien llega a un equipo prestado a entrar sería pedirle que arregle una
+  // bóveda que todavía no es suya.
+  if (!SIN_BOVEDA.includes(ruta().view)) {
+    try {
+      const r = await ask('sealed-needs')
+      if (r?.needs) { ir({ view: 'convert' }); return }
+    } catch (_) { /* si no se puede preguntar, se pinta lo de siempre */ }
+  }
+  render()
+}
+
+arrancar()
 
 
 // La barra, con su selector de perfiles y tu avatar: lo pinta el componente.

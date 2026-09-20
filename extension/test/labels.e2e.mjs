@@ -18,6 +18,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { convertirBoveda } from './_boveda.mjs'
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
 
@@ -42,7 +43,18 @@ await ctx.route(`${SITE}/__src/**`, async (route) => {
 })
 
 try {
-  await ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
+  const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
+  // Lo primero, como un usuario: esta bóveda no atiende hasta convertirse (§2.7). El
+  // mensaje va desde una PÁGINA de la extensión — uno que el worker se manda a sí mismo
+  // no llega a su listener.
+  {
+    const extId = new URL(sw.url()).host
+    const ext = await ctx.newPage()
+    await ext.goto(`chrome-extension://${extId}/src/popup.html`)
+    await convertirBoveda((op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
+      chrome.runtime.sendMessage({ op, payload }, r)), [op, payload]))
+    await ext.close()
+  }
   const page = await ctx.newPage()
   page.on('pageerror', (e) => console.log('   [page error]', e.message))
   await page.goto(`${SITE}/labels.html`)

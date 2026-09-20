@@ -23,6 +23,13 @@ import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { SealedVault } from './vendor/passmanager/vault/sealed.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { GuardedVault } from './vendor/passmanager/vault/guard.js'
+import { SealedLocalVault } from './vendor/passmanager/vault/sealed-local.js'
+import { SealedStore } from './vendor/passmanager/sealed/store.js'
+import { makeRecovery, openRecovery, hasRecovery, recoveryPubOf } from './vendor/passmanager/sealed/recovery.js'
+import { convertToSealed } from './vendor/passmanager/sealed/convert.js'
+import { profileKeys } from './vendor/passmanager/sealed/keys.js'
+import { verifyDeviceSig } from './vendor/identity/capabilities.js'
+import { samePubkey } from './vendor/passmanager/pubkey.js'
 import { ApprovalGate } from './vendor/passmanager/vault/approval.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { identitySealing } from './vendor/passmanager/transport/sealed.js'
@@ -118,6 +125,134 @@ async function ownVault (id) {
   return v
 }
 
+// --- la bóveda propia, en el formato SELLADO ---------------------------------
+//
+// Es la cuarta y última de las bóvedas del ecosistema (`sealed-passwords.md` §2.7), y la
+// que se parece menos a las otras tres: aquí **no hay un cartero y un aparato, hay uno
+// solo**. Esta extensión guarda sus contraseñas y es también quien las lee.
+//
+// Eso cambia una cosa, y se dice para que nadie la lea como un descuido: en las otras
+// tres la bóveda NUNCA está entre los destinatarios, porque hay alguien más a quien
+// entregarle lo suyo. Aquí ese alguien es ella misma, así que **sí se envuelve para sí
+// misma**. Excluirse dejaría una bóveda que solo se abre escribiendo la contraseña en cada
+// campo que rellenas, que no es más segura: es inusable, y una inusable se apaga.
+//
+// Lo que SÍ gana, y por eso se hace:
+//
+//   · **el mismo formato que las otras tres** — lo que escribe una lo abre otra, que es la
+//     regla de las cuatro versiones y lo único que no se comprueba mirando una sola;
+//   · **una copia de recuperación** bajo contraseña, que antes no existía: si esta
+//     extensión se va (se desinstala, se borra el perfil del navegador), lo guardado se
+//     podía perder entero y ahora no;
+//   · y **destinatarios por entrada**, que es lo que hace falta para que un aparato del
+//     acta pueda pedirle credenciales a esta bóveda el día que se cablee.
+
+const RECOVERY_OF = (id) => `passmanager/recovery/${id}`
+
+/**
+ * Quién puede abrir lo de esta bóveda: los del acta con el permiso, **y ella misma
+ * siempre**.
+ *
+ * Lo segundo no es una excepción cómoda: `passwords` es el permiso que deja a OTRO aparato
+ * pedirle credenciales a una bóveda, y aquí el aparato es la bóveda. Pedírselo a sí misma
+ * no querría decir nada — y de hecho no lo tiene, porque en su propia cuenta este
+ * navegador es el master y nació con los permisos de siempre. Sin esto, convertir dejaba
+ * una bóveda que ni ella puede abrir (`not-yours` al pedir la llave del perfil).
+ */
+async function ownRecipientsOf (kind) {
+  const cap = kind === 'passkeys' ? 'passkeys' : 'passwords'
+  const { members } = await (await identityCore()).handlers.profileMembers({})
+  const lista = (members || [])
+    .filter((m) => m.encPub && ((m.caps || []).includes(cap) || m.isMe))
+    .map((m) => ({ pub: m.pub, encPub: m.encPub }))
+  if (!lista.length) {
+    throw new VaultError(CODES.NOT_ALLOWED,
+      'este navegador no tiene llave de cifrado en su propia acta: no hay a quién envolverle nada')
+  }
+  return lista
+}
+
+/** La bóveda sellada de un perfil propio, o `null` si todavía no se ha convertido. */
+async function ownSealed (id) {
+  const core = await identityCore()
+  const store = storeFor(id)
+  const rec = await store.get(RECOVERY_OF(id))
+  const sealed = new SealedStore(store, {
+    recipients: ownRecipientsOf,
+    // Quién puede escribir aquí: este mismo navegador —es SU bóveda— o un aparato del
+    // acta con `passwords`. Lo de «o él mismo» es por lo mismo que arriba: `passwords` es
+    // el permiso para pedirle a OTRO, y en su propia cuenta este navegador es el master y
+    // no lo lleva. La firma se comprueba en los dos casos; lo que cambia es quién vale.
+    verifyAuthor: async ({ body, author }) => {
+      const { members } = await core.handlers.profileMembers({})
+      const m = (members || []).find((x) => samePubkey(x.pub, author?.pub))
+      if (!m || !((m.caps || []).includes('passwords') || m.isMe)) return false
+      return verifyDeviceSig({ publickey: author.pub, data: body, signature: author.sig })
+    }
+  })
+  if (!hasRecovery(rec) || !(await sealed.sealed())) return { sealed, rec, listo: false }
+
+  const miPub = await identity.publickey()
+  const openSealed = ({ wrap, envelope }) => core.handlers.openSealedValue({ wrap, envelope })
+  const author = { publickey: miPub, sign: (b) => core.handlers.signData({ data: b }) }
+  const recipients = async () => ({
+    recoveryPub: recoveryPubOf(rec),
+    main: await ownRecipientsOf('main'),
+    passkeys: await ownRecipientsOf('passkeys')
+  })
+  const keys = async () => {
+    const { envelope, wrap } = await sealed.profile({ pub: miPub })
+    return profileKeys(await openSealed({ wrap, envelope }))
+  }
+  const vault = new SealedLocalVault(sealed, { readerPub: miPub, openSealed, author, recipients, keys })
+  return { sealed, rec, listo: true, vault }
+}
+
+/**
+ * CONVERTIR esta bóveda, con la contraseña que el usuario acaba de elegir. Es un acto
+ * único y hace falta la llave vieja, que sigue en IndexedDB hasta que esto termina.
+ */
+async function ownConvert ({ password } = {}) {
+  const prof = await activeProfile()
+  if (prof.kind !== 'own') throw new VaultError(CODES.NOT_ALLOWED, 'esta cuenta no tiene bóveda propia')
+  const core = await identityCore()
+  const store = storeFor(prof.id)
+  let { sealed, rec } = await ownSealed(prof.id)
+  if (!hasRecovery(rec)) {
+    const hecha = await makeRecovery({ password })
+    rec = hecha.record
+    await store.set(RECOVERY_OF(prof.id), rec)
+  } else {
+    // Ya había copia: se comprueba que la contraseña es la suya antes de seguir, para no
+    // dejar media bóveda convertida bajo una contraseña que nadie sabe.
+    await openRecovery({ record: rec, password })
+  }
+  const miPub = await identity.publickey()
+  const r = await convertToSealed({
+    store,
+    sealed,
+    cek: await ownKey(prof.id),
+    recipients: {
+      recoveryPub: recoveryPubOf(rec),
+      main: await ownRecipientsOf('main'),
+      passkeys: await ownRecipientsOf('passkeys')
+    },
+    author: { publickey: miPub, sign: (b) => core.handlers.signData({ data: b }) },
+    dropOldKey: () => keyStore('readwrite', (s) => s.delete(keyFor(prof.id, 'cek'))),
+    legacyKey: 'passmanager/entries/v1'
+  })
+  dropOpen()
+  return { ok: true, entries: r.entries }
+}
+
+/** ¿Hay que convertir esta cuenta? Lo pregunta el gestor para enseñar su pantalla. */
+async function ownNeedsConvert () {
+  const prof = await activeProfile()
+  if (prof.kind !== 'own') return { needs: false }
+  const { listo } = await ownSealed(prof.id)
+  return { needs: !listo }
+}
+
 /**
  * La propia CON LA PUERTA PUESTA, que es la única forma en que el gestor la ve.
  *
@@ -134,7 +269,11 @@ async function ownVault (id) {
  * aparato, no en una regla nueva de aquí.
  */
 async function ownGuarded (id) {
-  const inner = await ownVault(id)
+  const { listo, vault: sellada } = await ownSealed(id)
+  // Sin convertir no se atiende: servir con la llave vieja «mientras tanto» sería el
+  // mismo agujero con otro nombre. El gestor lo ve por este código y pide la contraseña.
+  if (!listo) throw new VaultError(CODES.NOT_ALLOWED, 'passwords-not-sealed: open the vault to convert')
+  const inner = sellada
   const gate = new ApprovalGate({
     ask: ({ op, payload }) => askApproval({ op, payload, vault: inner }),
     remember: false,
@@ -1371,6 +1510,9 @@ const OPS = {
   sites: () => sitesOf(),
   approvals: () => approvalsList(),
   'identity-refresh': () => refreshIdentity(),
+  // La cuarta bóveda del ecosistema, convirtiéndose (`sealed-passwords.md` §2.7).
+  'sealed-needs': () => ownNeedsConvert(),
+  'sealed-convert': (p) => ownConvert(p),
   'approvals-answer': p => approvalsAnswer(p),
   'entry-view': p => entryView(p),
   'entry-diff': p => entryDiff(p),

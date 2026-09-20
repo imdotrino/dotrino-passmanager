@@ -21,6 +21,8 @@ import { fileURLToPath } from 'node:url'
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
 
+import { convertirBoveda } from './_boveda.mjs'
+
 const EXT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SITE = process.env.SITE || 'http://localhost:8099'
 const perfil = await mkdtemp(join(tmpdir(), 'pm-gestor-'))
@@ -44,6 +46,16 @@ async function popup () {
 }
 const pedir = async (op, payload) => (await popup()).evaluate(([op, payload]) => new Promise((r) =>
   chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
+
+/**
+ * LO PRIMERO, COMO PARA UN USUARIO: convertir esta bóveda al formato sellado.
+ *
+ * Desde `sealed-passwords.md` §2.7 la bóveda propia de la extensión guarda sobres que
+ * necesitan su copia de recuperación, y sin convertir **no atiende** — a propósito, porque
+ * servir con la llave vieja mientras tanto sería el mismo agujero con otro nombre. Así que
+ * aquí se hace lo que hace la pantalla: elegir la contraseña una vez.
+ */
+await convertirBoveda(pedir, ok)
 
 const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('   [error de página]', e.message))

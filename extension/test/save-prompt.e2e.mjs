@@ -14,6 +14,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { convertirBoveda } from './_boveda.mjs'
 
 // `PLAYWRIGHT` puede apuntar a un archivo (el paquete de otro repo), y por ahí Playwright
 // llega como CommonJS: `chromium` viene colgado del `default`, no como export con nombre.
@@ -53,6 +54,9 @@ try {
   await ext.goto(`chrome-extension://${id}/src/popup.html`)
   const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
+
+  // Lo primero, como un usuario: esta bóveda no atiende hasta convertirse (§2.7).
+  await convertirBoveda(pedir)
 
   /**
    * ABRIR una entrada diciendo que sí. La bóveda pide autorización antes de soltar nada

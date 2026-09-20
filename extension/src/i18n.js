@@ -3,6 +3,17 @@ const STRINGS = {
   es: {
     // --- entrar con usuario y contraseña (docs/temporary-access.md) ---
     // --- entrar con usuario y contraseña, desde aquí ---
+    // --- convertir la bóveda propia al formato sellado (sealed-passwords.md) ---
+    cvTitle: 'Elige la contraseña de tus contraseñas',
+    cvWhy: 'Desde ahora esta extensión guarda tus contraseñas cerradas, y solo las abre con la llave de esta cuenta. Esta contraseña es la copia de recuperación: lo único que puede volver a abrirlas si esta extensión se va.',
+    cvWarn: 'No se puede recuperar. Si la pierdes, pierdes la copia.',
+    cvPw1: 'Contraseña',
+    cvPw2: 'Otra vez',
+    cvGo: 'Crear',
+    cvWorking: 'Convirtiendo…',
+    cvShort: 'Tiene que tener al menos 12 caracteres.',
+    cvMismatch: 'No coinciden.',
+    cvDone: (n) => n ? `Listo: ${n} entrada${n === 1 ? '' : 's'} pasada${n === 1 ? '' : 's'} al formato nuevo.` : 'Listo.',
     inTitle: 'Entrar con usuario y contraseña',
     inWhat: 'Escribe la dirección de un aparato de tu cuenta y su contraseña. Este navegador pasa a ser ese aparato.',
     inEnter: 'Entrar',
@@ -201,6 +212,16 @@ const STRINGS = {
     notesLabel: 'Notas',
   },
   en: {
+    cvTitle: 'Choose the password for your passwords',
+    cvWhy: 'From now on this extension keeps your passwords sealed, and only opens them with this account key. This password is the recovery copy: the only thing that can open them again if this extension goes away.',
+    cvWarn: 'It cannot be recovered. If you lose it, you lose the copy.',
+    cvPw1: 'Password',
+    cvPw2: 'Again',
+    cvGo: 'Create',
+    cvWorking: 'Converting…',
+    cvShort: 'It must be at least 12 characters.',
+    cvMismatch: 'They do not match.',
+    cvDone: (n) => n ? `Done: ${n} entr${n === 1 ? 'y' : 'ies'} moved to the new format.` : 'Done.',
     inTitle: 'Sign in with a username and password',
     inWhat: 'Type the address of one of your account devices and its password. This browser becomes that device.',
     inEnter: 'Sign in',
