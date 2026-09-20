@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>opaque</title></head>
+<body>
+<!--
+  LA PÁGINA SANDBOX: aquí y solo aquí corre el WASM de OPAQUE.
+                                                                                        
+  Por qué existe: MV3 bloquea instanciar WebAssembly con su CSP por defecto, y la salida
+  fácil —declarar `wasm-unsafe-eval` para TODAS las páginas de la extensión— abre la puerta
+  en sitios donde no hace falta. Una página sandbox tiene su PROPIA CSP, así que el permiso
+  se queda acotado a esta, que es la única que lo necesita.
+
+  Lo que hay aquí dentro es solo cálculo: entran cadenas, salen cadenas. No tiene acceso a
+  `chrome.*`, no guarda nada, y no es `web_accessible_resource` — así que no la puede
+  embeber ninguna página de internet: solo el gestor, que es quien la crea.
+-->
+<script type="module" src="opaque-sandbox.js"></script>
+</body>
+</html>

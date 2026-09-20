@@ -21,10 +21,6 @@
 
 import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { SealedVault } from './vendor/passmanager/vault/sealed.js'
-import {
-  listLogins, addLogin, passwdLogin, closeLogin, unblockLogin, removeLogin,
-  serveLogins, stopServing, serving
-} from './logins.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { GuardedVault } from './vendor/passmanager/vault/guard.js'
 import { ApprovalGate } from './vendor/passmanager/vault/approval.js'
@@ -1379,26 +1375,15 @@ const OPS = {
   'default-set': p => setDefault(p),
   get: async p => getEntry(await connect(), p.id, p.keys),
   put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
-  // ENTRAR CON USUARIO Y CONTRASEÑA (`docs/temporary-access.md`). Crear y administrar es
-  // local y funciona siempre; ATENDER solo mientras este worker esté despierto, que es la
-  // limitación de MV3 y está dicha en `logins.js`.
-  logins: () => listLogins(),
-  'logins-add': p => addLogin(p),
-  'logins-passwd': p => passwdLogin(p),
-  'logins-close': p => closeLogin(p),
-  'logins-unblock': p => unblockLogin(p),
-  'logins-remove': p => removeLogin(p),
-  'logins-serve': p => serveLogins(p || {}),
-  'logins-stop': () => stopServing(),
-  'logins-serving': async () => ({ serving: await serving() }),
 }
 
 /**
- * LO QUE EL DOCUMENTO OFFSCREEN LE PIDE A LA IDENTIDAD.
+ * LO QUE LA PANTALLA DE INICIOS DE SESIÓN LE PIDE A LA IDENTIDAD.
  *
  * El núcleo vive aquí y no puede haber dos sobre el mismo almacén (`identity-core.js`), así
- * que el offscreen —que tiene el WASM y el socket— pide por mensaje lo que necesita de ella.
- * **Ninguna llave privada cruza**: se pide una firma, no la llave.
+ * que la página del gestor —que es donde corren el OPAQUE y el socket, porque un worker no
+ * puede embeber el sandbox ni sostener una conexión— pide por mensaje lo que necesita de
+ * ella. **Ninguna llave privada cruza**: se pide una firma, no la llave.
  *
  * Solo lo atiende lo que venga de la propia extensión; el filtro de origen de abajo ya lo
  * garantiza, y estas operaciones no están en la lista que puede pedir una página.
@@ -1421,9 +1406,6 @@ const ID_OPS = {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Lo dirigido al OFFSCREEN no es de aquí: lo contesta él. Sin esto, este oyente
-  // respondería `unknown-op` a la vez que el otro responde bien, y gana el que llegue antes.
-  if (msg?.target === 'offscreen') return false
   const op = ID_OPS[msg?.op] || OPS[msg?.op]
   if (!op) { sendResponse({ error: { code: 'unknown-op' } }); return false }
 

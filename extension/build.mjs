@@ -56,6 +56,18 @@ for (const f of ['passwordLogins.js', 'enroll.js', 'index.js']) {
     .replace(/from '@dotrino\/identity\/acta'/g, "from '../identity/acta.js'")
     .replace(/from '@dotrino\/opaque'/g, "from '../opaque/index.js'"))
 }
+// Y EL MOSTRADOR NO SE TRAE EL WASM. En la extensión el OPAQUE se INYECTA —vive en la
+// página sandbox, que es la única que puede instanciarlo—, así que importar aquí los 268 KB
+// del módulo sería meterlos en una página que ni siquiera podría usarlos. Se sustituye por
+// algo que lo dice si alguien lo llama sin inyectar nada.
+{
+  const ruta = join(vendor, 'vault/passwordLogins.js')
+  await writeFile(ruta, (await readFile(ruta, 'utf8')).replace(
+    "import { server as opaquePorDefecto, suiteId as suitePorDefecto } from '../opaque/index.js'",
+    'const fuera = () => { throw new Error("opaque: inject it (in the extension it lives in the sandbox page: opaque-bridge.js)") }\n' +
+    'const opaquePorDefecto = new Proxy({}, { get: () => fuera })\n' +
+    'const suitePorDefecto = fuera'))
+}
 // UN SERVICE WORKER NO ADMITE `import()` DINÁMICO (lo prohíbe la especificación). El
 // mostrador carga así el alta —en una página es lo correcto, porque arrastra el WASM— y
 // aquí hay que dejarlo estático.
@@ -265,9 +277,9 @@ async function verificarGrafo (entradas) {
 
 const cuantos = await verificarGrafo([
   join(here, 'src/background.js'),
-  // El documento offscreen es OTRA entrada: de él cuelgan el OPAQUE, el mostrador y el
-  // transporte, y si sus imports no resuelven no arranca — en silencio, porque no se ve.
-  join(here, 'src/offscreen.js'),
+  // La página SANDBOX es otra entrada: de ella cuelga el WASM de OPAQUE, y si su import no
+  // resuelve no arranca en silencio — es un iframe oculto, no se ve que falta.
+  join(here, 'src/opaque-sandbox.js'),
   join(here, 'src/content.js'),
   join(here, 'src/detect.js'),
   join(here, 'src/ui.js'),

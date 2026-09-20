@@ -28,6 +28,10 @@ import { wireTopbar } from './profile-card.js'
 // saca nada—, pero sí si el usuario copia algo desde aquí más adelante): la pregunta sale
 // en esta misma página, como en el resto de pantallas de la extensión.
 import { hostApprovals } from './approval.js'
+// ENTRAR CON USUARIO Y CONTRASEÑA. Corre EN ESTA PÁGINA y no en el service worker: el
+// OPAQUE vive en una página sandbox —que un worker no puede embeber— y el socket aguanta lo
+// que aguante esta pestaña, que es mucho más que los 30 s de un worker.
+import * as logins from './logins.js'
 
 hostApprovals()
 
@@ -718,7 +722,7 @@ async function renderLogins () {
   const pinta = async () => {
     lista.replaceChildren()
     let filas = []
-    try { filas = await ask('logins') } catch (e) { msg.textContent = humanError(e); return }
+    try { filas = await logins.listLogins() } catch (e) { msg.textContent = humanError(e); return }
     if (!filas.length) { lista.append(el('p', { className: 'hint', textContent: t(lang, 'lgNone') })); return }
     for (const l of filas) lista.append(fila(l))
   }
@@ -739,9 +743,9 @@ async function renderLogins () {
     ])
 
     const cerrar = el('button', { className: 'btn ghost sm', textContent: t(lang, 'lgCloseAll'), disabled: !l.sessions.length })
-    cerrar.onclick = () => correr(() => ask('logins-close', { user: l.user }))
+    cerrar.onclick = () => correr(() => logins.closeLogin({ user: l.user }))
     const desbloquear = el('button', { className: 'btn ghost sm', textContent: t(lang, 'lgUnblock'), disabled: !espera })
-    desbloquear.onclick = () => correr(() => ask('logins-unblock', { user: l.user }))
+    desbloquear.onclick = () => correr(() => logins.unblockLogin({ user: l.user }))
 
     const vieja = el('input', { type: 'password', placeholder: t(lang, 'lgOld'), autocomplete: 'off' })
     const nueva = el('input', { type: 'password', placeholder: t(lang, 'lgNew'), autocomplete: 'new-password' })
@@ -749,7 +753,7 @@ async function renderLogins () {
     const formPass = el('div', { className: 'lg-pass', hidden: true }, [vieja, nueva,
       el('button', { className: 'btn sm', textContent: t(lang, 'lgPasswd'), onclick: () => correr(async () => {
         if (nueva.value.length < 12) throw Object.assign(new Error(t(lang, 'lgShort')), { code: 'weak-password' })
-        await ask('logins-passwd', { user: l.user, oldPassword: vieja.value, newPassword: nueva.value })
+        await logins.passwdLogin({ user: l.user, oldPassword: vieja.value, newPassword: nueva.value })
         vieja.value = ''; nueva.value = ''; formPass.hidden = true
       }) })])
     cambiar.onclick = () => { formPass.hidden = !formPass.hidden }
@@ -758,7 +762,7 @@ async function renderLogins () {
     const seguro = el('div', { className: 'lg-sure', hidden: true }, [
       el('span', { textContent: t(lang, 'lgRemoveSure', l.user) }),
       el('button', { className: 'btn sm danger', textContent: t(lang, 'lgRemove'),
-        onclick: () => correr(() => ask('logins-remove', { user: l.user })) }),
+        onclick: () => correr(() => logins.removeLogin({ user: l.user })) }),
       el('button', { className: 'btn ghost sm', textContent: t(lang, 'cancel'), onclick: () => { seguro.hidden = true } })
     ])
     const quitar = el('button', { className: 'btn ghost sm danger', textContent: t(lang, 'lgRemove') })
@@ -799,7 +803,7 @@ async function renderLogins () {
   crear.onclick = () => correr(async () => {
     if (pass.value.length < 12) throw Object.assign(new Error(t(lang, 'lgShort')), { code: 'weak-password' })
     if (pass.value !== pass2.value) throw Object.assign(new Error(t(lang, 'lgMismatch')), { code: 'mismatch' })
-    const r = await ask('logins-add', {
+    const r = await logins.addLogin({
       user: usuario.value.trim().toLowerCase(),
       password: pass.value,
       label: equipo.value.trim(),
@@ -810,13 +814,13 @@ async function renderLogins () {
   })
 
   // --- atender ---
-  const estado = await ask('logins-serving').catch(() => ({ serving: false }))
+  const estado = { serving: logins.serving() }
   const atender = el('button', {
     className: 'btn ghost',
     textContent: estado.serving ? t(lang, 'lgStop') : t(lang, 'lgServe')
   })
   atender.onclick = () => correr(async () => {
-    if (estado.serving) { await ask('logins-stop'); estado.serving = false } else { await ask('logins-serve'); estado.serving = true }
+    if (estado.serving) { logins.stopServing(); estado.serving = false } else { await logins.serveLogins({}); estado.serving = true }
     atender.textContent = estado.serving ? t(lang, 'lgStop') : t(lang, 'lgServe')
   })
 

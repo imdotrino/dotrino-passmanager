@@ -4,7 +4,7 @@ const STRINGS = {
     // --- entrar con usuario y contraseña (docs/temporary-access.md) ---
     lgTitle: 'Entrar con usuario y contraseña',
     lgIntro: 'Un aparato de tu cuenta que se abre escribiendo una dirección y una contraseña, sin conectar nada. Sirve para entrar desde un equipo prestado.',
-    lgWorker: 'Mientras esté atendiendo, otro equipo puede entrar aunque cierres esta pestaña: la conexión no vive en ella. Lo que sí la corta es cerrar el navegador — la bóveda que está encendida siempre es la de tu computadora.',
+    lgWorker: 'Crear y administrar funciona siempre. Para que alguien pueda ENTRAR desde otro equipo hay que pulsar «Atender» y dejar esta pestaña abierta: la conexión vive en ella. La bóveda que está encendida siempre es la de tu computadora.',
     lgNone: 'No hay ninguno.',
     lgUser: 'Usuario',
     lgFor: 'Para qué equipo',
@@ -182,7 +182,7 @@ const STRINGS = {
   en: {
     lgTitle: 'Sign in with a username and password',
     lgIntro: 'A device of your account that opens by typing an address and a password, with nothing to connect. It is how you sign in from a borrowed computer.',
-    lgWorker: 'While it is answering, another computer can sign in even if you close this tab: the connection does not live in it. What does cut it is closing the browser — the vault that is always on is the one on your computer.',
+    lgWorker: 'Creating and managing always works. For someone to SIGN IN from another computer you have to press “Answer” and leave this tab open: the connection lives in it. The vault that is always on is the one on your computer.',
     lgNone: 'There are none.',
     lgUser: 'Username',
     lgFor: 'For which computer',
