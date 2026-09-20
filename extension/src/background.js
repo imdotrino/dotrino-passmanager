@@ -335,6 +335,10 @@ async function listProfiles () {
     pubkey: p.pubkey || null,
     current: !!p.current,
     kind: (await pmOf(p.id)).kind,
+    // Un perfil que se abrió con usuario y contraseña se dice: es lo que hace que el menú
+    // del botón de perfil ponga «Salir» en vez de «Iniciar sesión». Se estaba tirando aquí,
+    // así que en la extensión no había forma de salir.
+    ...(p.login ? { login: p.login } : {}),
   })))
 }
 
@@ -1402,7 +1406,14 @@ const ID_OPS = {
   'id.revokeDevice': async ({ sub }) => (await identityCore()).handlers.revokeDevice({ sub }),
   'id.admitMember': async (m) => (await identityCore()).handlers.admitMember(m),
   'id.profileActa': async () => (await identityCore()).handlers.profileActa({}),
-  'id.joinProfile': async ({ acta }) => (await identityCore()).handlers.joinProfile({ acta })
+  'id.joinProfile': async ({ acta }) => (await identityCore()).handlers.joinProfile({ acta }),
+  // Las dos mitades de ENTRAR CON CONTRASEÑA que son del núcleo. La otra mitad —hablar con
+  // la bóveda— la hace la página, que es la única que puede con el WASM y con un socket.
+  'id.adoptLogin': ({ entrada, remember, proxy }) => identity.adoptLogin(entrada, { remember, proxy }),
+  // Lo que la página necesita para AVISAR a la bóveda de que se va: quién es esta sesión y
+  // por dónde. La llave NO sale de aquí — la página firma pidiendo `id.signData`.
+  'id.loginMeta': () => identity.loginMeta(),
+  'id.logoutLogin': ({ id = null } = {}) => identity.leaveLogin(id)
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

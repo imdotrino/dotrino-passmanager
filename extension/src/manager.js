@@ -839,10 +839,82 @@ async function renderLogins () {
   await pinta()
 }
 
+// --- ENTRAR con usuario y contraseña ------------------------------------------
+
+/**
+ * LA OTRA MITAD: entrar en una cuenta tuya desde ESTE navegador, que no la conoce.
+ *
+ * Se escribe `nombre@AB12-CD34-EF56` y la contraseña; al volver, el gestor es un aparato
+ * de esa cuenta. La contraseña no viaja —viajan los mensajes de OPAQUE— y la conversación
+ * corre en esta página, no en el service worker, por lo mismo de siempre: el WASM vive en
+ * la página sandbox y un worker no puede sostener un socket.
+ *
+ * Está en el GESTOR y no en el popup a propósito: el popup se cierra al pulsar fuera, y
+ * eso a mitad de un inicio de sesión deja la cuenta a medias en la bóveda. Misma razón por
+ * la que atender abre una pestaña.
+ */
+async function renderLogin () {
+  const volver = el('button', { className: 'link', textContent: t(lang, 'lgBack') })
+  volver.onclick = () => ir({})
+
+  const dir = el('input', {
+    type: 'text', className: 'lg-addr', placeholder: 'nombre@AB12-CD34-EF56',
+    autocomplete: 'username', spellcheck: false, autocapitalize: 'none'
+  })
+  dir.dataset.testid = 'login-address'
+  const pass = el('input', { type: 'password', placeholder: t(lang, 'inPassword'), autocomplete: 'current-password' })
+  pass.dataset.testid = 'login-password'
+
+  // «Recordar» NACE APAGADO, y es lo correcto en un equipo prestado: sin él la cuenta vive
+  // en memoria y se va al cerrar. Marcarlo tiene que ser un acto, no un valor heredado.
+  const recordar = el('input', { type: 'checkbox' })
+  recordar.dataset.testid = 'login-remember'
+  const msg = el('p', { className: 'hint' })
+
+  const entrar = el('button', { className: 'btn', textContent: t(lang, 'inEnter') })
+  entrar.dataset.testid = 'login-go'
+  entrar.onclick = async () => {
+    msg.className = 'hint'
+    if (!dir.value.trim() || !pass.value) { msg.textContent = t(lang, 'inNeed'); return }
+    entrar.disabled = true
+    msg.textContent = t(lang, 'inGoing')
+    try {
+      const r = await logins.enterWithPassword({
+        address: dir.value.trim(),
+        password: pass.value,
+        remember: recordar.checked,
+        label: t(lang, 'inLabel')
+      })
+      // La contraseña se va de la pantalla en cuanto deja de hacer falta.
+      pass.value = ''
+      msg.textContent = t(lang, 'inDone', r.user || '')
+      // El perfil activo cambió: se vuelve a la lista, que ya es la de la cuenta nueva.
+      setTimeout(() => ir({}), 900)
+    } catch (e) {
+      msg.className = 'hint err'
+      msg.textContent = humanError(e)
+      entrar.disabled = false
+    }
+  }
+
+  view.replaceChildren(
+    el('h2', { textContent: t(lang, 'inTitle') }),
+    el('p', { className: 'hint', textContent: t(lang, 'inWhat') }),
+    dir,
+    pass,
+    el('label', { className: 'lg-remember' }, [recordar, el('span', { textContent: t(lang, 'inRemember') })]),
+    el('p', { className: 'hint', textContent: t(lang, 'inRememberHint') }),
+    el('div', { className: 'row' }, [entrar, volver]),
+    msg
+  )
+  dir.focus()
+}
+
 // --- arranque -----------------------------------------------------------------
 
 function render () {
   const { id, view } = ruta()
+  if (view === 'login') return renderLogin()
   if (view === 'logins') return renderLogins()
   return id ? renderRecord(id) : renderList()
 }

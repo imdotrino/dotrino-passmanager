@@ -50,6 +50,40 @@ async function hydratedKv (prefix = 'identity/') {
   }
 }
 
+/**
+ * EL KV DE SESIÓN, que es lo que hace posible una CUENTA DE PASO aquí.
+ *
+ * En una pestaña, una cuenta de paso la reclama `sessionStorage` y muere con la pestaña.
+ * Un service worker no tiene pestaña ni `sessionStorage` — y, peor, **se duerme a los 30 s
+ * y pierde la memoria**, así que tenerla solo en RAM dejaba al usuario fuera sin tocar
+ * nada. `chrome.storage.session` es el equivalente exacto: vive en memoria, NO se escribe
+ * en el disco y se vacía al cerrar el navegador. Y como el núcleo nunca barre la cuenta
+ * RECLAMADA, sobrevive a que el worker se duerma y despierte.
+ *
+ * Que esto no exista no es un detalle: sin él, la cuenta se barre al despertar y la llave
+ * se borra. Por eso aquí se espera a hidratarlo, como el otro.
+ */
+async function hydratedSessionKv (prefix = 'identity.session/') {
+  const all = await chrome.storage.session.get(null)
+  const mem = new Map()
+  for (const [k, v] of Object.entries(all)) {
+    if (k.startsWith(prefix)) mem.set(k.slice(prefix.length), v)
+  }
+  let pending = Promise.resolve()
+  const flush = (k, v) => {
+    pending = pending.then(() => (v === undefined
+      ? chrome.storage.session.remove(prefix + k)
+      : chrome.storage.session.set({ [prefix + k]: v })))
+    pending.catch(e => console.error('[identity] no se pudo guardar la sesión «%s»: %s', k, e?.message || e))
+  }
+  return {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); flush(k, String(v)) },
+    removeItem: (k) => { mem.delete(k); flush(k, undefined) },
+    get flushed () { return pending },
+  }
+}
+
 /** Las CryptoKeys no extraíbles: IndexedDB las clona sin exportarlas. */
 function makeKeyStore (dbName = 'dotrino-identity-keys') {
   const idb = (mode, fn) => new Promise((resolve, reject) => {
@@ -99,6 +133,7 @@ function makePeers (kv) {
 
 let core = null
 let kv = null
+let sessionKv = null
 let booting = null
 
 /** El núcleo de identidad de esta extensión, uno solo, con el perfil activo abierto. */
@@ -108,8 +143,10 @@ export async function identityCore () {
   // mismo almacén se pisarían las llaves.
   booting ||= (async () => {
     kv = await hydratedKv()
+    sessionKv = await hydratedSessionKv()
     core = await createIdentityCore({
       kv,
+      sessionKv,
       peers: makePeers(kv),
       keyStore: makeKeyStore(),
       // Sin sincronización con Drive: el gestor no la usa y arrastraría DOM.
@@ -173,6 +210,65 @@ export const identity = {
     await handlers.deleteProfile({ id })
     await restart()
   },
+  // ----- ENTRAR CON USUARIO Y CONTRASEÑA (`docs/temporary-access.md`) ---------
+  //
+  // La CONVERSACIÓN con la bóveda no está aquí: vive en la página (`logins.js`), porque el
+  // OPAQUE es WASM y en una extensión eso solo corre en la página sandbox. Aquí llega ya
+  // resuelto —el aparato, su papel y su acta— y lo único que queda es la segunda mitad:
+  // instalarlo como una cuenta más de este navegador.
+  //
+  // Es `core.adoptLogin` y no un handler a propósito: el núcleo no deja que una aplicación
+  // instale una identidad. Aquí quien llama es la propia extensión.
+
+  /**
+   * Adopta lo que devolvió `loginWithPassword`. Con `remember: false` —lo normal en un
+   * equipo prestado— la cuenta vive en memoria y se va al cerrar.
+   */
+  async adoptLogin (entrada, { remember = false, proxy = null } = {}) {
+    const c = await identityCore()
+    const r = await c.adoptLogin(entrada, { remember, proxy })
+    // AQUÍ NO SE REARRANCA EL NÚCLEO, y es justo lo contrario de lo que parece.
+    //
+    // `switchProfile` sí obliga a rearrancar porque solo mueve un puntero en el kv y el
+    // núcleo ya tiene otro perfil abierto. `adoptLogin` no: abre la cuenta nueva él mismo,
+    // dentro. Rearrancar tiraba el núcleo con la cuenta de paso dentro —vive en su memoria
+    // a propósito, no en la lista del disco— y el navegador volvía a la cuenta de antes
+    // como si no hubieras entrado. Costó verlo porque no falla: entra bien y no pasa nada.
+    await kv?.flushed
+    await sessionKv?.flushed
+    return r
+  },
+
+  /**
+   * De qué inicio de sesión se trata el perfil ACTIVO, o `null` si no se entró con
+   * contraseña. Lo pide la página para avisar a la bóveda antes de salir: aquí no hay
+   * socket, y el aviso es lo que suelta la plaza al otro lado.
+   */
+  async loginMeta () {
+    const { handlers } = await identityCore()
+    const list = await handlers.listProfiles()
+    const p = list.find((x) => x.current)
+    if (!p?.login) return null
+    // La lista solo trae lo que se enseña (`user`, `address`, si es de paso). Para AVISAR
+    // hacen falta además el `sid` y el proxio, que están en el registro del perfil — y el
+    // registro está acotado a su cuenta, de ahí el `p.<pid>.` por delante.
+    let meta = null
+    try { meta = JSON.parse(kv.getItem(`dotrino.identity.p.${p.id}.login`) || 'null') } catch (_) {}
+    if (!meta?.sid) return null
+    const c = await identityCore()
+    return { ...meta, id: p.id, publickey: c.me?.publickey || null }
+  },
+
+  /** Salir: se le avisa a la bóveda y la cuenta desaparece de este navegador. */
+  async leaveLogin (id = null) {
+    const { handlers } = await identityCore()
+    const r = await handlers.logoutLogin({ id })
+    // Tampoco: salir también deja el núcleo en la cuenta a la que se vuelve.
+    await kv?.flushed
+    await sessionKv?.flushed
+    return r
+  },
+
   // ----- EL PERFIL: nombre, foto, redes, datos (CONVENCIONES §6.1) ------------
   //
   // Lo edita `<dotrino-profile>`, el componente del ecosistema, desde el gestor. El núcleo

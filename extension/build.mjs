@@ -35,10 +35,13 @@ console.log('vendor: sealed/* → la copia de @dotrino/identity/content')
 // (`@dotrino/vault`) y el OPAQUE que comprueba la contraseña sin verla.
 //
 // El OPAQUE es WASM —sale de `opaque-ke`, que es Rust— y MV3 bloquea instanciarlo con su
-// CSP por defecto. Por eso el manifiesto declara `'wasm-unsafe-eval'`: NO habilita `eval()`
-// de JavaScript ni código remoto, solo deja instanciar el módulo que ya viaja aquí dentro
-// (`build/wasm-bytes.js`, dentro del propio JS).
-for (const f of ['passwordLogins.js', 'enroll.js', 'protocol.js', 'index.js']) {
+// CSP por defecto. La extensión NO se la abre a todas sus páginas: el WASM vive en UNA
+// página sandbox (`src/opaque-sandbox.html`), que tiene su propia CSP, y el resto le habla
+// por `postMessage` (`opaque-bridge.js`). Así no hace falta ni `'wasm-unsafe-eval'` global
+// ni el permiso `offscreen` — un documento offscreen ES una página de la extensión y lleva
+// su misma CSP, así que no habría ahorrado nada. Probado en un Chrome de verdad:
+// `npm run test:opaque`.
+for (const f of ['passwordLogins.js', 'loginClient.js', 'enroll.js', 'protocol.js', 'index.js']) {
   await cp(join(here, '../../dotrino-vault/lib/src/', f), join(vendor, 'vault/', f))
 }
 await cp(join(here, '../../dotrino-opaque/src/index.js'), join(vendor, 'opaque/index.js'))
@@ -49,7 +52,7 @@ for (const f of ['opaque.js', 'wasm-bytes.js']) {
 console.log('vendor: @dotrino/{vault,opaque} → extension/src/vendor/ (usuario y contraseña)')
 
 // Los imports desnudos de esas copias pasan a ser las que viajan al lado.
-for (const f of ['passwordLogins.js', 'enroll.js', 'index.js']) {
+for (const f of ['passwordLogins.js', 'loginClient.js', 'enroll.js', 'index.js']) {
   const ruta = join(vendor, 'vault/', f)
   await writeFile(ruta, (await readFile(ruta, 'utf8'))
     .replace(/from '@dotrino\/identity\/capabilities'/g, "from '../identity/capabilities.js'")
@@ -60,13 +63,20 @@ for (const f of ['passwordLogins.js', 'enroll.js', 'index.js']) {
 // página sandbox, que es la única que puede instanciarlo—, así que importar aquí los 268 KB
 // del módulo sería meterlos en una página que ni siquiera podría usarlos. Se sustituye por
 // algo que lo dice si alguien lo llama sin inyectar nada.
+const SIN_WASM = 'const fuera = () => { throw new Error("opaque: inject it (in the extension it lives in the sandbox page: opaque-bridge.js)") }\n' +
+  'const opaquePorDefecto = new Proxy({}, { get: () => fuera })\n'
 {
   const ruta = join(vendor, 'vault/passwordLogins.js')
   await writeFile(ruta, (await readFile(ruta, 'utf8')).replace(
     "import { server as opaquePorDefecto, suiteId as suitePorDefecto } from '../opaque/index.js'",
-    'const fuera = () => { throw new Error("opaque: inject it (in the extension it lives in the sandbox page: opaque-bridge.js)") }\n' +
-    'const opaquePorDefecto = new Proxy({}, { get: () => fuera })\n' +
-    'const suitePorDefecto = fuera'))
+    SIN_WASM + 'const suitePorDefecto = fuera'))
+}
+// Lo mismo del lado de quien ENTRA: `loginWithPassword` también acepta el OPAQUE inyectado
+// (`@dotrino/vault` 0.69.0) y aquí siempre se le pasa el del puente.
+{
+  const ruta = join(vendor, 'vault/loginClient.js')
+  await writeFile(ruta, (await readFile(ruta, 'utf8')).replace(
+    "import { client as opaquePorDefecto } from '../opaque/index.js'", SIN_WASM))
 }
 // UN SERVICE WORKER NO ADMITE `import()` DINÁMICO (lo prohíbe la especificación). El
 // mostrador carga así el alta —en una página es lo correcto, porque arrastra el WASM— y

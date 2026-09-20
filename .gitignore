@@ -5,3 +5,6 @@ dist/
 package-lock.json
 # La llave que firma el .crx: vive en ~/.dotrino/keys, nunca aquí.
 *.pem
+
+# Lo deja el proxio de verdad que levanta `npm run test:login` (escribe en el cwd).
+usage-stats.json

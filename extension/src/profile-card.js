@@ -40,8 +40,16 @@ export function profileProvider (ask) {
         avatar: p.avatar || null,
         pubkey: p.pubkey || p.id,
         current: !!p.current,
+        // Con esto el componente sabe que de ESTA cuenta se puede salir.
+        ...(p.login ? { login: p.login } : {}),
       }))
     },
+    /**
+     * SALIR del inicio de sesión con contraseña. El componente solo enseña «Salir» si esto
+     * existe; sin ello enseñaba un enlace a la página del perfil, que en la extensión es
+     * otra identidad y no sabe cerrar nada de aquí.
+     */
+    async logoutLogin () { return ask('id.logoutLogin', {}) },
 
     /** El registro completo del perfil activo: foto, redes, datos. */
     async getMyProfile () { return (await ask('profile-get')) || {} },
@@ -88,6 +96,11 @@ export function wireTopbar (ask) {
   barra.setAttribute('profile-href', pagina('profile'))
   barra.setAttribute('profile-new-href', pagina('profile') + '#new')
   barra.setAttribute('profile-adopt-href', pagina('profile') + '#adopt')
+  // «Iniciar sesión» va al GESTOR, no a la página del perfil: entrar habla con una bóveda
+  // por el socket y necesita el OPAQUE del sandbox, y eso vive en el gestor. Sin esta línea
+  // el menú caía en `profile.dotrino.com/login`, que es OTRA identidad —justo el caso que
+  // avisa CONVENCIONES §6.1— y habría entrado en la cuenta equivocada.
+  barra.setAttribute('profile-login-href', pagina('manager') + '#view=login')
   // En OTRA pestaña: en el popup, navegar mete el perfil dentro de una ventanita de 400px,
   // y en el gestor te lleva fuera y pierdes donde estabas.
   barra.setAttribute('profile-target', '_blank')

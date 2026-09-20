@@ -18,6 +18,8 @@
 // es la del binario.
 
 import { createLoginDesk, registerLogin, loginAddress, accountFingerprint, sealDeviceKeys, openDeviceKeys } from './vendor/vault/passwordLogins.js'
+import { loginWithPassword as entrarConContrasena, closeLogin as cerrarEnLaBoveda } from './vendor/vault/loginClient.js'
+import { vaultChannel } from './vendor/vault/passwordLogins.js'
 import { startDeviceVault } from './vendor/vault/index.js'
 import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { client as opaque, server as opaqueServer } from './opaque-bridge.js'
@@ -25,6 +27,13 @@ import { makeDeviceKey, makeDeviceEncKey } from './vendor/identity/capabilities.
 import { capScope } from './vendor/identity/acta.js'
 
 const KEY = (pid) => `logins/${pid}`
+
+/**
+ * El proxio del ecosistema. Uno solo para las dos mitades —atender y entrar—, porque son
+ * la misma conversación vista desde cada punta: con dos constantes, cambiar una dejaba a la
+ * otra hablando sola y eso se ve como que nadie contesta.
+ */
+const PROXY_URL = 'wss://proxy.dotrino.com'
 
 /** Lo que hace falta de la identidad, preguntándoselo al worker. Una llamada, una respuesta. */
 function alWorker (op, payload = {}) {
@@ -185,7 +194,7 @@ export async function serveLogins ({ proxyUrl = null } = {}) {
   if (atendiendo) return { ok: true, already: true }
   if (!desk.list().length) return { ok: false, reason: 'sin-inicios-de-sesion' }
   const client = new WebSocketProxyClient({
-    url: proxyUrl || 'wss://proxy.dotrino.com',
+    url: proxyUrl || PROXY_URL,
     // El camino es el proxio: aquí no se negocia WebRTC con nadie.
     enableWebRTC: false,
     autoReconnect: true
@@ -203,3 +212,86 @@ export function stopServing () {
 }
 
 export const serving = () => !!atendiendo
+
+// --- ENTRAR desde este navegador (la otra mitad) ------------------------------
+
+/**
+ * ENTRAR con `nombre@AB12-CD34-EF56` y una contraseña: este navegador pasa a SER un
+ * aparato de esa cuenta.
+ *
+ * Corre aquí, en la página, por lo mismo que lo demás: el OPAQUE está al otro lado del
+ * sandbox y un service worker no puede embeber un iframe ni sostener un socket. Lo que la
+ * página hace es hablar con la bóveda; **instalar** la identidad es del núcleo, que vive en
+ * el worker, así que lo que sale de aquí se le manda para que lo adopte él.
+ *
+ * Sí, la llave privada del aparato cruza ese mensaje. No hay forma de evitarlo y tampoco
+ * hace falta esconderlo: las dos puntas son esta extensión —`chrome.runtime` no sale de
+ * ella— y la alternativa sería meter el WASM en el worker, que es justo lo que la CSP
+ * impide. Lo que NO cruza nunca es la contraseña: de ella solo salen los mensajes de OPAQUE.
+ *
+ * `remember: false` es lo normal en un equipo prestado: la cuenta se va al cerrar.
+ */
+export async function enterWithPassword ({ address, password, remember = false, label = '', proxyUrl = null } = {}) {
+  if (typeof password !== 'string' || !password) {
+    throw Object.assign(new Error('hace falta la contraseña'), { code: 'no-password' })
+  }
+  const url = proxyUrl || PROXY_URL
+  const client = new WebSocketProxyClient({ url, enableWebRTC: false, autoReconnect: false })
+  await client.connect()
+  let entrada
+  try {
+    entrada = await entrarConContrasena({
+      transport: client,
+      address,
+      password,
+      label: label || 'el gestor',
+      // El de la página sandbox: asíncrono, y por eso el pilar lo acepta inyectado.
+      opaque
+    })
+  } finally { try { client.close() } catch (_) {} }
+  const r = await alWorker('id.adoptLogin', { entrada, remember, proxy: url })
+  // El perfil cambió: lo que haya pintado con el anterior ya no vale (no es reactivo).
+  mostrador = null
+  return { ...r, address: entrada.address, user: entrada.user, caps: entrada.caps }
+}
+
+/**
+ * SALIR del inicio de sesión: se le AVISA a la bóveda y la cuenta se va de este navegador.
+ *
+ * Las dos mitades están repartidas y no por gusto: el socket lo tiene esta página y la
+ * llave la tiene el worker, así que la página habla y el worker firma (`id.signData`). La
+ * privada no cruza. Sin esto, salir dejaba la plaza ocupada en la bóveda para siempre —el
+ * núcleo lo intenta por su cuenta con un `import()` dinámico, que en un service worker no
+ * existe, y el fallo se lo tragaba un `catch`.
+ *
+ * El aviso es MEJOR ESFUERZO: si la bóveda está apagada, salir de este equipo no se puede
+ * quedar esperándola. Lo que no es mejor esfuerzo es borrar la cuenta de aquí, que pasa
+ * siempre.
+ */
+export async function leaveLogin ({ proxyUrl = null } = {}) {
+  let told = false
+  try {
+    const meta = await alWorker('id.loginMeta')
+    if (meta?.sid && meta.publickey) {
+      const client = new WebSocketProxyClient({
+        url: proxyUrl || meta.proxy || PROXY_URL, enableWebRTC: false, autoReconnect: false
+      })
+      await client.connect()
+      try {
+        // El token de la bóveda cambia con cada reconexión suya: se vuelve a mirar el canal
+        // en vez de guardarlo.
+        for (const token of await client.list(vaultChannel(meta.code))) {
+          const r = await cerrarEnLaBoveda({
+            transport: client, token, user: meta.user, sid: meta.sid, publickey: meta.publickey,
+            sign: (data) => alWorker('id.signData', { data })
+          })
+          if (r.ok) { told = true; break }
+        }
+      } finally { try { client.close() } catch (_) {} }
+    }
+  } catch (_) { /* la bóveda apagada no puede impedir salir de aquí */ }
+
+  const r = await alWorker('id.logoutLogin', {})
+  mostrador = null
+  return { ...r, told }
+}

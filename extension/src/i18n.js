@@ -2,6 +2,18 @@
 const STRINGS = {
   es: {
     // --- entrar con usuario y contraseña (docs/temporary-access.md) ---
+    // --- entrar con usuario y contraseña, desde aquí ---
+    inTitle: 'Entrar con usuario y contraseña',
+    inWhat: 'Escribe la dirección de un aparato de tu cuenta y su contraseña. Este navegador pasa a ser ese aparato.',
+    inEnter: 'Entrar',
+    inGoing: 'Entrando…',
+    inNeed: 'Faltan la dirección o la contraseña.',
+    inPassword: 'Contraseña',
+    inRemember: 'Recordar en este navegador',
+    inRememberHint: 'Sin marcarlo, la cuenta se va al cerrar y este equipo queda como estaba. Es lo que conviene en un equipo prestado.',
+    inLabel: 'el gestor',
+    inDone: (u) => `Ya estás dentro como «${u}».`,
+    inLink: 'Entrar con usuario y contraseña',
     lgTitle: 'Entrar con usuario y contraseña',
     lgIntro: 'Un aparato de tu cuenta que se abre escribiendo una dirección y una contraseña, sin conectar nada. Sirve para entrar desde un equipo prestado.',
     lgWorker: 'Crear y administrar funciona siempre. Para que alguien pueda ENTRAR desde otro equipo, la extensión abre una pestaña que hace de bóveda: mientras esté abierta, atiende. La que está encendida siempre es la de tu computadora.',
@@ -189,6 +201,17 @@ const STRINGS = {
     notesLabel: 'Notas',
   },
   en: {
+    inTitle: 'Sign in with a username and password',
+    inWhat: 'Type the address of one of your account devices and its password. This browser becomes that device.',
+    inEnter: 'Sign in',
+    inGoing: 'Signing in…',
+    inNeed: 'The address or the password is missing.',
+    inPassword: 'Password',
+    inRemember: 'Remember on this browser',
+    inRememberHint: 'Unchecked, the account goes away when you close it and this computer is left as it was. That is what you want on a borrowed computer.',
+    inLabel: 'the manager',
+    inDone: (u) => `You are in as “${u}”.`,
+    inLink: 'Sign in with a username and password',
     lgTitle: 'Sign in with a username and password',
     lgIntro: 'A device of your account that opens by typing an address and a password, with nothing to connect. It is how you sign in from a borrowed computer.',
     lgWorker: 'Creating and managing always works. For someone to SIGN IN from another computer, the extension opens a tab that acts as the vault: while it is open, it answers. The one that is always on is the one on your computer.',

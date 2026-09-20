@@ -114,6 +114,16 @@ export function renderAdd (ctx) {
   const connect = el('button', { className: 'ghost', textContent: t(lang, 'addLinked'), 'data-testid': 'add-linked' })
   connect.onclick = () => renderLink(ctx)
 
+  // LA TERCERA VÍA: no crear una cuenta ni conectar una bóveda, sino ENTRAR en una tuya
+  // con `nombre@AB12-CD34-EF56`. Abre el GESTOR y no lo hace aquí, porque entrar sostiene
+  // un socket y usa el OPAQUE del sandbox; el popup se cierra al pulsar fuera y dejaría el
+  // inicio de sesión a medias en la bóveda.
+  const entrar = el('button', { className: 'ghost', textContent: t(lang, 'inLink'), 'data-testid': 'add-login' })
+  entrar.onclick = () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html') + '#view=login' })
+    window.close?.()
+  }
+
   const backBtn = el('button', { className: 'ghost', textContent: t(lang, 'back') })
   backBtn.onclick = onDone
 
@@ -124,6 +134,8 @@ export function renderAdd (ctx) {
     el('p', { className: 'hint', textContent: t(lang, 'addHereHint') }),
     connect,
     el('p', { className: 'hint', textContent: t(lang, 'addLinkedHint') }),
+    entrar,
+    el('p', { className: 'hint', textContent: t(lang, 'inWhat') }),
     backBtn,
   )
   name.focus()
