@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dotrino — bóveda</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <!-- ESTA PESTAÑA ES LA BÓVEDA, y por eso es una pestaña y no algo invisible: mientras
+       esté abierta, otro equipo tuyo puede entrar con usuario y contraseña; al cerrarla,
+       deja de atender. Es la misma regla que `vault.dotrino.com/vault` — «este aparato hace
+       de bóveda mientras esta página esté abierta»— y se prefiere a un documento oculto
+       justamente porque SE VE: lo que está encendido se sabe que está encendido. -->
+  <dotrino-topbar
+    brand="Dotrino"
+    icon="../icons/icon-32.png"
+    no-back
+    profile
+    support-no-bubble
+    support-no-count
+    support-repo="imdotrino/dotrino-passmanager"
+    support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
+
+  <main id="view"></main>
+  <p id="toast" class="toast" hidden></p>
+
+  <script type="module" src="vendor/topbar/index.js"></script>
+  <script type="module" src="vault-tab.js"></script>
+</body>
+</html>

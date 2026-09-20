@@ -813,16 +813,14 @@ async function renderLogins () {
     toast(t(lang, 'lgMade', r.address || ''))
   })
 
-  // --- atender ---
-  const estado = { serving: logins.serving() }
-  const atender = el('button', {
-    className: 'btn ghost',
-    textContent: estado.serving ? t(lang, 'lgStop') : t(lang, 'lgServe')
-  })
-  atender.onclick = () => correr(async () => {
-    if (estado.serving) { logins.stopServing(); estado.serving = false } else { await logins.serveLogins({}); estado.serving = true }
-    atender.textContent = estado.serving ? t(lang, 'lgStop') : t(lang, 'lgServe')
-  })
+  // --- ser bóveda ---
+  //
+  // UNA sola forma, y abre una pestaña (dueño, 2026-09-19). Aquí se administra; atender es
+  // otra cosa y tiene su propia ventana, porque lo que está encendido tiene que verse — y
+  // porque cerrarla es apagarlo, sin estado escondido que ir a buscar.
+  const atender = el('button', { className: 'btn ghost', textContent: t(lang, 'vtOpenTab') })
+  atender.dataset.testid = 'lg-serve'
+  atender.onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL('src/vault-tab.html') })
 
   view.replaceChildren(
     volver,

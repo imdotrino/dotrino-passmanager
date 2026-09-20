@@ -285,6 +285,8 @@ const cuantos = await verificarGrafo([
   join(here, 'src/ui.js'),
   join(here, 'src/popup.js'),
   join(here, 'src/manager.js'),
+  // La pestaña que ES la bóveda: entra por sí sola, no cuelga del gestor.
+  join(here, 'src/vault-tab.js'),
   join(here, 'src/profile.js'),
   join(here, 'src/save-prompt.js'),
   join(here, 'src/field-modal.js'),

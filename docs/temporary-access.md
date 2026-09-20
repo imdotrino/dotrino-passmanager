@@ -292,7 +292,8 @@ que no se vuelvan a discutir y para que quien lea el doc no encuentre otra cosa 
 | ✅ `dotrino-profile-app` | la página `/login`: dirección, contraseña, «Recordar», y debajo «Con otro aparato tuyo» (la sesión con QR que ya existía) |
 | ✅ `@dotrino/topbar` | «Iniciar sesión» en el menú del perfil (y «Salir» cuando ya se entró), `profile-login-href`, textos es/en |
 | ✅ consola web del vault | la pantalla administrativa cuando la bóveda es la pestaña: crear con sus permisos, listar con dirección/sesiones/último uso/espera, cerrar, cambiar contraseña y quitar |
-| ✅ la extensión | lo mismo, en su gestor. El WASM de OPAQUE corre en una **página sandbox** —la CSP se le abre solo a ella, no a toda la extensión— y el socket vive en la página del gestor: **atiende mientras esa pestaña esté abierta**, como la bóveda-pestaña del ecosistema |
+| ✅ la extensión | lo mismo, en su gestor. El WASM de OPAQUE corre en una **página sandbox** —la CSP se le abre solo a ella, no a toda la extensión, así que la extensión no declara `wasm-unsafe-eval` ni pide el permiso `offscreen`— y **atender abre una pestaña** (`src/vault-tab.html`): ahí vive el socket, y esa pestaña ES el interruptor |
+| ✅ la extensión (probado) | `npm run test:opaque` levanta un Chrome de verdad, hace la vuelta entera de OPAQUE por el puente y mira que no salte ni una violación de CSP. Era lo único que no se podía comprobar leyendo el manifiesto: un iframe sandbox que no arranca **no se ve** |
 | ✅ el CLI | `logins add <usuario> [nombre] [±permiso …]` — se pueden tener VARIOS por perfil y cada uno con sus permisos |
 | PENDIENTE la TUI del binario | la misma pantalla. Hoy el binario solo lo hace por CLI |
 | PENDIENTE `@dotrino/passmanager` (extensión) | la pantalla de ENTRAR desde ella con `nombre@AB12-CD34-EF56` (esto es crear/administrar, que es la otra mitad) |
