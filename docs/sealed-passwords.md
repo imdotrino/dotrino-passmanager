@@ -298,6 +298,12 @@ Cuatro cosas que el diseño no traía y hubo que resolver escribiendo el código
 - **Una passkey que ningún aparato podría abrir NO se guarda.** Si no hay nadie con
   `passkeys`, quedaría viva solo para la frase del perfil: no se pierde, pero no sirve, y eso
   se descubre el día que hace falta. Se para con `no-passkeys-device`.
+- **De dónde sale la copia de recuperación en cada bóveda** (dueño, 2026-09-20): **de una
+  contraseña, en las cuatro**. El binario usa la del perfil y `passmanager serve` la suya
+  —las dos ya existían—; la pestaña y la bóveda de dentro de la extensión no tenían
+  ninguna, así que la piden al convertir. La pieza es una: `@dotrino/passmanager/sealed`
+  (`recovery.js`), porque si cada una derivara a su manera el sobre `#recovery` de una no
+  lo abriría la de al lado, y eso no falla al escribir — falla el día que hace falta.
 - **La copia de recuperación es LA MISMA que la de los cajones de secretos**, no una segunda.
   Una segunda sería otra llave que custodiar, otra que rotar y otra que se queda atrás. El
   almacén de secretos asoma `openRecoveryWrap` para que las contraseñas la usen sin que la
@@ -326,7 +332,7 @@ una prueba que lo afirma mirando el disco (`dotrino-vault/test/passwords.test.mj
 | ✅ `dotrino-vault` (el binario) | fuera `passwordsKey()` y la `cek` del archivo; conversión al abrir; repaso de envolturas con la copia de recuperación; destinatarios del acta SIN la bóveda |
 | ✅ `@dotrino/identity` | el permiso `passkeys` en `CAPS`/`DEVICE_CAPS` y en `SESSION_FORBIDDEN` |
 | ✅ la extensión | abre sus sobres, los construye al guardar y compara con la llave del perfil |
-| PENDIENTE la bóveda de la PESTAÑA (`vault.dotrino.com/vault`) | sigue con el formato viejo |
+| ✅ la bóveda de la PESTAÑA (`vault.dotrino.com/vault`) | fuera su `cek` de IndexedDB; pide la contraseña de la copia de recuperación al convertir y ya no atiende hasta tenerla. Deja de listar lo guardado —no puede leerlo— y solo dice cuántas hay; importar lo hace el dueño con su contraseña, que es quien puede cerrar una entrada |
 | PENDIENTE la bóveda DENTRO de la extensión | ídem |
 | PENDIENTE `dotrino-passmanager serve` | ídem |
 | PENDIENTE `dotrino-test` | que el smoke de reposo busque también contraseñas y la `cek` |

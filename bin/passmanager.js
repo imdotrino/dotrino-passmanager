@@ -22,8 +22,14 @@ import { Identity } from '@dotrino/identity/node'
 import { startDeviceVault } from '@dotrino/vault'
 import { inviteUrl } from '@dotrino/vault/invite'
 
-import { LocalVault } from '../lib/src/vault/local.js'
-import { VaultResponder } from '../lib/src/vault/responder.js'
+import { SealedLocalVault } from '../lib/src/vault/sealed-local.js'
+import { SealedStore, RECOVERY } from '../lib/src/sealed/store.js'
+import { SealedResponder } from '../lib/src/vault/sealed-responder.js'
+import { makeRecovery, openRecovery, hasRecovery, recoveryPubOf } from '../lib/src/sealed/recovery.js'
+import { convertToSealed } from '../lib/src/sealed/convert.js'
+import { profileKeys } from '../lib/src/sealed/keys.js'
+import { openWrap, decryptWithCek } from '@dotrino/identity/content'
+import { verifyDeviceSig } from '@dotrino/identity/capabilities'
 import {
   makeSalt, deriveKeyFromPassword, makeVerifier, checkVerifier, toBase64, fromBase64,
 } from '../lib/src/crypto.js'
@@ -139,32 +145,139 @@ function closeReader () {
 }
 
 
-async function abrirBoveda () {
-  const vault = new LocalVault(store)
-  let meta = await store.get(META)
+const RECOVERY_KEY = 'passmanager/recovery/v1'
 
-  if (!meta) {
+/**
+ * ABRIR LA BÓVEDA, que desde el formato sellado quiere decir otra cosa.
+ *
+ * Antes era: derivar una llave de la contraseña y descifrar con ella todas las entradas.
+ * Ahora la bóveda guarda **sobres dirigidos** —a cada aparato del acta el suyo— y aquí lo
+ * que se abre es UNA envoltura: la de `#recovery`, que es la del dueño con su contraseña.
+ *
+ * O sea que la contraseña sigue siendo la misma y se pide igual; lo que cambia es que ya
+ * no hay una llave que abra todo, sino la de quien la sabe. Y así lo que escribe esta
+ * bóveda lo abre la pestaña, y al revés, que es la regla de las cuatro versiones.
+ */
+async function abrirBoveda () {
+  let meta = await store.get(META)
+  let rec = await store.get(RECOVERY_KEY)
+  let password = null
+
+  if (!meta && !hasRecovery(rec)) {
     console.log('No hay ninguna bóveda todavía. Elige la contraseña que la abrirá.')
     console.log('No se puede recuperar: si la pierdes, pierdes la bóveda.\n')
     const p1 = await ask('Contraseña: ', true)
     const p2 = await ask('Otra vez: ', true)
     if (!p1 || p1 !== p2) { console.error('No coinciden.'); process.exit(1) }
-    const salt = makeSalt()
-    const key = await deriveKeyFromPassword(p1, salt)
-    meta = { salt: toBase64(salt), verifier: await makeVerifier(key), v: 1 }
-    await store.set(META, meta)
-    vault.unlock(key)
+    if (p1.length < 12) { console.error('Tiene que tener al menos 12 caracteres.'); process.exit(1) }
+    password = p1
+    const hecha = await makeRecovery({ password })
+    rec = hecha.record
+    await store.set(RECOVERY_KEY, rec)
     console.log('\nBóveda creada en', FILE, '\n')
-    return vault
+  } else {
+    for (let i = 0; i < 3 && password === null; i++) {
+      const p = await ask('Contraseña de la bóveda: ', true)
+      // Puede haber una de antes (solo `meta`), una ya convertida (solo `rec`), o las dos
+      // durante la conversión. La contraseña es la misma en todos los casos.
+      if (hasRecovery(rec)) {
+        const ok = await openRecovery({ record: rec, password: p }).then(() => true).catch(() => false)
+        if (ok) { password = p; break }
+      } else {
+        const key = await deriveKeyFromPassword(p, fromBase64(meta.salt))
+        if (await checkVerifier(key, meta.verifier)) { password = p; break }
+      }
+      console.error('Esa contraseña no abre la bóveda.')
+    }
+    if (password === null) process.exit(1)
   }
 
-  for (let i = 0; i < 3; i++) {
-    const p = await ask('Contraseña de la bóveda: ', true)
-    const key = await deriveKeyFromPassword(p, fromBase64(meta.salt))
-    if (await checkVerifier(key, meta.verifier)) { vault.unlock(key); return vault }
-    console.error('Esa contraseña no abre la bóveda.')
+  return montarBoveda(password)
+}
+
+/** Lo de arriba, ya con la contraseña en la mano. Aparte porque también lo usa `serve`. */
+async function montarBoveda (password) {
+  const identity = await openIdentity()
+  const rec = await store.get(RECOVERY_KEY)
+  const priv = await openRecovery({ record: rec, password })
+
+  // La pública de ESTE proceso: es lo que se excluye de los destinatarios (una bóveda
+  // no se envuelve a sí misma) y con lo que se firma lo que se escribe desde aquí.
+  const miPub = ((await identity.profileMembers())?.members || []).find((m) => m.isMe)?.pub
+  if (!miPub) { console.error('Esta máquina no está en el acta de su propio perfil.'); process.exit(1) }
+  /**
+   * A QUIÉN SE LE ENVUELVE. Los aparatos del acta con `passwords`, y **esta bóveda no**:
+   * es la misma regla que en el binario y en la pestaña. El dueño lee por `#recovery`,
+   * que es lo que su contraseña abre.
+   */
+  const recipientsOf = async (kind) => {
+    const cap = kind === 'passkeys' ? 'passkeys' : PASSWORDS_CAP
+    const { members } = await identity.profileMembers()
+    return (members || [])
+      .filter((m) => (m.caps || []).includes(cap) && m.encPub && !samePubkey(m.pub, miPub))
+      .map((m) => ({ pub: m.pub, encPub: m.encPub }))
   }
-  process.exit(1)
+  const recipients = async () => ({
+    recoveryPub: recoveryPubOf(rec),
+    main: await recipientsOf('main'),
+    passkeys: await recipientsOf('passkeys')
+  })
+
+  const sealed = new SealedStore(store, {
+    recipients: recipientsOf,
+    verifyAuthor: async ({ body, author }) => {
+      // Lo que escribe esta misma máquina va firmado con su identidad, que es la del
+      // perfil; lo que escribe un aparato, con la suya y con `passwords` en el acta.
+      if (samePubkey(author?.pub, miPub)) {
+        return verifyDeviceSig({ publickey: author.pub, data: body, signature: author.sig })
+      }
+      const { members } = await identity.profileMembers()
+      const m = (members || []).find((x) => samePubkey(x.pub, author?.pub))
+      if (!m || !(m.caps || []).includes(PASSWORDS_CAP)) return false
+      return verifyDeviceSig({ publickey: author.pub, data: body, signature: author.sig })
+    }
+  })
+
+  const openSealed = async ({ wrap, envelope }) =>
+    decryptWithCek({ cek: await openWrap({ wrap, myEncPrivateKey: priv }), envelope })
+
+  // CONVERTIR lo que quedara del formato viejo. Es un acto único y hace falta la llave
+  // vieja, que solo existe mientras la contraseña esté en la mano.
+  if (!(await sealed.sealed())) {
+    const meta = await store.get(META)
+    const vieja = meta ? await deriveKeyFromPassword(password, fromBase64(meta.salt)) : null
+    const r = await convertToSealed({
+      store,
+      sealed,
+      cek: vieja,
+      recipients: await recipients(),
+      author: { publickey: miPub, sign: (b) => identity.signData(b) },
+      dropOldKey: async () => { await store.set(META, null) }
+    })
+    if (r.entries) console.log('Se pasaron %d entrada(s) al formato sellado.', r.entries)
+  }
+
+  const keys = async () => profileKeys(await baseDelPerfil(sealed, openSealed))
+
+  const vault = new SealedLocalVault(sealed, {
+    readerPub: RECOVERY,
+    openSealed,
+    author: { publickey: miPub, sign: (b) => identity.signData(b) },
+    recipients,
+    keys
+  })
+  // El responder y el resto necesitan estas piezas: se cuelgan aquí para no volver a
+  // pedir la contraseña ni abrir la identidad dos veces.
+  vault.sealed = sealed
+  vault.identity = identity
+  vault.recipients = recipients
+  return vault
+}
+
+/** La llave del perfil, abierta por la envoltura de quien sabe la contraseña. */
+async function baseDelPerfil (sealed, openSealed) {
+  const { envelope, wrap } = await sealed.profile({ pub: RECOVERY })
+  return openSealed({ wrap, envelope })
 }
 
 // --- editar la bóveda --------------------------------------------------------
@@ -344,9 +457,13 @@ async function serve (...args) {
   let known = await listDevices()
   const refresh = async () => { known = await listDevices() }
 
-  const responder = new VaultResponder({
+  const responder = new SealedResponder({
     client: handle.client,
-    vault,
+    // El responder habla con el ALMACÉN de sobres, no con la bóveda que abre: lo que sale
+    // de aquí sale cerrado, y quien lo pide lo abre con su envoltura. Esta máquina no
+    // descifra nada para contestar.
+    store: vault.sealed,
+    recipients: vault.recipients,
     // Por LLAVE, no por cadena: la misma pubkey se serializa distinto según quién la
     // escriba, y comparar el JSON hace que un aparato autorizado salga «denegado» sin
     // que se vea por qué — los dos valores parecen iguales al mirarlos.
