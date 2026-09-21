@@ -19,6 +19,9 @@ import { hostApprovals } from './approval.js'
 
 hostApprovals()
 
+// El popup crece mientras el modal de soporte está abierto (ver `body.support-open`).
+document.addEventListener('cc-support-open', () => document.body.classList.add('support-open'))
+document.addEventListener('cc-support-close', () => document.body.classList.remove('support-open'))
 
 let lang = pickLang()
 const view = document.getElementById('view')

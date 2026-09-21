@@ -22,6 +22,11 @@ body {
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
+/* El alto de un popup de extensión lo pone el documento, y el modal de soporte va en el
+   top layer, que no cuenta: el popup se quedaba en lo que mide la vista y el modal salía
+   cortado, con el botón de donar fuera. Mientras está abierto, el popup crece al máximo
+   que da el navegador (600 px). */
+body.support-open { min-height: 600px; }
 main { padding: 12px; display: grid; gap: 10px; }
 h2 { margin: 0; font-size: 12px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .6px; }
 input, button, textarea { font: inherit; }
