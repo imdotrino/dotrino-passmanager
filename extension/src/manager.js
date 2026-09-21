@@ -905,10 +905,74 @@ async function renderLogin () {
   dir.focus()
 }
 
+/**
+ * CONVERTIR la bóveda propia al formato sellado (`sealed-passwords.md` §2.7): se elige la
+ * contraseña de la copia de recuperación y lo guardado pasa al formato nuevo. Sin esto la
+ * bóveda no atiende.
+ *
+ * Desde la 0.16.0 todo mandaba aquí (`#view=convert`) y la pantalla no existía: se caía en
+ * la lista y no había forma de convertir desde la interfaz — solo las pruebas, que llaman a
+ * `sealed-convert` directamente. Los textos sí estaban.
+ */
+async function renderConvert () {
+  // Una cuenta que ya está convertida, o que no guarda aquí, no tiene nada que hacer en
+  // esta pantalla: a la lista.
+  try {
+    if (!(await ask('sealed-needs'))?.needs) { ir({}); return }
+  } catch (e) {
+    view.replaceChildren(el('p', { className: 'hint err', textContent: humanError(e) }))
+    return
+  }
+
+  const pw1 = el('input', { type: 'password', placeholder: t(lang, 'cvPw1'), autocomplete: 'new-password' })
+  pw1.dataset.testid = 'convert-pw1'
+  const pw2 = el('input', { type: 'password', placeholder: t(lang, 'cvPw2'), autocomplete: 'new-password' })
+  pw2.dataset.testid = 'convert-pw2'
+  const msg = el('p', { className: 'hint' })
+  msg.dataset.testid = 'convert-msg'
+
+  const crear = el('button', { className: 'btn', textContent: t(lang, 'cvGo') })
+  crear.dataset.testid = 'convert-go'
+  crear.onclick = async () => {
+    msg.className = 'hint err'
+    if (pw1.value.length < 12) { msg.textContent = t(lang, 'cvShort'); return }
+    if (pw1.value !== pw2.value) { msg.textContent = t(lang, 'cvMismatch'); return }
+    msg.className = 'hint'
+    msg.textContent = t(lang, 'cvWorking')
+    crear.disabled = true
+    try {
+      const r = await ask('sealed-convert', { password: pw1.value })
+      // La contraseña se va de la pantalla en cuanto deja de hacer falta.
+      pw1.value = ''
+      pw2.value = ''
+      msg.textContent = t(lang, 'cvDone', r?.entries || 0)
+      setTimeout(() => ir({}), 900)
+    } catch (e) {
+      msg.className = 'hint err'
+      msg.textContent = humanError(e)
+      crear.disabled = false
+    }
+  }
+
+  view.replaceChildren(
+    el('h2', { textContent: t(lang, 'cvTitle') }),
+    el('p', { className: 'hint', textContent: t(lang, 'cvWhy') }),
+    // Un aviso, no una explicación (§5.1): sin él se elige una contraseña sin saber que no
+    // se puede recuperar.
+    el('p', { className: 'hint warn', textContent: t(lang, 'cvWarn') }),
+    pw1,
+    pw2,
+    el('div', { className: 'row' }, [crear]),
+    msg
+  )
+  pw1.focus()
+}
+
 // --- arranque -----------------------------------------------------------------
 
 function render () {
   const { id, view } = ruta()
+  if (view === 'convert') return renderConvert()
   if (view === 'login') return renderLogin()
   if (view === 'logins') return renderLogins()
   return id ? renderRecord(id) : renderList()
