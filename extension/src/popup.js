@@ -7,7 +7,7 @@
 // No hay contraseña maestra ni lista completa de golpe: cada credencial es una petición.
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
-import { pickLang, t } from './i18n.js'
+import { pickLang, t, errorText } from './i18n.js'
 import { entryCard, byName } from './entry-card.js'
 import { wireTopbar } from './profile-card.js'
 // Las dos pantallas de añadir perfil viven fuera: las comparte la página del perfil.
@@ -30,7 +30,7 @@ const toastEl = document.getElementById('toast')
 function ask (op, payload) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ op, payload }, r => {
-      if (chrome.runtime.lastError) return reject(new Error('unreachable'))
+      if (chrome.runtime.lastError) return reject(Object.assign(new Error(chrome.runtime.lastError.message), { code: 'no-worker' }))
       if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
       resolve(r?.result)
     })
@@ -46,21 +46,8 @@ function toast (text, kind) {
   toastTimer = setTimeout(() => { toastEl.hidden = true }, 2600)
 }
 
-/** Los errores se comparan por código: el texto está traducido (memoria del proyecto). */
-function humanError (e) {
-  // Pasa al actualizar la extensión sin recargarla: el popup ya es el nuevo y el service
-  // worker que le contesta sigue siendo el de antes, sin las operaciones que le pide. El
-  // código a secas («unknown-op») no le dice nada a nadie.
-  if (e.code === 'unknown-op') return t(lang, 'staleWorker')
-  // «No lo autoricé» y «esta bóveda no me deja pedir» son dos cosas distintas: una se
-  // arregla volviendo a pulsar, la otra dando permiso al aparato (§2.0).
-  if (e.code === 'not-approved') return t(lang, 'askDenied')
-  if (e.code === 'denied') return t(lang, 'denied')
-  if (e.code === 'approval-timeout') return t(lang, 'noAnswer')
-  if (e.code === 'unreachable' || e.code === 'no-link') return t(lang, 'noLink')
-  if (e.code === 'bad-invite') return t(lang, 'badInvite')
-  return e.message
-}
+/** Los errores se comparan por código: el texto está traducido (`errorText`). */
+const humanError = (e) => errorText(lang, e)
 
 /**
  * Un elemento con sus propiedades. Los `data-*` van por `setAttribute`, no por
@@ -269,6 +256,12 @@ async function renderSite (estado0) {
   } catch (e) {
     estado.className = 'error'
     estado.textContent = humanError(e)
+    // Sin convertir no atiende: el mensaje dice qué pasa y el botón lleva a donde se arregla.
+    if (e.code === 'not-sealed') {
+      const ir = el('button', { className: 'btn', textContent: t(lang, 'openConvert'), 'data-testid': 'open-convert' })
+      ir.onclick = () => ask('open-convert')
+      estado.after(ir)
+    }
   }
 }
 

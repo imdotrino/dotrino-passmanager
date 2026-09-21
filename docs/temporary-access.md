@@ -1,10 +1,16 @@
 # Usar el gestor en un equipo que no es tuyo
 
-> **Estado: EN PIE, salvo las contraseñas** (2026-09-19). Se puede entrar con usuario y
-> contraseña desde cualquier app del ecosistema —el aparato entra en el acta, firma y lee—,
-> y lo único que todavía NO lleva es lo que le da nombre a este documento: las entradas del
-> gestor, porque faltan las contraseñas selladas (`sealed-passwords.md`). Un aparato así se
-> crea hoy sin el permiso `contrasenas`, y pedirlo se rechaza con `passwords-not-yet`.
+> **Estado: EN PIE, contraseñas incluidas** (2026-09-21). Se puede entrar con usuario y
+> contraseña desde cualquier app del ecosistema —el aparato entra en el acta, firma y lee—, y
+> **al crearlo se le puede asignar cualquier permiso del acta**, `passwords` incluido (dueño:
+> *«al crear debe poder asignársele cualquier permiso»*; regla dura «simplificar los
+> procesos»). El candado `passwords-not-yet` se quitó. Con `passwords`, la cuenta del equipo
+> prestado pide sus contraseñas a la bóveda que atendió el inicio de sesión —en la extensión,
+> la pestaña «Esta pestaña es tu bóveda», que sirve la MISMA bóveda propia—, y cada dato
+> privado pide «Autorizar» allí salvo que el aparato tenga también `unattended`.
+>
+> Lo que queda pendiente es la selección por entrada: hoy un aparato con `passwords` recibe
+> envoltura de todas las entradas, igual que cualquier otro aparato con ese permiso.
 >
 > Qué existe: `@dotrino/opaque`, el mostrador en las tres bóvedas (binario y pestaña), el
 > alta y la administración por CLI (`dotrino-vault logins`), el cliente que entra
@@ -284,7 +290,9 @@ que no se vuelvan a discutir y para que quien lea el doc no encuentre otra cosa 
 
 | Pieza | Cambio |
 |---|---|
-| **PENDIENTE — antes que las contraseñas** | las contraseñas selladas por aparato (`sealed-passwords.md`), con destinatarios elegibles por entrada. Hasta entonces, `contrasenas` se rechaza con `passwords-not-yet` |
+| ✅ cualquier permiso al crear | `registerLogin({ caps })` recibe los permisos del acta tal cual —cualquiera de `DEVICE_CAPS`, `passwords`, `passkeys` y `unattended` incluidos— y los traduce él a los scopes del certificado. Fuera `passwords-not-yet` y fuera `unattended` como bandera aparte |
+| ✅ la pestaña de la extensión sirve contraseñas | la pestaña de bóveda atiende las contraseñas de la bóveda propia a los aparatos de la cuenta con `passwords`; las decide y las escribe el worker, y reenvuelve sola lo escrito antes de que el aparato entrara. `npm run test:compartir` lo prueba con dos Chrome |
+| **PENDIENTE** | destinatarios elegibles por entrada (`sealed-passwords.md`): elegir qué entradas recibe cada aparato |
 | ✅ `dotrino-vault` | alta de un aparato con contraseña (registro OPAQUE + bloque cifrado + admitirlo en el acta), inicio OPAQUE, límite de intentos, cambio de contraseña — `lib/src/passwordLogins.js`, una sola pieza para las tres bóvedas |
 | ✅ `dotrino-vault` (anuncio) | cada bóveda se anuncia en el canal de su cuenta al identificarse: el binario en `src/transport.js`, **y la bóveda-pestaña también** (faltaba, así que quien la tenía solo en una pestaña no era encontrable por dirección) |
 | ✅ `@dotrino/vault/login-client` | el lado del que ENTRA: leer la dirección, listar el canal, OPAQUE, abrir el paquete y comprobarlo todo. Vive en el pilar porque lo van a hacer la página, la extensión y cualquier app |

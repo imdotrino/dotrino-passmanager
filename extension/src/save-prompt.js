@@ -12,7 +12,7 @@
 // pantalla enseña de qué sitio y de qué usuario se trata, y qué se va a escribir — la
 // contraseña, tapada.
 
-import { t, pickLang, kindLabel } from './i18n.js'
+import { t, pickLang, kindLabel, errorText } from './i18n.js'
 import { hostApprovals } from './approval.js'
 
 const lang = pickLang()
@@ -71,14 +71,7 @@ function ago (ts) {
 }
 
 function fail (e) {
-  $('err').textContent = e?.code === 'unknown-op'
-    ? t(lang, 'staleWorker')
-    : e?.code === 'not-approved'
-      ? t(lang, 'askDenied')
-      : e?.code === 'denied'
-        ? t(lang, 'denied')
-        : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink')
-            : (e?.message || String(e))
+  $('err').textContent = errorText(lang, e)
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
   resize()

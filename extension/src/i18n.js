@@ -34,6 +34,17 @@ const STRINGS = {
     lgPass: 'Contraseña',
     lgPass2: 'Repítela',
     lgCan: 'Qué podrá hacer',
+    // Los permisos del acta, con el mismo texto que la consola del vault.
+    cap_sign: 'Firma por ti',
+    cap_store: 'Guarda tu contenido',
+    cap_read: 'Lee tu contenido',
+    cap_admin: 'Administra el perfil',
+    cap_approve: 'Aprueba pedidos',
+    cap_passwords: 'Pide tus contraseñas',
+    cap_passkeys: 'Abre tus passkeys',
+    cap_sealer: 'Sella el acta (otra bóveda)',
+    cap_unattended: 'Recibe claves sin aprobación',
+    cap_replica: 'Atiende cuando la bóveda no está',
     lgCreate: 'Crear',
     lgShort: 'La contraseña tiene que tener al menos 12 caracteres.',
     lgMismatch: 'Las dos contraseñas no son iguales.',
@@ -51,11 +62,14 @@ const STRINGS = {
     lgLink: 'Entrar con usuario y contraseña',
     // --- la pestaña que ES la bóveda ---
     vtTitle: 'Esta pestaña es tu bóveda',
-    vtOpen: 'Mientras esté abierta, tus aparatos de usuario y contraseña pueden entrar desde otro equipo. Al cerrarla, deja de atender.',
+    vtOpen: 'Mientras esté abierta, tus otros aparatos pueden entrar y pedirle tus contraseñas. Al cerrarla, deja de atender.',
     vtStarting: 'Encendiendo…',
     vtOn: 'Atendiendo.',
     vtOff: 'Apagada.',
-    vtNothing: 'No hay ningún aparato de usuario y contraseña, así que no hay a quién atender.',
+    // Las contraseñas que atiende la pestaña son las MISMAS de la bóveda propia: no hay otra copia.
+    vtPw: (n) => n === 1 ? '1 aparato de tu cuenta puede pedirle contraseñas.' : `${n} aparatos de tu cuenta pueden pedirle contraseñas.`,
+    vtPwNone: 'Ningún otro aparato de tu cuenta tiene permiso para pedirle contraseñas.',
+    vtPwFail: 'Las contraseñas no se atienden:',
     vtFail: 'No se pudo encender:',
     vtStop: 'Apagar',
     vtManage: 'Administrar los aparatos',
@@ -124,6 +138,12 @@ const STRINGS = {
     noVault: 'Esta extensión no está enlazada a ninguna bóveda.',
     noTalk: 'No se pudo hablar con tu bóveda.',
     staleWorker: 'Recarga la extensión: la que está corriendo es de antes de esta actualización.',
+    // La página se quedó hablando con una extensión que ya no está (se actualizó o se recargó).
+    noWorker: 'Recarga esta página: la extensión se actualizó.',
+    // La bóveda propia en el formato viejo no atiende hasta que se convierte (`sealed-passwords.md` §2.7).
+    notSealed: 'Tu bóveda necesita una contraseña de recuperación antes de volver a funcionar.',
+    openConvert: 'Ponerla ahora',
+    askFrom: (d) => `Lo pide: ${d}`,
     // La pregunta de la bóveda antes de soltar algo guardado. Llana a propósito
     // (CONVENCIONES §9.1): nada de «llave privada» ni de «autorización de acceso».
     askTitle: 'Sacar esto de tu bóveda',
@@ -242,6 +262,16 @@ const STRINGS = {
     lgPass: 'Password',
     lgPass2: 'Again',
     lgCan: 'What it will be able to do',
+    cap_sign: 'Signs for you',
+    cap_store: 'Stores your content',
+    cap_read: 'Reads your content',
+    cap_admin: 'Manages the profile',
+    cap_approve: 'Approves requests',
+    cap_passwords: 'Asks for your passwords',
+    cap_passkeys: 'Opens your passkeys',
+    cap_sealer: 'Seals the record (another vault)',
+    cap_unattended: 'Gets keys without approval',
+    cap_replica: 'Answers while the vault is away',
     lgCreate: 'Create',
     lgShort: 'The password must be at least 12 characters.',
     lgMismatch: 'The two passwords are not the same.',
@@ -258,11 +288,13 @@ const STRINGS = {
     lgBack: 'Back',
     lgLink: 'Sign in with a username and password',
     vtTitle: 'This tab is your vault',
-    vtOpen: 'While it is open, your username-and-password devices can sign in from another computer. Closing it stops answering.',
+    vtOpen: 'While it is open, your other devices can sign in and ask it for your passwords. Closing it stops answering.',
     vtStarting: 'Turning on…',
     vtOn: 'Answering.',
     vtOff: 'Off.',
-    vtNothing: 'There is no username-and-password device, so there is nobody to answer.',
+    vtPw: (n) => n === 1 ? '1 device of your account can ask it for passwords.' : `${n} devices of your account can ask it for passwords.`,
+    vtPwNone: 'No other device of your account is allowed to ask it for passwords.',
+    vtPwFail: 'Passwords are not being answered:',
     vtFail: 'Could not turn it on:',
     vtStop: 'Turn off',
     vtManage: 'Manage the devices',
@@ -327,6 +359,10 @@ const STRINGS = {
     noVault: 'This extension is not linked to any vault.',
     noTalk: 'Could not reach your vault.',
     staleWorker: 'Reload the extension: the one running is from before this update.',
+    noWorker: 'Reload this page: the extension was updated.',
+    notSealed: 'Your vault needs a recovery password before it works again.',
+    openConvert: 'Set it now',
+    askFrom: (d) => `Asked by: ${d}`,
     askTitle: 'Take this out of your vault',
     askBody: 'Nothing leaves here until you say yes.',
     askYes: 'Authorize',
@@ -429,6 +465,38 @@ export function pickLang () {
 export function t (lang, key, ...args) {
   const v = (STRINGS[lang] || STRINGS.es)[key] ?? (STRINGS.es[key] ?? key)
   return typeof v === 'function' ? v(...args) : v
+}
+
+/**
+ * QUÉ SE LE DICE AL USUARIO POR CADA CÓDIGO DE ERROR. Se compara por `e.code`, nunca por el
+ * texto (el texto está traducido).
+ *
+ * Estaba escrito cinco veces —popup, gestor, modal del campo, aviso de guardar y la
+ * página— y se desalinearon: en una `unreachable` decía «no estás enlazado a ninguna
+ * bóveda» y en otra `no-link` decía «la bóveda enlazada no responde». Son dos cosas y se
+ * arreglan distinto: una enlazando, la otra encendiendo la bóveda.
+ */
+const ERROR_TEXT = {
+  // Actualizaste la extensión sin recargarla: la pantalla es nueva y el worker, el de antes.
+  'unknown-op': 'staleWorker',
+  // La página se quedó hablando con una extensión que ya no está.
+  'no-worker': 'noWorker',
+  'not-sealed': 'notSealed',
+  // «No lo autoricé» y «esta bóveda no me deja pedir» son dos cosas: una se arregla
+  // volviendo a pulsar, la otra dando permiso al aparato (§2.0).
+  'not-approved': 'askDenied',
+  denied: 'denied',
+  'approval-timeout': 'noAnswer',
+  'no-link': 'noVault',
+  unreachable: 'noLink',
+  'bad-invite': 'badInvite',
+  'not-found': 'notFound',
+}
+
+/** El texto de un error: el suyo si el código es conocido, y si no, el mensaje tal cual. */
+export function errorText (lang, e) {
+  const key = ERROR_TEXT[e?.code]
+  return key ? t(lang, key) : (e?.message || String(e?.code || e))
 }
 
 /**

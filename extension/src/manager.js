@@ -18,8 +18,9 @@
 //
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
-import { pickLang, t, kindLabel, fieldLabel } from './i18n.js'
+import { pickLang, t, kindLabel, fieldLabel, errorText } from './i18n.js'
 import { KINDS } from './vendor/passmanager/fields.js'
+import { DEVICE_CAPS } from './vendor/identity/acta.js'
 import { entryCard, byName } from './entry-card.js'
 // El perfil se abre desde el BOTÓN de la barra, que enseña el selector del ecosistema: esta
 // pantalla es para administrar los registros (§5.1, y el gestor no es la ficha de nadie).
@@ -47,7 +48,7 @@ const SIEMPRE_PRIVADOS = ['secret', 'totp', 'notes']
 function ask (op, payload) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ op, payload }, r => {
-      if (chrome.runtime.lastError) return reject(new Error('unreachable'))
+      if (chrome.runtime.lastError) return reject(Object.assign(new Error(chrome.runtime.lastError.message), { code: 'no-worker' }))
       if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
       resolve(r?.result)
     })
@@ -63,16 +64,8 @@ function toast (text, kind) {
   toastTimer = setTimeout(() => { toastEl.hidden = true }, 2600)
 }
 
-/** Los errores se comparan por código: el texto está traducido (memoria del proyecto). */
-function humanError (e) {
-  if (e.code === 'unknown-op') return t(lang, 'staleWorker')
-  if (e.code === 'not-approved') return t(lang, 'askDenied')
-  if (e.code === 'denied') return t(lang, 'denied')
-  if (e.code === 'approval-timeout') return t(lang, 'noAnswer')
-  if (e.code === 'unreachable' || e.code === 'no-link') return t(lang, 'noLink')
-  if (e.code === 'not-found') return t(lang, 'notFound')
-  return e.message
-}
+/** Los errores se comparan por código: el texto está traducido (`errorText`). */
+const humanError = (e) => errorText(lang, e)
 
 function el (tag, props = {}, children = []) {
   const n = Object.assign(document.createElement(tag), props)
@@ -710,7 +703,9 @@ async function aplicar ({ id, site, filas, original, estado, nombre, nombre0, si
 // y eso no es documentación: es un aviso.
 
 async function renderLogins () {
-  const caps = ['sign', 'read', 'store', 'passwords', 'approve']
+  // CUALQUIER permiso del acta, todos por igual (dueño, 2026-09-21). La lista sale del pilar,
+  // no de aquí: un permiso nuevo aparece solo.
+  const caps = DEVICE_CAPS
   const elegidos = new Set(['sign', 'read', 'store'])
 
   const volver = el('button', { className: 'link', textContent: t(lang, 'lgBack') })
@@ -790,7 +785,7 @@ async function renderLogins () {
   pass.dataset.testid = 'lg-pass'
   const pass2 = el('input', { type: 'password', placeholder: t(lang, 'lgPass2'), autocomplete: 'new-password' })
   const permisos = el('div', { className: 'caps' }, caps.map((c) => {
-    const b = el('button', { className: 'cap' + (elegidos.has(c) ? ' on' : ''), textContent: c })
+    const b = el('button', { className: 'cap' + (elegidos.has(c) ? ' on' : ''), textContent: t(lang, 'cap_' + c) })
     b.dataset.cap = c
     b.onclick = () => {
       if (elegidos.has(c)) elegidos.delete(c); else elegidos.add(c)

@@ -12,7 +12,7 @@
 // Es la misma regla que la bóveda-pestaña del ecosistema (`vault.dotrino.com/vault`). La
 // que está encendida siempre —con el navegador cerrado— es la del binario.
 
-import { pickLang, t } from './i18n.js'
+import { pickLang, t, errorText } from './i18n.js'
 import { wireTopbar } from './profile-card.js'
 import { hostApprovals } from './approval.js'
 import * as logins from './logins.js'
@@ -36,8 +36,29 @@ const ask = (op, payload) => new Promise((resolve, reject) => {
   })
 })
 
+/** Qué pasa con las contraseñas: a cuántos aparatos se les atienden, o por qué no. */
+function pintaClaves (nodo, pw) {
+  nodo.replaceChildren()
+  if (pw?.ok) {
+    nodo.textContent = pw.devices ? t(lang, 'vtPw', pw.devices) : t(lang, 'vtPwNone')
+    return
+  }
+  nodo.className = 'hint warn'
+  nodo.textContent = t(lang, 'vtPwFail') + ' ' + errorText(lang, pw || {})
+  // Falta convertir: se arregla en el gestor. En OTRA pestaña, porque salir de esta la apaga.
+  if (pw?.code === 'not-sealed') {
+    const ir = el('button', { className: 'btn', textContent: t(lang, 'openConvert') })
+    ir.dataset.testid = 'open-convert'
+    ir.onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html#view=convert') })
+    nodo.append(' ', ir)
+  }
+}
+
 async function render () {
   const estado = el('p', { className: 'hint' })
+  // LAS CONTRASEÑAS que atiende esta pestaña: las mismas de la bóveda propia, no otra copia.
+  const claves = el('p', { className: 'hint' })
+  claves.dataset.testid = 'vt-passwords'
   const lista = el('div', { className: 'logins' })
   const msg = el('p', { className: 'hint' })
 
@@ -65,6 +86,7 @@ async function render () {
   parar.onclick = () => {
     logins.stopServing()
     estado.textContent = t(lang, 'vtOff')
+    claves.replaceChildren()
     parar.hidden = true
   }
 
@@ -75,6 +97,7 @@ async function render () {
     el('h2', { textContent: t(lang, 'vtTitle') }),
     el('p', { className: 'hint warn', textContent: t(lang, 'vtOpen') }),
     estado,
+    claves,
     lista,
     el('div', { className: 'row' }, [parar, alGestor]),
     msg
@@ -84,8 +107,10 @@ async function render () {
   estado.textContent = t(lang, 'vtStarting')
   try {
     const r = await logins.serveLogins({})
-    estado.textContent = r.ok ? t(lang, 'vtOn') : t(lang, 'vtNothing')
-    parar.hidden = !r.ok
+    estado.textContent = t(lang, 'vtOn')
+    estado.dataset.testid = 'vt-on'
+    parar.hidden = false
+    pintaClaves(claves, r.passwords)
   } catch (e) {
     estado.textContent = t(lang, 'vtFail') + ' ' + e.message
     parar.hidden = true

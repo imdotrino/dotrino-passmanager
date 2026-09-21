@@ -134,6 +134,12 @@ export function hostApprovals ({ resize, standalone, onAnswer } = {}) {
       quien.appendChild(sub)
     }
 
+    // Si lo pide OTRO aparato de la cuenta, se dice cuál: sin eso no hay forma de saber
+    // si el que pide eres tú desde el otro equipo o alguien más.
+    const desde = document.createElement('p')
+    desde.setAttribute('data-testid', 'approval-device')
+    if (q.device) desde.textContent = t(lang, 'askFrom', q.device)
+
     const p = document.createElement('p')
     p.textContent = t(lang, 'askBody')
 
@@ -152,7 +158,7 @@ export function hostApprovals ({ resize, standalone, onAnswer } = {}) {
     si.onclick = () => answer(rid, true)
     acts.append(no, si)
 
-    caja.append(marca, h, quien, p, acts)
+    caja.append(marca, h, quien, ...(q.device ? [desde] : []), p, acts)
     back.appendChild(caja)
     document.body.appendChild(back)
     // Un iframe pequeño recorta la pregunta: se le pide sitio antes de medirse.

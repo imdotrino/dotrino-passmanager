@@ -24,13 +24,15 @@ import { SealedVault } from './vendor/passmanager/vault/sealed.js'
 import { LocalVault } from './vendor/passmanager/vault/local.js'
 import { GuardedVault } from './vendor/passmanager/vault/guard.js'
 import { SealedLocalVault } from './vendor/passmanager/vault/sealed-local.js'
-import { SealedStore } from './vendor/passmanager/sealed/store.js'
+import { SealedStore, KEY as SEALED_KEY } from './vendor/passmanager/sealed/store.js'
 import { makeRecovery, openRecovery, hasRecovery, recoveryPubOf } from './vendor/passmanager/sealed/recovery.js'
 import { convertToSealed } from './vendor/passmanager/sealed/convert.js'
 import { profileKeys } from './vendor/passmanager/sealed/keys.js'
 import { verifyDeviceSig } from './vendor/identity/capabilities.js'
 import { samePubkey } from './vendor/passmanager/pubkey.js'
 import { ApprovalGate } from './vendor/passmanager/vault/approval.js'
+import { SealedResponder } from './vendor/passmanager/vault/sealed-responder.js'
+import { replyError } from './vendor/passmanager/transport/protocol.js'
 import { ProxyTransport } from './vendor/passmanager/transport/proxy.js'
 import { identitySealing } from './vendor/passmanager/transport/sealed.js'
 import { SessionCache } from './vendor/passmanager/session-cache.js'
@@ -172,24 +174,60 @@ async function ownRecipientsOf (kind) {
   return lista
 }
 
-/** La bóveda sellada de un perfil propio, o `null` si todavía no se ha convertido. */
-async function ownSealed (id) {
-  const core = await identityCore()
-  const store = storeFor(id)
-  const rec = await store.get(RECOVERY_OF(id))
-  const sealed = new SealedStore(store, {
+/**
+ * LAS ESCRITURAS DEL ALMACÉN SELLADO, EN FILA.
+ *
+ * Cada escritura lee el estado entero, lo cambia y lo vuelve a guardar. Con un solo
+ * escritor a la vez eso basta; desde que la pestaña de bóveda atiende a otros aparatos,
+ * lo que guarda el equipo prestado y lo que guardas aquí pueden coincidir — y la segunda
+ * escritura pisaría a la primera con el estado de antes. Una entrada perdida sin error.
+ */
+let sealedLine = Promise.resolve()
+const inLine = (fn) => {
+  const run = sealedLine.then(fn, fn)
+  sealedLine = run.catch(() => {})
+  return run
+}
+const SEALED_WRITES = ['putSealed', 'patchSealed', 'remove', 'setProfile', 'rewrapAll']
+
+/**
+ * UN almacén sellado por perfil, y el mismo para todos: la bóveda propia, la conversión y
+ * lo que llega por la pestaña. Dos instancias sobre la misma clave serían dos filas.
+ */
+const sealedStores = new Map()
+
+function sealedStoreOf (id) {
+  if (sealedStores.has(id)) return sealedStores.get(id)
+  const sealed = new SealedStore(storeFor(id), {
     recipients: ownRecipientsOf,
     // Quién puede escribir aquí: este mismo navegador —es SU bóveda— o un aparato del
     // acta con `passwords`. Lo de «o él mismo» es por lo mismo que arriba: `passwords` es
     // el permiso para pedirle a OTRO, y en su propia cuenta este navegador es el master y
     // no lo lleva. La firma se comprueba en los dos casos; lo que cambia es quién vale.
+    //
+    // El núcleo se pide en cada llamada y no se guarda: cambiar de perfil lo rearranca, y
+    // uno guardado aquí contestaría con el acta de otra cuenta.
     verifyAuthor: async ({ body, author }) => {
-      const { members } = await core.handlers.profileMembers({})
+      const { members } = await (await identityCore()).handlers.profileMembers({})
       const m = (members || []).find((x) => samePubkey(x.pub, author?.pub))
       if (!m || !((m.caps || []).includes('passwords') || m.isMe)) return false
       return verifyDeviceSig({ publickey: author.pub, data: body, signature: author.sig })
     }
   })
+  for (const k of SEALED_WRITES) {
+    const original = sealed[k].bind(sealed)
+    sealed[k] = (...args) => inLine(() => original(...args))
+  }
+  sealedStores.set(id, sealed)
+  return sealed
+}
+
+/** La bóveda sellada de un perfil propio, o `null` si todavía no se ha convertido. */
+async function ownSealed (id) {
+  const core = await identityCore()
+  const store = storeFor(id)
+  const rec = await store.get(RECOVERY_OF(id))
+  const sealed = sealedStoreOf(id)
   if (!hasRecovery(rec) || !(await sealed.sealed())) return { sealed, rec, listo: false }
 
   const miPub = await identity.publickey()
@@ -272,7 +310,7 @@ async function ownGuarded (id) {
   const { listo, vault: sellada } = await ownSealed(id)
   // Sin convertir no se atiende: servir con la llave vieja «mientras tanto» sería el
   // mismo agujero con otro nombre. El gestor lo ve por este código y pide la contraseña.
-  if (!listo) throw new VaultError(CODES.NOT_ALLOWED, 'passwords-not-sealed: open the vault to convert')
+  if (!listo) throw new VaultError(CODES.NOT_SEALED, 'passwords are not sealed yet: open the manager to convert')
   const inner = sellada
   const gate = new ApprovalGate({
     ask: ({ op, payload }) => askApproval({ op, payload, vault: inner }),
@@ -383,8 +421,10 @@ chrome.runtime.onConnect.addListener(port => {
  * la pregunta es «¿autorizas algo?», que no es una pregunta. Lo que viaja a la pantalla
  * es la mitad pública de la entrada (§4.0.2) — nunca el valor guardado.
  */
-async function askApproval ({ op, payload, vault }) {
-  const q = { op, who: '', title: '', site: '' }
+async function askApproval ({ op, payload, vault, device = '' }) {
+  // `device`: QUIÉN pide, cuando no es este navegador (lo que llega por la pestaña de
+  // bóveda desde otro aparato de la cuenta).
+  const q = { op, who: '', title: '', site: '', device }
   try {
     const e = await vault.get(payload?.id)
     q.who = entryWho(e)
@@ -439,16 +479,31 @@ const cache = new SessionCache({
 // dentro del service worker (`identity-core.js`). Lo que el gestor añade encima es una
 // sola cosa por perfil: DÓNDE guarda — en su propia bóveda aquí, o en una conectada.
 
-/** Lo que el gestor sabe de un perfil. Sin registro, es de los que guardan aquí. */
-async function pmOf (id) {
-  return (await store.get(`passmanager/profile/${id}`)) || { kind: 'own' }
+/**
+ * Lo que el gestor sabe de un perfil. Sin registro, es de los que guardan aquí.
+ *
+ * **Una cuenta en la que se ENTRÓ con usuario y contraseña es siempre `linked`.** Por
+ * definición su bóveda está en otra parte —la que atendió el inicio de sesión—, y tratarla
+ * como propia le daba una bóveda vacía y sin convertir en este navegador: «no puedo hablar
+ * con tu bóveda» mientras la de verdad estaba abierta en la otra punta.
+ */
+async function pmOf (id, { login = null } = {}) {
+  const saved = await store.get(`passmanager/profile/${id}`)
+  if (login) return { ...(saved || {}), kind: 'linked' }
+  return saved || { kind: 'own' }
 }
 
 const setPmOf = (id, v) => store.set(`passmanager/profile/${id}`, v)
 
+/** El inicio de sesión del perfil `id`, o `null` si no se entró con contraseña. */
+async function loginOf (id) {
+  const list = await (await identityCore()).handlers.listProfiles()
+  return list.find((p) => p.id === id)?.login || null
+}
+
 async function activeProfile () {
   const cur = await identity.current()
-  const pm = await pmOf(cur.id)
+  const pm = await pmOf(cur.id, { login: await loginOf(cur.id) })
   return { id: cur.id, label: cur.name || null, ...pm }
 }
 
@@ -473,7 +528,7 @@ async function listProfiles () {
     // silueta genérica. El núcleo la trae y aquí se estaba tirando.
     pubkey: p.pubkey || null,
     current: !!p.current,
-    kind: (await pmOf(p.id)).kind,
+    kind: (await pmOf(p.id, { login: p.login })).kind,
     // Un perfil que se abrió con usuario y contraseña se dice: es lo que hace que el menú
     // del botón de perfil ponga «Salir» en vez de «Iniciar sesión». Se estaba tirando aquí,
     // así que en la extensión no había forma de salir.
@@ -527,7 +582,13 @@ const setProfile = ({ patch } = {}) => identity.updateMe(patch || {})
  * borramos aquí—: si quedara algo, «lo quité» sería mentira.
  */
 async function removeProfile ({ id }) {
+  sealedStores.delete(id)
+  if (serving?.pid === id) serving = null
   await store.del(keyFor(id, 'passmanager/entries/v1'))
+  // Y lo sellado, que no se estaba borrando: quitar una cuenta dejaba sus sobres y su copia
+  // de recuperación en el almacén, y «lo quité» no era verdad.
+  await storeFor(id).del(SEALED_KEY)
+  await storeFor(id).del(RECOVERY_OF(id))
   await store.del(`passmanager/profile/${id}`)
   try { await keyStore('readwrite', s => s.delete(keyFor(id, 'cek'))) } catch (_) {}
   await identity.remove(id)
@@ -1484,6 +1545,121 @@ async function removeEntry ({ id, url }) {
   return { ok: true }
 }
 
+// --- LA PESTAÑA DE BÓVEDA SIRVE ESTA MISMA BÓVEDA ------------------------------------
+//
+// «Ambas bóvedas deben compartir los datos» (dueño, 2026-09-21). La bóveda de dentro de la
+// extensión y la pestaña «Esta pestaña es tu bóveda» son UNA: la pestaña no tiene otra copia,
+// solo pone la conexión para que otro aparato de la cuenta —el equipo donde entraste con
+// usuario y contraseña, por ejemplo— le pida contraseñas mientras esté abierta.
+//
+// El reparto, y por qué es este:
+//   · la PESTAÑA sostiene el socket con el proxio, porque un worker se duerme a los 30 s;
+//   · AQUÍ se decide y se escribe: el almacén es el mismo que usa la bóveda propia
+//     (`sealedStoreOf`), con sus escrituras en fila. Dos escritores se pisarían.
+//
+// El responder es el del pilar (`SealedResponder`), el mismo del demonio y de
+// `vault.dotrino.com/vault`: la política no se reescribe por bóveda.
+
+let serving = null   // { pid, responder, members, replies }
+
+async function membersNow () {
+  return (await (await identityCore()).handlers.profileMembers({})).members || []
+}
+
+async function servingFor (pid) {
+  const prof = await activeProfile()
+  // La pestaña atiende la cuenta con la que se abrió. Si cambiaste de cuenta, firmar y
+  // abrir serían los de otra: se para y se dice.
+  if (prof.id !== pid) throw new VaultError(CODES.DENIED, 'the active account changed: reopen the vault tab')
+  if (prof.kind !== 'own') throw new VaultError(CODES.DENIED, 'this account keeps its passwords in another vault')
+  const { listo, sealed, rec, vault: propia } = await ownSealed(pid)
+  if (!listo) throw new VaultError(CODES.NOT_SEALED, 'passwords are not sealed yet: open the manager to convert')
+  if (serving?.pid === pid) return serving
+
+  const s = { pid, members: [], replies: new Map(), responder: null }
+  const miembro = (pub) => s.members.find((m) => samePubkey(m.pub, pub)) || null
+  s.responder = new SealedResponder({
+    // Aquí no hay socket: el responder «envía» a este buzón y la pestaña lo manda de verdad.
+    client: {
+      on () {},
+      off () {},
+      sendSealedTo (to, msg, { peerEncPub } = {}) { s.replies.set(`${to}|${msg?.rid}`, { to, msg, peerEncPub }) }
+    },
+    store: sealed,
+    recipients: async () => ({
+      recoveryPub: recoveryPubOf(rec),
+      main: await ownRecipientsOf('main'),
+      passkeys: await ownRecipientsOf('passkeys')
+    }),
+    // Quién puede pedir lo dice el ACTA: un aparato con `passwords`. Esta extensión no se
+    // pide a sí misma por la red: lo suyo lo abre directo.
+    isAllowed: (pub) => { const m = miembro(pub); return !!m && !m.isMe && (m.caps || []).includes('passwords') },
+    encPubOf: (pub) => miembro(pub)?.encPub || null,
+    // El criterio del demonio: pregunta, salvo que el acta le dé `unattended`.
+    needsApproval: async (pub) => !(miembro(pub)?.caps || []).includes('unattended'),
+    // La pregunta sale en la pantalla que tengas delante, que casi siempre es la propia
+    // pestaña de bóveda. Se nombra la entrada abriéndola aquí, que sí puede, y se dice QUIÉN
+    // la pide: sin eso no hay forma de saber si fuiste tú.
+    approve: ({ op, payload, pubkey }) => {
+      const m = miembro(pubkey)
+      return askApproval({ op, payload, vault: propia, device: m?.label || m?.id || '' })
+    }
+  })
+  serving = s
+  return s
+}
+
+/**
+ * LA DEUDA DE ENVOLTURAS. Un aparato que recibió `passwords` después de escrita una entrada
+ * no la puede abrir: nadie se la envolvió. Esta bóveda está entre los destinatarios de todo,
+ * así que se la envuelve ella con `rewrapFor` —la llave no sale del núcleo— sin pedirle a
+ * nadie la contraseña de recuperación.
+ */
+async function settleDebt (s) {
+  const sealed = sealedStoreOf(s.pid)
+  if (!(await sealed.incompleteMembers()).length) return null
+  const core = await identityCore()
+  const r = await sealed.rewrapAll({
+    holder: { pub: await identity.publickey(), rewrapFor: (x) => core.handlers.rewrapFor(x) }
+  })
+  if (r.failed.length) console.error('[vault-tab] could not rewrap %d generation(s): %s', r.failed.length, r.failed[0].error)
+  return r
+}
+
+/**
+ * UNA petición que llegó a la pestaña. Devuelve lo que hay que contestar —`{ to, msg,
+ * peerEncPub }`, para que la pestaña lo selle y lo mande— o `null` si no se contesta.
+ */
+async function serveRequest ({ pid, from, pubkey, msg, sealed } = {}) {
+  let s
+  try {
+    s = await servingFor(pid)
+  } catch (e) {
+    // Sin contestar, el otro lado espera hasta su tope y ve «nadie respondió», que es
+    // mentira: la bóveda está, y está diciendo que no puede. Se le dice con su código —solo
+    // si es de la cuenta: a un desconocido no se le cuenta nada.
+    const m = (await membersNow()).find((x) => samePubkey(x.pub, pubkey))
+    if (!m?.encPub || !(m.caps || []).includes('passwords')) return null
+    return { to: from, msg: replyError(msg?.rid, e?.code || CODES.UNKNOWN, e?.message), peerEncPub: m.encPub }
+  }
+  s.members = await membersNow()
+  await settleDebt(s)
+  await s.responder.handle({ from, pubkey, msg, sealed })
+  const k = `${from}|${msg?.rid}`
+  const r = s.replies.get(k) || null
+  s.replies.delete(k)
+  return r
+}
+
+/** Al encender la pestaña: comprueba que esta cuenta puede servir y paga la deuda. */
+async function serveStart ({ pid } = {}) {
+  const s = await servingFor(pid)
+  s.members = await membersNow()
+  const deuda = await settleDebt(s)
+  const devices = s.members.filter((m) => !m.isMe && (m.caps || []).includes('passwords')).length
+  return { ok: true, devices, rewrapped: deuda?.wrapped || 0 }
+}
+
 const OPS = {
   status,
   capture,
@@ -1517,6 +1693,10 @@ const OPS = {
   'entry-view': p => entryView(p),
   'entry-diff': p => entryDiff(p),
   patch: p => patchEntry(p),
+  // Lleva a la pantalla que arregla una bóveda sin convertir. La puede pedir la página
+  // (el botón del modal) porque no toca nada: abre una pantalla de la extensión, y lo que
+  // se decida ahí se decide con el usuario delante.
+  'open-convert': () => chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html#view=convert') }).then(() => ({ ok: true })),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),
   get: async p => getEntry(await connect(), p.id, p.keys),
@@ -1551,11 +1731,27 @@ const ID_OPS = {
   'id.joinProfile': async ({ acta }) => (await identityCore()).handlers.joinProfile({ acta }),
   // Las dos mitades de ENTRAR CON CONTRASEÑA que son del núcleo. La otra mitad —hablar con
   // la bóveda— la hace la página, que es la única que puede con el WASM y con un socket.
-  'id.adoptLogin': ({ entrada, remember, proxy }) => identity.adoptLogin(entrada, { remember, proxy }),
+  'id.adoptLogin': async ({ entrada, remember, proxy }) => {
+    const r = await identity.adoptLogin(entrada, { remember, proxy })
+    // Se apunta a la vista, aunque `pmOf` ya lo deduzca del inicio de sesión: lo abierto
+    // era de la cuenta de antes y no se reutiliza con esta identidad.
+    await setPmOf(r.id, { kind: 'linked' })
+    dropOpen()
+    await cache.forget()
+    return r
+  },
   // Lo que la página necesita para AVISAR a la bóveda de que se va: quién es esta sesión y
   // por dónde. La llave NO sale de aquí — la página firma pidiendo `id.signData`.
   'id.loginMeta': () => identity.loginMeta(),
-  'id.logoutLogin': ({ id = null } = {}) => identity.leaveLogin(id)
+  'id.logoutLogin': ({ id = null } = {}) => identity.leaveLogin(id),
+  // EL SELLADO de la pestaña de bóveda: su socket abre y sella con la llave de cifrado del
+  // PERFIL, que vive aquí. Se le pide que abra o que selle; la privada no cruza.
+  'id.encPub': () => identity.encryptionPubkey(),
+  'id.encrypt': ({ recipients, plaintext }) => identity.encrypt(recipients, plaintext),
+  'id.decrypt': ({ from, envelope }) => identity.decrypt(from, envelope),
+  // Y las contraseñas que le piden a esa pestaña, que se deciden y se escriben aquí.
+  'pm.serve-start': (p) => serveStart(p),
+  'pm.serve': (p) => serveRequest(p)
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -1581,7 +1777,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
   // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
   // extensión.
-  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers'].includes(msg.op)) {
+  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

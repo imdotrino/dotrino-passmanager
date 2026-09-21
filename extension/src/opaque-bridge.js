@@ -53,6 +53,10 @@ export const client = {
 }
 
 export const server = {
+  // El mostrador le pregunta la suite a QUIEN CALCULA (`createLoginDesk`); sin esto caía al
+  // OPAQUE de casa, que en la extensión no existe, y dar de alta un aparato de usuario y
+  // contraseña reventaba con «opaque: inject it».
+  suiteId: () => llamar('suiteId', {}),
   createSetup: () => llamar('server.createSetup', {}),
   registrationResponse: (a) => llamar('server.registrationResponse', a),
   registrationFinish: (a) => llamar('server.registrationFinish', a),

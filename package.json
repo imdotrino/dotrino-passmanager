@@ -23,7 +23,8 @@
     "test:labels": "node extension/test/labels.e2e.mjs",
     "test:gestor": "node extension/test/gestor.e2e.mjs",
     "store:shots": "node extension/store/tienda.mjs",
-    "test:perfil": "node extension/test/perfil.e2e.mjs"
+    "test:perfil": "node extension/test/perfil.e2e.mjs",
+    "test:compartir": "node extension/test/compartir.e2e.mjs"
   },
   "dependencies": {
     "@dotrino/identity": "0.99.0",

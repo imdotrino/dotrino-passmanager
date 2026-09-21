@@ -24,7 +24,8 @@ import { startDeviceVault } from './vendor/vault/index.js'
 import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { client as opaque, server as opaqueServer } from './opaque-bridge.js'
 import { makeDeviceKey, makeDeviceEncKey } from './vendor/identity/capabilities.js'
-import { capScope } from './vendor/identity/acta.js'
+import { identitySealing } from './vendor/passmanager/transport/sealed.js'
+import { isRequest } from './vendor/passmanager/transport/protocol.js'
 
 const KEY = (pid) => `logins/${pid}`
 
@@ -60,7 +61,20 @@ const identidad = {
 }
 
 let mostrador = null     // { pid, desk, flushed }
-let atendiendo = null    // el handle de `startDeviceVault`
+let atendiendo = null    // { vault: el handle de `startDeviceVault`, client, onMessage }
+
+/**
+ * EL SELLADO del socket de esta pestaña, con la llave de cifrado del PERFIL. La llave vive
+ * en el worker: aquí se le pide que selle o que abra, y la privada no cruza.
+ *
+ * Es el dialecto del núcleo (`encryptionPubkey`/`decrypt` → cadena) que ya entiende
+ * `identitySealing`, así que el sobre es el MISMO de las otras bóvedas.
+ */
+const sellador = {
+  encryptionPubkey: () => alWorker('id.encPub'),
+  encrypt: (recipients, plaintext) => alWorker('id.encrypt', { recipients, plaintext }),
+  decrypt: (from, envelope) => alWorker('id.decrypt', { from, envelope })
+}
 
 /**
  * El escritorio de ESTE perfil. Quiere `load`/`save` síncronos y `chrome.storage` es
@@ -73,7 +87,7 @@ async function escritorio () {
   const { id: pid, publickey } = await alWorker('id.whoami')
   identidad.me = { publickey }
   if (mostrador?.pid === pid) return mostrador
-  if (atendiendo) { try { atendiendo.close() } catch (_) {} atendiendo = null }
+  stopServing()
   const clave = KEY(pid)
   let estado = (await chrome.storage.local.get(clave))[clave] || null
   let cola = Promise.resolve()
@@ -127,8 +141,8 @@ export async function addLogin ({ user, password, label = '', caps = ['sign', 'r
     encPub: enc.encPublickey,
     label: nombre,
     blob,
-    scope: caps.filter((c) => c !== 'unattended').map((c) => capScope(c)).filter(Boolean),
-    unattended: caps.includes('unattended')
+    // Los PERMISOS del acta, cualquiera de ellos y tal cual: los traduce el pilar.
+    caps
   })
   await flushed()
   return { ...r, address: loginAddress(user, await accountFingerprint(identidad)) }
@@ -189,24 +203,66 @@ export async function removeLogin ({ user } = {}) {
  * ATENDER a quien entra desde otro equipo. El socket vive en esta página: mientras la
  * pestaña esté abierta, un equipo prestado encuentra esta bóveda por su dirección.
  */
+/**
+ * HACER DE BÓVEDA: atender a los aparatos de la cuenta mientras esta pestaña esté abierta.
+ *
+ * Son dos cosas por el MISMO socket, como en el demonio:
+ *   · la identidad (`startDeviceVault`): entrar con usuario y contraseña, firmar, el acta;
+ *   · las CONTRASEÑAS de la bóveda propia. No hay otra copia: lo que se atiende es lo mismo
+ *     que rellena esta extensión, y lo decide y lo escribe el worker. Aquí solo se sostiene
+ *     la conexión, que es lo que un worker no puede (se duerme a los 30 s).
+ *
+ * Sin `requireSealed` en el cliente, y no es un olvido: entrar con contraseña viaja en claro
+ * a propósito (quien entra todavía no tiene llave). Lo que corta es el responder, que no
+ * atiende una petición de contraseñas que no llegue sellada — igual que en el demonio.
+ *
+ * Que las contraseñas no se puedan atender (falta convertir) no apaga lo demás: se enciende
+ * igual y se dice qué falta.
+ */
 export async function serveLogins ({ proxyUrl = null } = {}) {
-  const { desk } = await escritorio()
-  if (atendiendo) return { ok: true, already: true }
-  if (!desk.list().length) return { ok: false, reason: 'sin-inicios-de-sesion' }
+  const { pid, desk } = await escritorio()
+  if (atendiendo) return { ok: true, already: true, logins: desk.list().length, passwords: atendiendo.passwords }
   const client = new WebSocketProxyClient({
     url: proxyUrl || PROXY_URL,
     // El camino es el proxio: aquí no se negocia WebRTC con nadie.
     enableWebRTC: false,
-    autoReconnect: true
+    autoReconnect: true,
+    sealing: identitySealing(sellador)
   })
   await client.connect()
-  atendiendo = await startDeviceVault(identidad, { client, logins: desk })
-  return { ok: true }
+  const vault = await startDeviceVault(identidad, { client, logins: desk })
+
+  // LAS CONTRASEÑAS. La petición llega aquí ya abierta (la abrió el cliente, con `sealing`)
+  // y se la pasa al worker tal cual; lo que él conteste sale SELLADO para quien preguntó.
+  const onMessage = async (from, msg, meta) => {
+    const p = typeof msg === 'string' ? (() => { try { return JSON.parse(msg) } catch (_) { return null } })() : msg
+    if (!isRequest(p)) return
+    // Quién pregunta lo dice el proxio (la llave con la que se identificó). Sin eso no hay a
+    // quién sellarle la respuesta, y el token no es una llave.
+    const pubkey = meta?.fromPubkey || client.pubkeyOfToken?.(from) || null
+    if (!pubkey) return
+    try {
+      const r = await alWorker('pm.serve', { pid, from, pubkey, msg: p, sealed: meta?.sealed === true })
+      if (r) await client.sendSealedTo(r.to, r.msg, { peerEncPub: r.peerEncPub })
+    } catch (e) {
+      console.error('[vault-tab] password request failed:', e?.code || e?.message || e)
+    }
+  }
+  client.on('message', onMessage)
+
+  let passwords
+  try { passwords = { ok: true, ...(await alWorker('pm.serve-start', { pid })) } }
+  catch (e) { passwords = { ok: false, code: e?.code || null, message: e?.message || String(e) } }
+
+  atendiendo = { vault, client, onMessage, passwords }
+  return { ok: true, logins: desk.list().length, passwords }
 }
 
 export function stopServing () {
   if (!atendiendo) return { ok: false }
-  try { atendiendo.close() } catch (_) {}
+  try { atendiendo.client.off?.('message', atendiendo.onMessage) } catch (_) {}
+  try { atendiendo.vault.close() } catch (_) {}
+  try { atendiendo.client.close?.() } catch (_) {}
   atendiendo = null
   return { ok: true }
 }

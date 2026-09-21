@@ -17,7 +17,7 @@
 // ahí decide nada. Los valores salen de la bóveda, y lo que se guarda es lo que el
 // service worker tenga apuntado.
 
-import { t, pickLang, kindLabel } from './i18n.js'
+import { t, pickLang, kindLabel, errorText } from './i18n.js'
 import { hostApprovals } from './approval.js'
 // El generador de la librería, el MISMO que usa la CLI: aleatoriedad de
 // `crypto.getRandomValues` y elección sin sesgo. Escribir otro aquí sería tener dos ideas
@@ -63,13 +63,7 @@ $('genAgain').setAttribute('aria-label', t(lang, 'genAgain'))
 
 
 function fail (e) {
-  $('err').textContent = e?.code === 'unknown-op'
-    ? t(lang, 'staleWorker')
-    : e?.code === 'not-approved'
-      ? t(lang, 'askDenied')
-      : e?.code === 'denied'
-        ? t(lang, 'denied')
-        : (e?.code === 'no-link' || e?.code === 'unreachable') ? t(lang, 'noLink') : (e?.message || String(e))
+  $('err').textContent = errorText(lang, e)
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
   paintButtons()

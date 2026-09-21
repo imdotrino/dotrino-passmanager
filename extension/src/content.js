@@ -26,7 +26,10 @@ mods.then((m) => Object.assign(cache, m))
 function ask (op, payload) {
   return new Promise(resolve => {
     chrome.runtime.sendMessage({ op, payload }, r => {
-      if (chrome.runtime.lastError) resolve({ error: { code: 'unreachable' } })
+      // `no-worker` y no `unreachable`: lo que no contestó es la EXTENSIÓN, no la bóveda.
+      // Con el mismo código, la pantalla decía «no estás enlazado a ninguna bóveda» a quien
+      // tenía la suya delante.
+      if (chrome.runtime.lastError) resolve({ error: { code: 'no-worker' } })
       else resolve(r || { error: { code: 'empty' } })
     })
   })
@@ -42,8 +45,11 @@ function ask (op, payload) {
 let vaultFor = { host: null, entries: [], error: null }
 
 async function entriesForHost () {
-  if (vaultFor.host === location.host) return vaultFor
+  if (vaultFor.host === location.host && !vaultFor.error) return vaultFor
   const r = await ask('find', { url: location.href })
+  // UN ERROR NO SE RECUERDA. Se recordaba hasta recargar: si la bóveda no contestó una vez
+  // —la pestaña de bóveda estaba cerrada, o faltaba convertirla—, la página seguía diciendo
+  // que no aunque ya estuviera arreglado.
   vaultFor = { host: location.host, entries: r?.error ? [] : (r.result || []), error: r?.error?.code || null }
   return vaultFor
 }
@@ -198,7 +204,12 @@ async function onPick (field) {
 
   const { error } = await entriesForHost()
   if (error) {
-    return ui.showModal({ title: 'Dotrino', empty: messageFor(error), closeLabel: t('close') })
+    // Falta convertir: el mensaje dice qué pasa y el botón lleva a donde se arregla. Sin él,
+    // «no se pudo hablar con tu bóveda» no dejaba ningún camino.
+    const actions = error === 'not-sealed'
+      ? [{ label: t('openConvert'), testid: 'open-convert', onAction: () => ask('open-convert') }]
+      : []
+    return ui.showModal({ title: 'Dotrino', empty: messageFor(error), actions, closeLabel: t('close') })
   }
   // Apuntar no es guardar: queda en la memoria de sesión del service worker y solo entra
   // en la bóveda si se pulsa «Guardar», que se pulsa dentro del marco.
@@ -372,12 +383,14 @@ async function sendModalContext () {
   } catch (_) {}
 }
 
+/**
+ * El texto de un error: la misma tabla que las pantallas de la extensión (`errorText`).
+ * Lo que no tiene texto propio es «no se pudo hablar con tu bóveda» — aquí no se enseña el
+ * mensaje interno, que es para quien depura y la página no es sitio para eso.
+ */
 function messageFor (code) {
-  if (code === 'unknown-op') return t('staleWorker')
-  if (code === 'no-link' || code === 'unreachable') return t('noVault')
-  if (code === 'denied') return t('denied')
-  if (code === 'approval-timeout') return t('noAnswer')
-  return t('noTalk')
+  const txt = cache.i18n.errorText(lang, { code })
+  return txt === code ? t('noTalk') : txt
 }
 
 // --- lo que puede pedir el POPUP -------------------------------------------
