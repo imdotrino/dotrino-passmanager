@@ -166,6 +166,25 @@ const final = await page.evaluate(() => new Promise((r) => chrome.runtime.sendMe
 ok(!(final?.profiles || []).some((p) => p.id === despues.active), 'y la cuenta de paso no queda en el navegador')
 ok(vault.listLogins().find((l) => l.user === USUARIO)?.sessions.length === 0, 'la bóveda soltó la plaza')
 
+// RECORDADA (dueño, 2026-09-21): la cuenta se fue, pero su DIRECCIÓN se queda en el
+// selector, y elegirla lleva a entrar con la dirección puesta — solo falta la contraseña.
+const cerrada = (final?.profiles || []).find((p) => p.closed?.address === DIR)
+ok(!!cerrada && cerrada.id === 'login:' + DIR, 'sigue en el selector como sesión cerrada')
+ok(!!cerrada && !cerrada.current, 'y no es la activa')
+const abre = ctx.waitForEvent('page', { timeout: 8000 }).catch(() => null)
+await page.evaluate((id) => new Promise((r) => chrome.runtime.sendMessage({ op: 'profile-use', payload: { id } }, r)), cerrada?.id)
+const entrarOtraVez = await abre
+if (entrarOtraVez) await entrarOtraVez.waitForLoadState()
+ok(!!entrarOtraVez && entrarOtraVez.url().includes('#view=login&address=' + encodeURIComponent(DIR)), 'elegirla abre la pantalla de entrar con su dirección')
+if (entrarOtraVez) {
+  await entrarOtraVez.locator('[data-testid=login-address]').waitFor({ timeout: 8000 })
+  ok(await entrarOtraVez.locator('[data-testid=login-address]').inputValue() === DIR, 'con la dirección ya escrita')
+  await entrarOtraVez.locator('[data-testid=login-forget]').click()
+  await entrarOtraVez.waitForTimeout(500)
+}
+const tras = await page.evaluate(() => new Promise((r) => chrome.runtime.sendMessage({ op: 'status' }, (x) => r(x?.result))))
+ok(!(tras?.profiles || []).some((p) => p.closed?.address === DIR), '«Olvidar» la quita del selector')
+
 await ctx.close()
 await rm(perfil, { recursive: true, force: true })
 try { client.close() } catch (_) {}

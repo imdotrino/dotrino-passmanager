@@ -25,7 +25,7 @@ const STRINGS = {
     inLabel: 'el gestor',
     inDone: (u) => `Ya estás dentro como «${u}».`,
     inLink: 'Entrar con usuario y contraseña',
-    lgTitle: 'Entrar con usuario y contraseña',
+    lgTitle: 'Accesos con usuario y contraseña',
     lgIntro: 'Un aparato de tu cuenta que se abre escribiendo una dirección y una contraseña, sin conectar nada. Sirve para entrar desde un equipo prestado.',
     lgWorker: 'Crear y administrar funciona siempre. Para que alguien pueda ENTRAR desde otro equipo, la extensión abre una pestaña que hace de bóveda: mientras esté abierta, atiende. La que está encendida siempre es la de tu computadora.',
     lgNone: 'No hay ninguno.',
@@ -59,7 +59,7 @@ const STRINGS = {
     lgRemove: 'Quitar',
     lgRemoveSure: (u) => `¿Quitar «${u}»? Su llave sale del acta y ese equipo deja de entrar.`,
     lgBack: 'Volver',
-    lgLink: 'Entrar con usuario y contraseña',
+    lgLink: 'Accesos con usuario y contraseña',
     // --- la pestaña que ES la bóveda ---
     vtTitle: 'Esta pestaña es tu bóveda',
     vtOpen: 'Mientras esté abierta, tus otros aparatos pueden entrar y pedirle tus contraseñas. Al cerrarla, deja de atender.',
@@ -140,6 +140,10 @@ const STRINGS = {
     staleWorker: 'Recarga la extensión: la que está corriendo es de antes de esta actualización.',
     // La página se quedó hablando con una extensión que ya no está (se actualizó o se recargó).
     noWorker: 'Recarga esta página: la extensión se actualizó.',
+    // Una cuenta en la que entraste con contraseña y cuya sesión se cerró: se ofrece para
+    // volver a entrar (pide la contraseña otra vez).
+    closedLogin: (u) => `${u} · sesión cerrada`,
+    forgetLogin: 'Olvidar esta cuenta en este navegador',
     // La bóveda propia en el formato viejo no atiende hasta que se convierte (`sealed-passwords.md` §2.7).
     notSealed: 'Tu bóveda necesita una contraseña de recuperación antes de volver a funcionar.',
     openConvert: 'Ponerla ahora',
@@ -253,7 +257,7 @@ const STRINGS = {
     inLabel: 'the manager',
     inDone: (u) => `You are in as “${u}”.`,
     inLink: 'Sign in with a username and password',
-    lgTitle: 'Sign in with a username and password',
+    lgTitle: 'Username-and-password access',
     lgIntro: 'A device of your account that opens by typing an address and a password, with nothing to connect. It is how you sign in from a borrowed computer.',
     lgWorker: 'Creating and managing always works. For someone to SIGN IN from another computer, the extension opens a tab that acts as the vault: while it is open, it answers. The one that is always on is the one on your computer.',
     lgNone: 'There are none.',
@@ -286,7 +290,7 @@ const STRINGS = {
     lgRemove: 'Remove',
     lgRemoveSure: (u) => `Remove “${u}”? Its key leaves the account record and that computer stops getting in.`,
     lgBack: 'Back',
-    lgLink: 'Sign in with a username and password',
+    lgLink: 'Username-and-password access',
     vtTitle: 'This tab is your vault',
     vtOpen: 'While it is open, your other devices can sign in and ask it for your passwords. Closing it stops answering.',
     vtStarting: 'Turning on…',
@@ -360,6 +364,8 @@ const STRINGS = {
     noTalk: 'Could not reach your vault.',
     staleWorker: 'Reload the extension: the one running is from before this update.',
     noWorker: 'Reload this page: the extension was updated.',
+    closedLogin: (u) => `${u} · signed out`,
+    forgetLogin: 'Forget this account on this browser',
     notSealed: 'Your vault needs a recovery password before it works again.',
     openConvert: 'Set it now',
     askFrom: (d) => `Asked by: ${d}`,

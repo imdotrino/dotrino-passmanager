@@ -112,7 +112,7 @@ const dominioDe = (patron) => String(patron || '').replace(/^\*\./, '')
 
 function ruta () {
   const p = new URLSearchParams(location.hash.slice(1))
-  return { site: p.get('site') || '', id: p.get('id') || '', only: p.get('only') || '', view: p.get('view') || '' }
+  return { site: p.get('site') || '', id: p.get('id') || '', only: p.get('only') || '', view: p.get('view') || '', address: p.get('address') || '' }
 }
 
 function ir ({ site, id, only, view }) {
@@ -192,13 +192,10 @@ async function renderList () {
     nota.hidden = !!items.length
   }
 
-  // La puerta a la otra pantalla administrativa de esta bóveda: los aparatos que se abren
-  // con usuario y contraseña. Va aquí porque es donde se administra todo lo demás.
-  const aLogins = el('button', { className: 'link', textContent: t(lang, 'lgLink') })
-  aLogins.dataset.testid = 'go-logins'
-  aLogins.onclick = () => ir({ view: 'logins' })
-
-  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota, aLogins)
+  // Los ACCESOS con usuario y contraseña no se administran aquí: son aparatos de la cuenta,
+  // no contraseñas guardadas, y su puerta está en la página del perfil (dueño, 2026-09-21:
+  // «entrar con usuario y contraseña es algo que no se hace en la bóveda normal»).
+  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota)
 
   /**
    * Los dominios donde hay algo. Pulsar uno es lo mismo que abrir el gestor desde esa
@@ -709,7 +706,8 @@ async function renderLogins () {
   const elegidos = new Set(['sign', 'read', 'store'])
 
   const volver = el('button', { className: 'link', textContent: t(lang, 'lgBack') })
-  volver.onclick = () => ir({})
+  // Se llega desde la página del perfil, y se vuelve ahí.
+  volver.onclick = () => { location.href = 'profile.html' }
 
   const lista = el('div', { className: 'logins' })
   const msg = el('p', { className: 'hint' })
@@ -892,6 +890,19 @@ async function renderLogin () {
     }
   }
 
+  // VOLVER A ENTRAR en una cuenta cuya sesión se cerró: llega con su dirección (la elegiste
+  // en el selector de perfiles), así que solo falta la contraseña. Y se puede olvidar.
+  const { address } = ruta()
+  let olvidar = null
+  if (address) {
+    dir.value = address
+    olvidar = el('button', { className: 'link', textContent: t(lang, 'forgetLogin') })
+    olvidar.dataset.testid = 'login-forget'
+    olvidar.onclick = async () => {
+      try { await ask('login-forget', { address }); ir({}) } catch (e) { msg.className = 'hint err'; msg.textContent = humanError(e) }
+    }
+  }
+
   view.replaceChildren(
     el('h2', { textContent: t(lang, 'inTitle') }),
     el('p', { className: 'hint', textContent: t(lang, 'inWhat') }),
@@ -900,9 +911,11 @@ async function renderLogin () {
     el('label', { className: 'lg-remember' }, [recordar, el('span', { textContent: t(lang, 'inRemember') })]),
     el('p', { className: 'hint', textContent: t(lang, 'inRememberHint') }),
     el('div', { className: 'row' }, [entrar, volver]),
+    // `replaceChildren(null)` pintaría el texto «null»: sin dirección, no va.
+    ...(olvidar ? [olvidar] : []),
     msg
   )
-  dir.focus()
+  ;(address ? pass : dir).focus()
 }
 
 /**

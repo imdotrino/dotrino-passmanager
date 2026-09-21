@@ -517,9 +517,55 @@ function dropOpen () {
   client = null
 }
 
+// --- LAS CUENTAS EN LAS QUE SE ENTRÓ CON CONTRASEÑA, recordadas ----------------------
+//
+// Una cuenta de paso se va al cerrar el navegador, y «Salir» la quita. Lo que se queda es su
+// DIRECCIÓN (`ana@AB12-CD34-EF56`), para que el selector de perfiles la siga ofreciendo y
+// elegirla pida la contraseña otra vez (dueño, 2026-09-21: «recordar el perfil que accedió
+// con contraseña para pedirla si está deslogueado»).
+//
+// La dirección no es secreta: dice DÓNDE está la cuenta, no quién eres. La contraseña no se
+// guarda en ninguna parte, ni las llaves: volver a entrar es volver a hacer OPAQUE.
+
+const KNOWN_LOGINS = 'passmanager/known-logins'
+/** El id con el que una cuenta cerrada viaja en la lista: no es un perfil, es una dirección. */
+const CLOSED = 'login:'
+
+async function knownLogins () {
+  return (await store.get(KNOWN_LOGINS)) || []
+}
+
+async function rememberLogin ({ address, user } = {}) {
+  if (!address) return
+  const list = (await knownLogins()).filter((x) => x.address !== address)
+  list.push({ address, user: user || '', at: Date.now() })
+  await store.set(KNOWN_LOGINS, list)
+}
+
+/** Olvidar una dirección: deja de salir en el selector. La cuenta en la bóveda no se toca. */
+async function forgetLogin ({ address } = {}) {
+  await store.set(KNOWN_LOGINS, (await knownLogins()).filter((x) => x.address !== address))
+  return status()
+}
+
 async function listProfiles () {
   const list = await identity.profiles()
-  return Promise.all(list.map(async p => ({
+  const abiertas = new Set(list.map((p) => p.login?.address).filter(Boolean))
+  const lang = pickLang()
+  // Las recordadas que NO están abiertas, detrás de las de verdad. No tienen llave ni
+  // perfil: son una dirección, y elegirlas lleva a entrar (`useProfile`).
+  const cerradas = (await knownLogins())
+    .filter((k) => !abiertas.has(k.address))
+    .map((k) => ({
+      id: CLOSED + k.address,
+      label: t(lang, 'closedLogin', k.user || k.address),
+      avatar: null,
+      pubkey: null,
+      current: false,
+      kind: 'linked',
+      closed: { address: k.address, user: k.user || '' },
+    }))
+  return [...await Promise.all(list.map(async p => ({
     id: p.id,
     label: p.name || null,
     avatar: p.avatar || null,
@@ -533,7 +579,7 @@ async function listProfiles () {
     // del botón de perfil ponga «Salir» en vez de «Iniciar sesión». Se estaba tirando aquí,
     // así que en la extensión no había forma de salir.
     ...(p.login ? { login: p.login } : {}),
-  })))
+  }))), ...cerradas]
 }
 
 /**
@@ -549,6 +595,13 @@ async function addProfile ({ label } = {}) {
 }
 
 async function useProfile ({ id }) {
+  // Una cuenta cerrada no se «usa»: se vuelve a entrar en ella. Se abre la pantalla de
+  // entrar con la dirección puesta, y solo falta la contraseña.
+  if (String(id || '').startsWith(CLOSED)) {
+    const address = String(id).slice(CLOSED.length)
+    await chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html') + '#view=login&address=' + encodeURIComponent(address) })
+    return status()
+  }
   await identity.use(id)
   dropOpen()
   await cache.forget()
@@ -582,6 +635,8 @@ const setProfile = ({ patch } = {}) => identity.updateMe(patch || {})
  * borramos aquí—: si quedara algo, «lo quité» sería mentira.
  */
 async function removeProfile ({ id }) {
+  // Quitar una cuenta cerrada es olvidar su dirección: aquí no queda nada más suyo.
+  if (String(id || '').startsWith(CLOSED)) return forgetLogin({ address: String(id).slice(CLOSED.length) })
   sealedStores.delete(id)
   if (serving?.pid === id) serving = null
   await store.del(keyFor(id, 'passmanager/entries/v1'))
@@ -1679,6 +1734,7 @@ const OPS = {
   'profile-get': getProfile,
   'profile-set': setProfile,
   'profile-remove': removeProfile,
+  'login-forget': (p) => forgetLogin(p),
   find: async p => stripDigest(await findFor(p.url)),
   offers: p => offersFor(p),
   search: async p => stripDigest(await searchEntries(p)),
@@ -1737,6 +1793,8 @@ const ID_OPS = {
     // Se apunta a la vista, aunque `pmOf` ya lo deduzca del inicio de sesión: lo abierto
     // era de la cuenta de antes y no se reutiliza con esta identidad.
     await setPmOf(r.id, { kind: 'linked' })
+    // Y su dirección, para volver a pedir la contraseña cuando la sesión se cierre.
+    await rememberLogin({ address: entrada.address, user: entrada.user })
     dropOpen()
     await cache.forget()
     return r

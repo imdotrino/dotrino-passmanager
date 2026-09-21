@@ -6,7 +6,7 @@
 
 import './vendor/topbar/index.js'
 import { profileCard, wireTopbar } from './profile-card.js'
-import { pickLang } from './i18n.js'
+import { pickLang, t, errorText } from './i18n.js'
 import { renderAdd, renderLink } from './add-profile.js'
 import { hostApprovals } from './approval.js'
 
@@ -20,7 +20,7 @@ document.documentElement.lang = lang
 function ask (op, payload) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ op, payload }, (r) => {
-      if (chrome.runtime.lastError) return reject(new Error('unreachable'))
+      if (chrome.runtime.lastError) return reject(Object.assign(new Error(chrome.runtime.lastError.message), { code: 'no-worker' }))
       if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
       resolve(r?.result)
     })
@@ -30,12 +30,20 @@ function ask (op, payload) {
 const view = document.getElementById('view')
 
 const toast = (txt) => { try { console.warn('[perfil]', txt) } catch (_) {} }
-const humanError = (e) => e?.message || String(e)
+const humanError = (e) => errorText(ctx.lang, e)
 
 /** La tarjeta, que es lo que esta página es el 99 % de las veces. */
 function render () {
   location.hash = ''
-  view.replaceChildren(profileCard(ask, ctx.lang))
+  // Los ACCESOS con usuario y contraseña de esta cuenta: crearlos para poder entrar desde
+  // otro equipo, y encender la pestaña que los atiende. Son aparatos de la cuenta, así que
+  // van con la cuenta y no en la lista de contraseñas.
+  const accesos = document.createElement('a')
+  accesos.className = 'link'
+  accesos.href = 'manager.html#view=logins'
+  accesos.textContent = t(ctx.lang, 'lgLink')
+  accesos.dataset.testid = 'go-logins'
+  view.replaceChildren(profileCard(ask, ctx.lang), accesos)
 }
 
 /**
