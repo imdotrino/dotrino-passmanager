@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow"><title>Entrar sin declarar nada</title><link rel="stylesheet" href="bench.css"></head>
+<body>
+<!--
+  Un acceso que NO declara nada: ni `autocomplete`, ni etiquetas que digan «nueva». Es el
+  caso de https://practicetestautomation.com/practice-test-login/ (dueño, 2026-09-21): ahí
+  el gestor ofrecía generar una «contraseña nueva» en la casilla de entrar.
+-->
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Entrar (sin declarar nada)</h1>
+<div id="login">
+  <label for="username">Username</label> <input type="text" name="username" id="username">
+  <label for="password">Password</label> <input type="password" name="password" id="password">
+  <button id="submit">Submit</button>
+</div>
+</body></html>

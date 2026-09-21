@@ -1179,13 +1179,27 @@ Consecuencias en el código:
 > (`gen`, §4.0), y ahí no se registra nadie: registrarse pasa en el navegador. Un gestor
 > que no genera obliga a inventárselas, y ahí es donde se repite la de siempre.
 
-**Una casilla de contraseña vacía siempre ofrece una contraseña nueva.** Es una fila más
-de la tabla del §4.1, y la única que no depende de la bóveda:
+**Una casilla de contraseña vacía ofrece una contraseña nueva donde se ESTRENA una**: un
+registro o un cambio de contraseña. Es una fila más de la tabla del §4.1, y la única que no
+depende de la bóveda:
 
 | | el campo está vacío | tiene algo escrito |
 |---|---|---|
 | **nada guardado suyo** | **generar** | guardar |
 | **algo guardado suyo** | **rellenar** + generar | guardar |
+
+**En la casilla de ENTRAR no se genera** (dueño, 2026-09-21, en el login de
+practicetestautomation.com): la contraseña ya existe, así que ahí la tabla es la del §4.1 a
+secas — vacía y sin nada guardado, sin botón; con algo guardado, rellenar. Hasta entonces
+esta sección decía «siempre», y cada login del mundo sacaba un marcador con una «contraseña
+nueva» que nadie había pedido.
+
+Qué formulario estrena una lo decide `createsPassword` (`detect.js`), y lo primero que
+conteste manda: lo que el sitio **declara** (`autocomplete="new-password"` sí,
+`current-password` no); si no declara nada, que haya una casilla de «repite la contraseña»
+detrás; y si tampoco, lo que dice la propia casilla («nueva», «crea», «elige»). Sin ninguna
+de las tres es entrar. El precio, dicho: un registro de una sola casilla que no declara nada
+ni se llama «nueva» no ofrece el generador.
 
 Antes, la primera casilla decía «sin botón» — que es exactamente el momento de registrarse
 en un sitio nuevo, y por tanto el momento en que el generador tenía que aparecer y no
@@ -1193,9 +1207,10 @@ podía.
 
 **Esto no reabre el rastro que cerró la regla del §4.1.** Aquella quitó la comparación con
 lo guardado porque dejaba que la página propusiera un valor y leyera el botón para saber si
-había acertado. Generar depende de dos cosas —que el campo sea de contraseña y que esté
-vacío— y **las dos las sabe ya la página**: el `type="password"` lo escribió ella. No se
-consulta la bóveda, así que no hay nada que leer ahí.
+había acertado. Generar depende de tres cosas —que el campo sea de contraseña, que esté
+vacío y que el formulario estrene una— y **las tres las sabe ya la página**: el
+`type="password"`, el `autocomplete` y las etiquetas los escribió ella. No se consulta la
+bóveda, así que no hay nada que leer ahí.
 
 **Dónde ocurre cada cosa:**
 

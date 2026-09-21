@@ -70,13 +70,29 @@ async function pulsarMarcador (selector) {
 }
 
 try {
+  // --- dónde NO se genera (dueño, 2026-09-21) --------------------------------------
+  //
+  // En la casilla de ENTRAR la contraseña ya existe: ofrecer una nueva es un marcador que no
+  // sirve. Aquí se mira por el camino de verdad —el content script decide `creates` con lo
+  // que ve— pulsando donde estaría el marcador.
+  console.log('\nen un formulario de entrar no se ofrece generar')
+  for (const [pagina, campo] of [['login-plain.html', '#password'], ['login.html', 'input[name=password]']]) {
+    await page.goto(`${SITE}/${pagina}`)
+    await page.waitForTimeout(1200)
+    await pulsarMarcador(campo)
+    await page.waitForTimeout(800)
+    ok(!page.frames().some((x) => x.url().includes('field-modal.html')),
+      `${pagina}: la contraseña vacía, sin nada guardado, no tiene marcador`)
+  }
+
+
   console.log('\nregistrarse en un sitio sin nada guardado')
   await page.goto(`${SITE}/signup.html`)
   await page.waitForTimeout(1200)
 
   const r = await que([
-    { id: 0, key: 'secret', value: '', username: '', secret: '' },
-    { id: 1, key: 'username', value: '', username: '', secret: '' },
+    { id: 0, key: 'secret', value: '', username: '', secret: '', creates: true },
+    { id: 1, key: 'username', value: '', username: '', secret: '', creates: true },
   ])
   ok(r[0]?.gen === true, 'la contraseña vacía ofrece generar')
   ok(r[0]?.fill === false && r[0]?.save === false, 'y nada más: no hay qué rellenar ni qué guardar')
@@ -129,7 +145,7 @@ try {
   console.log('\ncon algo ya guardado, rellenar manda y generar sigue estando')
   await page.goto(`${SITE}/signup.html`)
   await page.waitForTimeout(1200)
-  const r2 = await que([{ id: 0, key: 'secret', value: '', username: '', secret: '' }])
+  const r2 = await que([{ id: 0, key: 'secret', value: '', username: '', secret: '', creates: true }])
   ok(r2[0]?.fill === true, 'con algo guardado, la contraseña vacía ofrece rellenar')
   ok(r2[0]?.gen === true, 'y generar sigue disponible: cambiar de contraseña es normal')
 
@@ -140,6 +156,24 @@ try {
     ok(await m2.locator('[data-testid=field-modal-gen-value]').isVisible(), 'con el generador a la vista')
     ok(await m2.locator('#fillBox').isVisible(), 'y con lo que hay guardado, debajo')
   }
+
+  console.log('\nun registro que no declara nada, pero tiene «repite la contraseña»')
+  await page.goto(`${SITE}/signup-plain.html`)
+  await page.waitForTimeout(1200)
+  await pulsarMarcador('input[name=pass1]')
+  const m3 = await modal()
+  ok(!!m3 && await m3.locator('[data-testid=field-modal-gen-value]').isVisible(),
+    'ahí sí sale el generador')
+
+  // Con algo guardado, la casilla de entrar SÍ tiene marcador: para rellenar. Y el modal no
+  // trae una «contraseña nueva» colgada.
+  console.log('\nen la de entrar, con algo guardado: rellenar, sin generador')
+  await page.goto(`${SITE}/login-plain.html`)
+  await page.waitForTimeout(1200)
+  await pulsarMarcador('#password')
+  const m4 = await modal()
+  ok(!!m4, 'el marcador sale, para rellenar')
+  if (m4) ok(!(await m4.locator('[data-testid=field-modal-gen-value]').isVisible()), 'y el modal no ofrece una contraseña nueva')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

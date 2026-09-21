@@ -178,6 +178,8 @@ function descFor (f, i) {
     value: String(f.el.value || '').trim(),
     username: f.form?.username?.value || '',
     secret: f.form?.password?.value || '',
+    // Si en este formulario se estrena una contraseña: solo ahí se ofrece generar una.
+    creates: !!f.form?.creates,
   }
 }
 
