@@ -53,4 +53,20 @@
 
   <button type="submit">Guardar</button>
 </form>
+
+<!-- UNA LISTA, no un formulario: nada de aquí es un dato del usuario (una lista de
+     Salesforce, 2026-09-22). La fila de filtros va en <th>; las celdas, en role="grid". -->
+<table id="grid" role="grid">
+  <thead><tr>
+    <th><input type="checkbox" aria-label="Select all"></th>
+    <th><input aria-label="Name"></th>
+    <th><input aria-label="Account"></th>
+  </tr></thead>
+  <tbody><tr>
+    <td role="gridcell"><input type="checkbox" aria-label="Select row"></td>
+    <td role="gridcell"><input aria-label="Owner" value="Ana"></td>
+    <td role="gridcell"><input aria-label="Stage" value="Open"></td>
+  </tr></tbody>
+</table>
+<p><input id="filtro" aria-label="Filter this list"></p>
 </body></html>

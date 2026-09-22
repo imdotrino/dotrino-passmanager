@@ -18,8 +18,11 @@ export const HOST_ID = 'dotrino-passmanager-ui'
  *   · `BIRD` — el pájaro, que sí crece. Es lo único que hay que poder distinguir ahí, y
  *     atado al tamaño del disco no se reconoce.
  *
- * Del ave sale el tamaño del botón (es su caja), así que también su zona de pulsación:
- * se pulsa el pájaro entero, no solo el trozo azul.
+ * El botón mide lo que se VE, que es el disco (dueño, 2026-09-22). Antes medía la caja
+ * del pájaro, 34×37, pero el trazo ocupa solo un tercio de su viewBox y cae entero dentro
+ * del disco: el resto era una zona invisible que tapaba lo de al lado — en una tabla, la
+ * casilla de la fila no se podía marcar. El pájaro sigue dibujándose igual, sin recibir
+ * clics.
  */
 const DISC = 20
 const BIRD = 34
@@ -64,10 +67,11 @@ function styles () {
     @media print {
       :host { display: none !important; }
     }
-    /* El botón es la caja del PÁJARO; el disco es una pieza suya, y más pequeña. */
+    /* El botón es el DISCO: lo que se ve es lo que se pulsa, y nada más. */
     .marker {
       position: absolute;
-      width: ${BIRD}px; height: ${BIRD_H}px;
+      width: ${DISC}px; height: ${DISC}px;
+      border-radius: 0 0 0 100%;
       padding: 0; border: 0; margin: 0;
       background: none;
       overflow: visible;
@@ -98,6 +102,9 @@ function styles () {
       top: -10px; right: -12px;
       width: ${BIRD}px; height: ${BIRD_H}px;
       background: url("${MARK}") no-repeat center / contain;
+      /* Su caja se sale del disco por arriba y por los lados, aunque el trazo no: sin
+         esto, lo transparente de la caja seguía recibiendo clics. */
+      pointer-events: none;
     }
     /* El aviso de guardar: abajo a la derecha, por encima de todo y sin heredar nada
        del sitio. Fijo, para que no se vaya con el scroll de la página. */
@@ -188,7 +195,7 @@ function place (node, el) {
   const r = el.getBoundingClientRect()
   if (!r.width || !r.height) { node.style.display = 'none'; return }
   node.style.display = ''
-  node.style.left = `${r.right + window.scrollX - BIRD}px`
+  node.style.left = `${r.right + window.scrollX - DISC}px`
   node.style.top = `${r.top + window.scrollY}px`
 }
 

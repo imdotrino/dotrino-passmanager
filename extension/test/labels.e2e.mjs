@@ -66,9 +66,15 @@ try {
     const inputs = [...document.querySelectorAll('#f1 input[data-expect]')]
     return {
       rows: inputs.map((el) => ({ expected: el.dataset.expect, got: d.fieldLabel(el) })),
-      markable: d.findDataFields(document, { free: true }).map((f) => d.fieldKey(f)),
+      markable: d.findDataFields(document, { free: true })
+        .filter((f) => f.el.closest('#f1')).map((f) => d.fieldKey(f)),
+      outside: d.findDataFields(document, { free: true })
+        .filter((f) => !f.el.closest('#f1')).map((f) => f.el.getAttribute('aria-label')),
+      captured: d.readDataFields(document.getElementById('grid')).length,
     }
   })
+  ok(!seen.outside.length, `a data grid and a filter box get no marker: ${JSON.stringify(seen.outside)}`)
+  ok(seen.captured === 0, `nothing in a data grid is captured to save: ${seen.captured}`)
   for (const { expected, got } of seen.rows) {
     ok(got === expected, expected
       ? `"${expected}" → ${JSON.stringify(got)}`

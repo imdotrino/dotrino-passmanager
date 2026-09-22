@@ -11,7 +11,9 @@ const USER_HINTS = [
   'identifier', 'identificador', 'nick', 'handle', 'phone', 'telefono',
 ]
 
-const SEARCH_HINTS = ['search', 'buscar', 'query', 'q']
+// Un filtro es un buscador con otro nombre: lo que se escribe ahí acota una lista, no es
+// un dato de nadie.
+const SEARCH_HINTS = ['search', 'buscar', 'query', 'q', 'filter', 'filtrar', 'filtro']
 
 // «Repite la contraseña». Solo sirven para RECONOCER la segunda casilla de un registro,
 // nunca para adivinar: si no coincide ninguna, no hay campo de confirmar y no se toca.
@@ -248,6 +250,31 @@ function looksLikeUser (el) {
 }
 
 /**
+ * ¿Vive este input dentro de una TABLA DE DATOS? (dueño, 2026-09-22, en una lista de
+ * Salesforce: un marcador en cada casilla de la primera fila.)
+ *
+ * Lo que hay en una tabla así son filtros o celdas de otros registros, nunca un dato del
+ * usuario. Se reconoce por lo que la tabla DECLARA —`role="grid"` y sus piezas— o por una
+ * casilla metida en un `<th>`, que es la fila de filtros. Un `<table>` a secas no basta:
+ * la web vieja maqueta los formularios de acceso con tablas, con los campos en `<td>`.
+ *
+ * Sube cruzando shadow roots: los componentes de Salesforce pintan la tabla dentro de uno.
+ */
+const GRID_ROLES = ['grid', 'treegrid', 'gridcell', 'columnheader', 'rowheader']
+export function insideDataGrid (el) {
+  let n = el.parentNode
+  while (n) {
+    if (n.nodeType === 1) {
+      if (n.tagName === 'TH') return true
+      const role = (n.getAttribute('role') || '').toLowerCase()
+      if (GRID_ROLES.includes(role)) return true
+    }
+    n = n.parentNode || n.host || null
+  }
+  return false
+}
+
+/**
  * Todos los `input` de un documento, entrando también en los shadow roots abiertos.
  *
  * Recorre `*` a propósito: cualquier elemento puede ser el host de un shadow root, y
@@ -423,6 +450,7 @@ export function findDataFields (doc = document, { free = false } = {}) {
   for (const el of collectInputs(doc).filter(isVisible)) {
     if (NOT_DATA.includes(el.type)) continue
     if (looksLikeSearch(el)) continue
+    if (insideDataGrid(el)) continue
     const kind = kindOf(el)
     if (kind) {
       // DOS campos de la misma clase se marcan LOS DOS. Antes el segundo se descartaba,
@@ -474,6 +502,7 @@ export function readDataFields (scope = document, { skip = [] } = {}) {
     if (fuera.has(el)) continue
     if (NOT_DATA.includes(el.type) || el.disabled || !onScreen(el)) continue
     if (looksLikeSearch(el)) continue
+    if (insideDataGrid(el)) continue
     const value = String(el.value || '').trim()
     if (!value) continue
     const kind = kindOf(el)
