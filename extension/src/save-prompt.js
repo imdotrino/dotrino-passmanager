@@ -372,9 +372,14 @@ function renderFields () {
     v.className = 'v'
     // La contraseña llega en `null` a propósito: no sale del service worker.
     v.textContent = row.secret ? t(lang, 'hidden') : row.value
+    v.dataset.testid = `save-prompt-value-${row.key}`
     if (!row.secret) v.title = row.value
 
-    label.append(box, k, v)
+    const kv = document.createElement('span')
+    kv.className = 'kv'
+    kv.append(k, v)
+
+    label.append(box, kv)
     if (row.status !== 'unknown') {
       const tag = document.createElement('span')
       tag.className = 'tag' + (row.status === 'changed' ? ' changed' : '')
