@@ -1,4 +1,8 @@
-// CONVERTIR LA BÓVEDA PROPIA DESDE LA PANTALLA, como un usuario.
+// LA CONTRASEÑA DE RECUPERACIÓN DESDE LA PANTALLA, como un usuario.
+//
+// Desde el 2026-09-24 es un AVISO, no una puerta (dueño): la bóveda guarda y busca sin
+// ella, y la lista enseña el aviso con su botón. Esta prueba comprueba las dos mitades: que
+// no bloquea, y que al ponerla lo guardado antes queda cubierto.
 //
 // Desde la 0.16.0 todo mandaba a `#view=convert` —el gestor al abrirse, el botón «Ponerla
 // ahora» del popup y del modal de la página— y la pantalla no existía: caía en la lista y no
@@ -44,11 +48,20 @@ try {
   ok(!!pw1 && await pw1.isVisible().catch(() => false), 'y ahí está la pantalla de convertir, no la lista')
   await nueva?.close()
 
-  console.log('\nel gestor sin convertir va derecho a convertir')
+  console.log('\nsin contraseña de recuperación NO bloquea')
+  const antes = await pedir('put', { entry: { type: 'login', title: 'Antes', sites: ['antes.example'], username: 'ana', secret: 'y' } })
+  ok(!antes?.error, 'guarda sin ella' + (antes?.error ? ` — ${antes.error.code}` : ''))
   await page.goto(`chrome-extension://${id}/src/manager.html`)
+  const aviso = page.locator('[data-testid=recovery-notice]')
+  await aviso.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {})
+  ok(await aviso.isVisible(), 'el gestor enseña el aviso')
+  ok(await page.evaluate(() => location.hash) === '', 'y se queda en la lista, sin desviar')
+  ok(await page.locator('[data-testid=manager-search]').isVisible(), 'la lista se puede usar')
+
+  await aviso.locator('[data-testid=open-convert]').click()
   const campo = page.locator('[data-testid=convert-pw1]')
   await campo.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {})
-  ok(await campo.isVisible(), 'la pantalla de convertir sale sola')
+  ok(await campo.isVisible(), 'el botón del aviso lleva a ponerla')
 
   const msg = page.locator('[data-testid=convert-msg]')
   await campo.fill('corta')
@@ -59,20 +72,23 @@ try {
   await campo.fill(CLAVE_BOVEDA)
   await page.locator('[data-testid=convert-pw2]').fill(CLAVE_BOVEDA + ' otra')
   await page.locator('[data-testid=convert-go]').click()
-  ok((await pedir('sealed-needs'))?.result?.needs === true, 'si no coinciden, no convierte')
+  ok((await pedir('sealed-needs'))?.result?.needs === true, 'si no coinciden, no la pone')
 
   await page.locator('[data-testid=convert-pw2]').fill(CLAVE_BOVEDA)
   await page.locator('[data-testid=convert-go]').click()
   await page.waitForFunction(() => location.hash === '', null, { timeout: 15000 }).catch(() => {})
-  ok((await pedir('sealed-needs'))?.result?.needs === false, 'con las dos iguales, la bóveda queda convertida')
+  ok((await pedir('sealed-needs'))?.result?.needs === false, 'con las dos iguales, la copia queda puesta')
   ok(await page.evaluate(() => location.hash) === '', 'y vuelve a la lista')
 
   const puesta = await pedir('put', { entry: { type: 'login', title: 'Prueba', sites: ['prueba.example'], username: 'ana', secret: 'x' } })
-  ok(!puesta?.error, 'y ya atiende: guarda' + (puesta?.error ? ` — ${puesta.error.code}` : ''))
+  ok(!puesta?.error, 'y sigue guardando' + (puesta?.error ? ` — ${puesta.error.code}` : ''))
+  const vistas = await pedir('find', { url: 'https://antes.example/' })
+  ok(vistas?.result?.length === 1, 'lo guardado antes de ponerla sigue ahí')
+  ok(!(await aviso.isVisible().catch(() => false)), 'y el aviso ya no sale')
 
   await page.goto(`chrome-extension://${id}/src/manager.html#view=convert`)
   await page.waitForFunction(() => location.hash === '', null, { timeout: 8000 }).catch(() => {})
-  ok(await page.evaluate(() => location.hash) === '', 'ya convertida, #view=convert lleva a la lista')
+  ok(await page.evaluate(() => location.hash) === '', 'ya puesta, #view=convert lleva a la lista')
 } finally {
   await ctx.close()
   await rm(dir, { recursive: true, force: true })

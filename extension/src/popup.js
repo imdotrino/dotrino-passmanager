@@ -8,7 +8,7 @@
 // Sin `alert`/`confirm`/`prompt` (CONVENCIONES §5).
 
 import { pickLang, t, errorText } from './i18n.js'
-import { entryCard, byName } from './entry-card.js'
+import { entryCard, byName, recoveryNotice } from './entry-card.js'
 import { wireTopbar } from './profile-card.js'
 // Las dos pantallas de añadir perfil viven fuera: las comparte la página del perfil.
 import { renderAdd, renderLink } from './add-profile.js'
@@ -238,6 +238,7 @@ async function renderSite (estado0) {
   view.replaceChildren(
     pedidos,
     abrirGestor,
+    ...(propia ? [recoveryNotice({ lang, ask, onGo: () => ask('open-convert') })] : []),
     el('h2', { textContent: t(lang, 'onThisSite') }),
     list, estado, pie,
   )
@@ -256,12 +257,6 @@ async function renderSite (estado0) {
   } catch (e) {
     estado.className = 'error'
     estado.textContent = humanError(e)
-    // Sin convertir no atiende: el mensaje dice qué pasa y el botón lleva a donde se arregla.
-    if (e.code === 'not-sealed') {
-      const ir = el('button', { className: 'btn', textContent: t(lang, 'openConvert'), 'data-testid': 'open-convert' })
-      ir.onclick = () => ask('open-convert')
-      estado.after(ir)
-    }
   }
 }
 

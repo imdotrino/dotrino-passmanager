@@ -21,7 +21,7 @@
 import { pickLang, t, kindLabel, fieldLabel, errorText } from './i18n.js'
 import { KINDS } from './vendor/passmanager/fields.js'
 import { DEVICE_CAPS } from './vendor/identity/acta.js'
-import { entryCard, byName } from './entry-card.js'
+import { entryCard, byName, recoveryNotice } from './entry-card.js'
 // El perfil se abre desde el BOTÓN de la barra, que enseña el selector del ecosistema: esta
 // pantalla es para administrar los registros (§5.1, y el gestor no es la ficha de nadie).
 import { wireTopbar } from './profile-card.js'
@@ -195,7 +195,7 @@ async function renderList () {
   // Los ACCESOS con usuario y contraseña no se administran aquí: son aparatos de la cuenta,
   // no contraseñas guardadas, y su puerta está en la página del perfil (dueño, 2026-09-21:
   // «entrar con usuario y contraseña es algo que no se hace en la bóveda normal»).
-  view.replaceChildren(buscador, tituloSitios, sitios, titulo, lista, nota)
+  view.replaceChildren(recoveryNotice({ lang, ask, onGo: () => ir({ view: 'convert' }) }), buscador, tituloSitios, sitios, titulo, lista, nota)
 
   /**
    * Los dominios donde hay algo. Pulsar uno es lo mismo que abrir el gestor desde esa
@@ -919,9 +919,9 @@ async function renderLogin () {
 }
 
 /**
- * CONVERTIR la bóveda propia al formato sellado (`sealed-passwords.md` §2.7): se elige la
- * contraseña de la copia de recuperación y lo guardado pasa al formato nuevo. Sin esto la
- * bóveda no atiende.
+ * LA CONTRASEÑA DE RECUPERACIÓN de la bóveda propia (`sealed-passwords.md` §2.7). La
+ * bóveda funciona sin ella —se convierte sola al formato sellado—, y esta pantalla solo
+ * añade la copia que la abre si se pierde este navegador. Se llega desde el aviso.
  *
  * Desde la 0.16.0 todo mandaba aquí (`#view=convert`) y la pantalla no existía: se caía en
  * la lista y no había forma de convertir desde la interfaz — solo las pruebas, que llaman a
@@ -999,29 +999,7 @@ document.addEventListener('dotrino-lang', (ev) => {
   render()
 })
 
-/**
- * Antes de nada: ¿hay que convertir? Si esta bóveda sigue con el formato viejo, su lista no
- * se puede abrir, así que enseñarla sería enseñar un error por cada fila. Se va derecho a
- * la pantalla que lo arregla.
- */
-/** Las pantallas que NO leen la bóveda de contraseñas, y por tanto no hay que convertir. */
-const SIN_BOVEDA = ['convert', 'login', 'logins']
-
-async function arrancar () {
-  // Solo se desvía lo que va a leer la bóveda. Entrar con usuario y contraseña y
-  // administrar los inicios de sesión son de la IDENTIDAD, no de las contraseñas: mandar
-  // a convertir a quien llega a un equipo prestado a entrar sería pedirle que arregle una
-  // bóveda que todavía no es suya.
-  if (!SIN_BOVEDA.includes(ruta().view)) {
-    try {
-      const r = await ask('sealed-needs')
-      if (r?.needs) { ir({ view: 'convert' }); return }
-    } catch (_) { /* si no se puede preguntar, se pinta lo de siempre */ }
-  }
-  render()
-}
-
-arrancar()
+render()
 
 
 // La barra, con su selector de perfiles y tu avatar: lo pinta el componente.

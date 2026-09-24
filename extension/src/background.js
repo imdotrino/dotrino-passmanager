@@ -200,6 +200,10 @@ function sealedStoreOf (id) {
   if (sealedStores.has(id)) return sealedStores.get(id)
   const sealed = new SealedStore(storeFor(id), {
     recipients: ownRecipientsOf,
+    // Sin copia de recuperación la bóveda funciona igual, sellada solo a los aparatos del
+    // acta: el aviso se ve, pero no bloquea (dueño, 2026-09-24). En cuanto la hay, toda
+    // envoltura lleva la suya.
+    recovery: async () => hasRecovery(await storeFor(id).get(RECOVERY_OF(id))),
     // Quién puede escribir aquí: este mismo navegador —es SU bóveda— o un aparato del
     // acta con `passwords`. Lo de «o él mismo» es por lo mismo que arriba: `passwords` es
     // el permiso para pedirle a OTRO, y en su propia cuenta este navegador es el master y
@@ -222,73 +226,101 @@ function sealedStoreOf (id) {
   return sealed
 }
 
-/** La bóveda sellada de un perfil propio, o `null` si todavía no se ha convertido. */
-async function ownSealed (id) {
-  const core = await identityCore()
-  const store = storeFor(id)
-  const rec = await store.get(RECOVERY_OF(id))
-  const sealed = sealedStoreOf(id)
-  if (!hasRecovery(rec) || !(await sealed.sealed())) return { sealed, rec, listo: false }
-
-  const miPub = await identity.publickey()
-  const openSealed = ({ wrap, envelope }) => core.handlers.openSealedValue({ wrap, envelope })
-  const author = { publickey: miPub, sign: (b) => core.handlers.signData({ data: b }) }
-  const recipients = async () => ({
+/** A quién se le envuelve en la bóveda propia. `recoveryPub: null` = aún sin copia. */
+async function ownRecipients (rec) {
+  return {
     recoveryPub: recoveryPubOf(rec),
     main: await ownRecipientsOf('main'),
     passkeys: await ownRecipientsOf('passkeys')
-  })
+  }
+}
+
+/**
+ * PASAR AL FORMATO SELLADO, sin pedir nada. La copia de recuperación ya no es condición:
+ * si todavía no la hay, se sella solo a los aparatos del acta y se añade después
+ * (`ownConvert`). Una conversión a la vez por perfil: dos a la par estrenarían dos llaves
+ * de perfil y dejarían media bóveda con la anterior.
+ */
+const converting = new Map()
+function ensureSealed (id) {
+  if (converting.has(id)) return converting.get(id)
+  const run = (async () => {
+    const sealed = sealedStoreOf(id)
+    if (await sealed.sealed()) return
+    const core = await identityCore()
+    const store = storeFor(id)
+    const rec = await store.get(RECOVERY_OF(id))
+    const miPub = await identity.publickey()
+    await convertToSealed({
+      store,
+      sealed,
+      cek: await ownKey(id),
+      recipients: await ownRecipients(rec),
+      author: { publickey: miPub, sign: (b) => core.handlers.signData({ data: b }) },
+      dropOldKey: () => keyStore('readwrite', (s) => s.delete(keyFor(id, 'cek'))),
+      legacyKey: 'passmanager/entries/v1'
+    })
+    dropOpen()
+  })().finally(() => converting.delete(id))
+  converting.set(id, run)
+  return run
+}
+
+/** La bóveda sellada de un perfil propio. Si seguía en el formato viejo, se convierte aquí. */
+async function ownSealed (id) {
+  await ensureSealed(id)
+  const core = await identityCore()
+  const rec = await storeFor(id).get(RECOVERY_OF(id))
+  const sealed = sealedStoreOf(id)
+  const miPub = await identity.publickey()
+  const openSealed = ({ wrap, envelope }) => core.handlers.openSealedValue({ wrap, envelope })
+  const author = { publickey: miPub, sign: (b) => core.handlers.signData({ data: b }) }
+  const recipients = async () => ownRecipients(await storeFor(id).get(RECOVERY_OF(id)))
   const keys = async () => {
     const { envelope, wrap } = await sealed.profile({ pub: miPub })
     return profileKeys(await openSealed({ wrap, envelope }))
   }
   const vault = new SealedLocalVault(sealed, { readerPub: miPub, openSealed, author, recipients, keys })
-  return { sealed, rec, listo: true, vault }
+  return { sealed, rec, vault }
 }
 
 /**
- * CONVERTIR esta bóveda, con la contraseña que el usuario acaba de elegir. Es un acto
- * único y hace falta la llave vieja, que sigue en IndexedDB hasta que esto termina.
+ * LA CONTRASEÑA DE RECUPERACIÓN, que llega cuando el usuario quiera. Crea la copia (o
+ * comprueba la que hay) y le añade la envoltura `#recovery` a todo lo ya guardado, con la
+ * llave de esta extensión, que está entre los destinatarios de todo.
  */
 async function ownConvert ({ password } = {}) {
   const prof = await activeProfile()
-  if (prof.kind !== 'own') throw new VaultError(CODES.NOT_ALLOWED, 'esta cuenta no tiene bóveda propia')
+  if (prof.kind !== 'own') throw new VaultError(CODES.NOT_ALLOWED, 'this account has no vault of its own')
   const core = await identityCore()
   const store = storeFor(prof.id)
-  let { sealed, rec } = await ownSealed(prof.id)
+  let rec = await store.get(RECOVERY_OF(prof.id))
   if (!hasRecovery(rec)) {
     const hecha = await makeRecovery({ password })
     rec = hecha.record
     await store.set(RECOVERY_OF(prof.id), rec)
   } else {
-    // Ya había copia: se comprueba que la contraseña es la suya antes de seguir, para no
-    // dejar media bóveda convertida bajo una contraseña que nadie sabe.
+    // Ya había copia: se comprueba que la contraseña es la suya antes de seguir.
     await openRecovery({ record: rec, password })
   }
-  const miPub = await identity.publickey()
-  const r = await convertToSealed({
-    store,
-    sealed,
-    cek: await ownKey(prof.id),
-    recipients: {
-      recoveryPub: recoveryPubOf(rec),
-      main: await ownRecipientsOf('main'),
-      passkeys: await ownRecipientsOf('passkeys')
-    },
-    author: { publickey: miPub, sign: (b) => core.handlers.signData({ data: b }) },
-    dropOldKey: () => keyStore('readwrite', (s) => s.delete(keyFor(prof.id, 'cek'))),
-    legacyKey: 'passmanager/entries/v1'
+  await ensureSealed(prof.id)
+  const r = await sealedStoreOf(prof.id).addRecovery({
+    recoveryPub: recoveryPubOf(rec),
+    holder: { pub: await identity.publickey(), rewrapFor: (x) => core.handlers.rewrapFor(x) }
   })
+  if (r.failed.length) {
+    throw new VaultError(CODES.UNKNOWN, `could not add the recovery copy to ${r.failed.length} generation(s): ${r.failed[0].error}`)
+  }
   dropOpen()
-  return { ok: true, entries: r.entries }
+  const { entries } = await sealedStoreOf(prof.id).stats()
+  return { ok: true, entries }
 }
 
-/** ¿Hay que convertir esta cuenta? Lo pregunta el gestor para enseñar su pantalla. */
+/** ¿Falta la contraseña de recuperación? Lo preguntan las pantallas para enseñar el aviso. */
 async function ownNeedsConvert () {
   const prof = await activeProfile()
   if (prof.kind !== 'own') return { needs: false }
-  const { listo } = await ownSealed(prof.id)
-  return { needs: !listo }
+  return { needs: !hasRecovery(await storeFor(prof.id).get(RECOVERY_OF(prof.id))) }
 }
 
 /**
@@ -307,11 +339,8 @@ async function ownNeedsConvert () {
  * aparato, no en una regla nueva de aquí.
  */
 async function ownGuarded (id) {
-  const { listo, vault: sellada } = await ownSealed(id)
-  // Sin convertir no se atiende: servir con la llave vieja «mientras tanto» sería el
-  // mismo agujero con otro nombre. El gestor lo ve por este código y pide la contraseña.
-  if (!listo) throw new VaultError(CODES.NOT_SEALED, 'passwords are not sealed yet: open the manager to convert')
-  const inner = sellada
+  // Nunca se sirve con la llave vieja: `ownSealed` convierte antes de devolver nada.
+  const { vault: inner } = await ownSealed(id)
   const gate = new ApprovalGate({
     ask: ({ op, payload }) => askApproval({ op, payload, vault: inner }),
     remember: false,
@@ -1628,8 +1657,7 @@ async function servingFor (pid) {
   // abrir serían los de otra: se para y se dice.
   if (prof.id !== pid) throw new VaultError(CODES.DENIED, 'the active account changed: reopen the vault tab')
   if (prof.kind !== 'own') throw new VaultError(CODES.DENIED, 'this account keeps its passwords in another vault')
-  const { listo, sealed, rec, vault: propia } = await ownSealed(pid)
-  if (!listo) throw new VaultError(CODES.NOT_SEALED, 'passwords are not sealed yet: open the manager to convert')
+  const { sealed, vault: propia } = await ownSealed(pid)
   if (serving?.pid === pid) return serving
 
   const s = { pid, members: [], replies: new Map(), responder: null }
@@ -1642,11 +1670,8 @@ async function servingFor (pid) {
       sendSealedTo (to, msg, { peerEncPub } = {}) { s.replies.set(`${to}|${msg?.rid}`, { to, msg, peerEncPub }) }
     },
     store: sealed,
-    recipients: async () => ({
-      recoveryPub: recoveryPubOf(rec),
-      main: await ownRecipientsOf('main'),
-      passkeys: await ownRecipientsOf('passkeys')
-    }),
+    // Se lee cada vez: la copia de recuperación puede crearse con la pestaña ya sirviendo.
+    recipients: async () => ownRecipients(await storeFor(pid).get(RECOVERY_OF(pid))),
     // Quién puede pedir lo dice el ACTA: un aparato con `passwords`. Esta extensión no se
     // pide a sí misma por la red: lo suyo lo abre directo.
     isAllowed: (pub) => { const m = miembro(pub); return !!m && !m.isMe && (m.caps || []).includes('passwords') },

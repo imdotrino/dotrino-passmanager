@@ -78,3 +78,10 @@ li.entry {
 .entry .hint { font-size: 11px; }
 .entry .who { min-width: 0; }
 .entry .who > .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* El aviso de la contraseña de recuperación: se ve, pero no tapa nada. */
+.recovery-notice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 8px 0; padding: 8px 10px; font-size: 12px;
+  border-left: 3px solid var(--warn, #d9a520); background: rgba(217,165,32,.08); }
+.recovery-notice[hidden] { display: none; }
+.recovery-notice span { flex: 1 1 180px; }

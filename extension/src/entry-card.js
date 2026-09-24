@@ -25,6 +25,26 @@ function el (tag, props = {}, children = []) {
 }
 
 /**
+ * EL AVISO DE LA CONTRASEÑA DE RECUPERACIÓN, el mismo en el popup y en el gestor. Es un
+ * aviso y no una puerta (dueño, 2026-09-24): la bóveda funciona sin ella, pero si se pierde
+ * este navegador se pierde lo guardado, y eso se dice a la vista. Se pinta vacío y se
+ * rellena solo si falta; si no se puede preguntar, no se pinta nada y se deja en consola.
+ */
+export function recoveryNotice ({ lang, ask, onGo }) {
+  const n = el('div', { className: 'recovery-notice', hidden: true })
+  n.dataset.testid = 'recovery-notice'
+  ask('sealed-needs').then((r) => {
+    if (!r?.needs) return
+    const ir = el('button', { className: 'btn', textContent: t(lang, 'openConvert') })
+    ir.dataset.testid = 'open-convert'
+    ir.onclick = onGo
+    n.replaceChildren(el('span', { textContent: t(lang, 'notSealed') }), ir)
+    n.hidden = false
+  }, (e) => console.error('[passmanager] could not check the recovery copy:', e?.code || e?.message || e))
+  return n
+}
+
+/**
  * CÓMO SE LLAMA una entrada en una lista: el nombre que le puso el usuario, y si no, lo
  * que la bóveda calculó de su contenido (§5).
  */
