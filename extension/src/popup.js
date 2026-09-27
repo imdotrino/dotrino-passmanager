@@ -152,6 +152,80 @@ async function pintarPedidos (caja) {
 }
 
 /**
+ * EL GENERADOR, y lo generado en esta sesión (DISENO §4.1.2).
+ *
+ * El del campo solo sale donde se estrena una contraseña; este sale siempre, para el sitio
+ * que no se deja detectar o para la contraseña que no es de ningún sitio. Lo genera el
+ * service worker y lo apunta en el mismo paso, así que aquí debajo aparece también lo
+ * generado desde el campo.
+ *
+ * Tapadas salvo la recién creada: el popup se abre veinte veces al día y con gente al lado.
+ */
+async function pintarGeneradas (caja, url) {
+  const vistas = new Set()
+
+  const dibujar = async () => {
+    let items = []
+    try { items = await ask('gen-list') } catch (e) { toast(humanError(e), 'error') }
+
+    const nueva = el('button', { className: 'ghost wide', textContent: t(lang, 'genNew') })
+    nueva.dataset.testid = 'popup-gen-new'
+    nueva.onclick = async () => {
+      nueva.disabled = true
+      try {
+        const g = await ask('gen-new', { url })
+        vistas.add(g.id)
+        await dibujar()
+      } catch (e) { toast(humanError(e), 'error') } finally { nueva.disabled = false }
+    }
+
+    const filas = items.map((g) => {
+      const ver = vistas.has(g.id)
+      const valor = el('code', { className: 'genval', textContent: ver ? g.value : '••••••••••••' })
+      valor.dataset.testid = `popup-gen-value-${g.id}`
+      const mostrar = el('button', { className: 'ghost mini', textContent: t(lang, ver ? 'genHide' : 'genShow') })
+      mostrar.dataset.testid = `popup-gen-show-${g.id}`
+      mostrar.onclick = () => { if (ver) vistas.delete(g.id); else vistas.add(g.id); dibujar() }
+      const copiar = el('button', { className: 'ghost mini', textContent: t(lang, 'copyValue') })
+      copiar.dataset.testid = `popup-gen-copy-${g.id}`
+      copiar.onclick = async () => {
+        try { await navigator.clipboard.writeText(g.value); toast(t(lang, 'copied')) } catch (e) { toast(humanError(e), 'error') }
+      }
+      const olvidar = el('button', { className: 'ghost mini', textContent: '×', title: t(lang, 'genForget') })
+      olvidar.setAttribute('aria-label', t(lang, 'genForget'))
+      olvidar.dataset.testid = `popup-gen-forget-${g.id}`
+      olvidar.onclick = async () => { await ask('gen-forget', { id: g.id }).catch(() => {}); vistas.delete(g.id); dibujar() }
+      const donde = [g.host || t(lang, 'genNoSite'), hace(g.ts)].join(' · ')
+      const fila = el('li', { className: 'gen-item' }, [
+        el('div', { className: 'gen-who' }, [valor, el('span', { className: 'hint', textContent: donde })]),
+        el('div', { className: 'btns' }, [mostrar, copiar, olvidar]),
+      ])
+      fila.dataset.testid = `popup-gen-${g.id}`
+      return fila
+    })
+
+    caja.replaceChildren(
+      el('h2', { textContent: t(lang, 'genTitleSession') }),
+      nueva,
+      ...(filas.length
+        ? [el('ul', { className: 'gen-list' }, filas), el('p', { className: 'hint', textContent: t(lang, 'genSessionHint') })]
+        : []),
+    )
+  }
+  await dibujar()
+}
+
+/** «hace 5 minutos»: lo que distingue dos contraseñas generadas para el mismo sitio. */
+function hace (ts) {
+  const s = Math.round((ts - Date.now()) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' })
+  for (const [u, secs] of [['day', 86400], ['hour', 3600], ['minute', 60]]) {
+    if (Math.abs(s) >= secs) return rtf.format(Math.round(s / secs), u)
+  }
+  return rtf.format(s, 'second')
+}
+
+/**
  * La tarjeta la dibuja la pieza compartida: la misma que usa el gestor (§4.3). Aquí solo
  * se dice qué acciones tiene, y el popup es el único que tiene `onFill` — rellenar es de
  * la página que tienes delante.
@@ -233,6 +307,9 @@ async function renderSite (estado0) {
   const pedidos = el('div')
   pintarPedidos(pedidos)
 
+  const generadas = el('div', { className: 'gen-box' })
+  pintarGeneradas(generadas, url)
+
   // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es
   // de la bóveda entera, como los perfiles, y no una acción más de la última tarjeta.
   view.replaceChildren(
@@ -240,7 +317,7 @@ async function renderSite (estado0) {
     abrirGestor,
     ...(propia ? [recoveryNotice({ lang, ask, onGo: () => ask('open-convert') })] : []),
     el('h2', { textContent: t(lang, 'onThisSite') }),
-    list, estado, pie,
+    list, estado, generadas, pie,
   )
 
   try {

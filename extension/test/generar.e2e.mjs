@@ -63,10 +63,10 @@ async function aviso () {
   return null
 }
 
-/** El marcador vive pegado al borde derecho de su campo. */
+/** El marcador vive en la esquina de arriba a la derecha de su campo (como en field-button). */
 async function pulsarMarcador (selector) {
   const caja = await page.locator(selector).boundingBox()
-  await page.mouse.click(caja.x + caja.width - 10, caja.y + caja.height / 2)
+  await page.mouse.click(caja.x + caja.width - 10, caja.y + 8)
 }
 
 try {
@@ -106,12 +106,14 @@ try {
   if (m) {
     const val = m.locator('[data-testid=field-modal-gen-value]')
     ok(await val.isVisible(), 'y enseña una contraseña nueva')
+    // La pide al service worker (que la apunta en la sesión): llega un instante después.
+    await m.waitForFunction(() => document.querySelector('[data-testid=field-modal-gen-value]')?.textContent.trim().length > 0)
     generada = (await val.textContent() || '').trim()
     ok(generada.length === 20, `de 20 caracteres (salieron ${generada.length})`)
 
     // «Otra» tiene que dar otra: si no, el botón miente.
     await m.locator('[data-testid=field-modal-gen-again]').click()
-    await page.waitForTimeout(300)
+    await m.waitForFunction((a) => document.querySelector('[data-testid=field-modal-gen-value]')?.textContent.trim() !== a, generada)
     const segunda = (await val.textContent() || '').trim()
     ok(segunda !== generada && segunda.length === 20, 'el botón «Otra» da otra distinta')
     generada = segunda
@@ -124,6 +126,11 @@ try {
   const p2 = await page.inputValue('input[name=pass2]')
   ok(p1 === generada, 'la contraseña se escribe en el campo')
   ok(p2 === generada, 'y la MISMA en la casilla de repetir')
+
+  // §4.1.2: las dos que se enseñaron quedan apuntadas en la sesión, la última primero.
+  const sesion = ((await pedir('gen-list'))?.result) || []
+  ok(sesion.length === 2 && sesion[0].value === generada, 'las dos generadas quedan en la lista de la sesión')
+  ok(sesion[0]?.host === new URL(SITE).hostname, 'apuntadas con su sitio')
 
   // Y no se pierde: lo generado queda apuntado, así que el campo ya ofrece guardarlo.
   const tras = await que([{ id: 0, key: 'secret', value: p1, username: '', secret: p1 }])
@@ -154,6 +161,9 @@ try {
   ok(!!m2, 'el modal se abre')
   if (m2) {
     ok(await m2.locator('[data-testid=field-modal-gen-value]').isVisible(), 'con el generador a la vista')
+    await m2.waitForFunction(() => document.querySelector('[data-testid=field-modal-gen-value]')?.textContent.trim().length > 0)
+    ok((await m2.locator('[data-testid=field-modal-gen-value]').textContent()).trim() === generada,
+      'y trae la que ya se generó para este sitio en la sesión, no otra')
     ok(await m2.locator('#fillBox').isVisible(), 'y con lo que hay guardado, debajo')
   }
 
@@ -174,6 +184,22 @@ try {
   const m4 = await modal()
   ok(!!m4, 'el marcador sale, para rellenar')
   if (m4) ok(!(await m4.locator('[data-testid=field-modal-gen-value]').isVisible()), 'y el modal no ofrece una contraseña nueva')
+
+  console.log('\nel generador del popup, con lo generado en la sesión')
+  await ext.goto(`chrome-extension://${id}/src/popup.html`)
+  await ext.locator('[data-testid=popup-gen-new]').waitFor({ timeout: 8000 })
+  const antes = await ext.locator('.gen-item').count()
+  ok(antes >= 2, `lista lo generado desde el campo (${antes})`)
+  await ext.locator('[data-testid=popup-gen-new]').click()
+  await ext.waitForFunction((n) => document.querySelectorAll('.gen-item').length === n + 1, antes)
+  const primera = ext.locator('.gen-item').first()
+  const txt = ((await primera.locator('.genval').textContent()) || '').trim()
+  ok(txt.length === 20 && !txt.includes('•'), 'la recién generada sale a la vista')
+  const segundaFila = ext.locator('.gen-item').nth(1)
+  ok(((await segundaFila.locator('.genval').textContent()) || '').includes('•'), 'las de antes, tapadas')
+  await primera.locator('[data-testid^=popup-gen-forget-]').click()
+  await ext.waitForFunction((n) => document.querySelectorAll('.gen-item').length === n, antes)
+  ok(true, 'olvidar quita esa y deja las demás')
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

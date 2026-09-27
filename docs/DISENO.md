@@ -1245,6 +1245,37 @@ actual»—, así que las de «nueva» y «repite la nueva» no llevan marcador 
 aparece ahí. Cubrirlo pide que `findLoginForms` deje de devolver una sola contraseña por
 formulario, que toca también a la captura y al aviso.
 
+## 4.1.2. El generador suelto, y lo generado en la sesión
+
+> Pedido por el dueño el 2026-09-26: *«el passmanager debe tener generador y recordar
+> contraseñas generadas en la sesión»*.
+
+**El popup tiene un generador siempre a mano**, debajo de «En este sitio». El del campo
+(§4.1.1) solo sale donde se estrena una contraseña, y hay casos que no pasan por ahí: el
+registro que no se deja detectar, o la contraseña que no es de ningún sitio (el wifi, un
+archivo cifrado).
+
+**Todo lo generado queda apuntado hasta que se cierra el navegador.** El caso que lo pide:
+el registro falla, el sitio borra el formulario, y la contraseña que acabas de usar ya no
+está en ninguna parte. Reglas:
+
+- **Se genera en el service worker y se apunta en el mismo paso** (`gen-new`). No hay forma
+  de enseñar una contraseña generada que no quede apuntada, ni desde el popup ni desde el
+  campo. Es el mismo `generatePassword` de la librería.
+- **En `chrome.storage.session`**, igual que lo capturado (§4.0.1): nunca toca el disco y
+  muere con el navegador. Tope de 30; las más viejas se caen.
+- **Solo la leen las pantallas de la extensión.** `gen-*` no está en la lista de lo que
+  puede pedir una página.
+- **Cada una lleva su sitio** (solo si es una página web) y la hora. Con eso el modal del
+  campo **reusa la última de ese sitio** en vez de inventar otra: si el registro falló, la
+  que sale es la que ya escribiste. «Otra» sigue dando una nueva.
+- **En el popup van tapadas** salvo la recién creada, con «Ver», «Copiar» y «×» (olvidar
+  esa). El popup se abre muchas veces al día y con gente al lado.
+- **Salir de una cuenta de equipo prestado las borra** (`id.logoutLogin`): son de quien
+  estaba sentado.
+- **Apuntar no es guardar**, igual que en §4.1.1: en la bóveda no entra nada hasta que el
+  usuario lo pide.
+
 ## 4.2. Campos libres, atados o no a un dominio
 
 Una entrada puede llevar **campos sueltos** además de usuario y contraseña: correo,

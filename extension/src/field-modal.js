@@ -22,7 +22,6 @@ import { hostApprovals } from './approval.js'
 // El generador de la librería, el MISMO que usa la CLI: aleatoriedad de
 // `crypto.getRandomValues` y elección sin sesgo. Escribir otro aquí sería tener dos ideas
 // distintas de qué es una contraseña generada (CLAUDE.md, «si falta una característica»).
-import { generatePassword } from './vendor/passmanager/generate.js'
 
 const lang = pickLang()
 const p = new URLSearchParams(location.search)
@@ -477,19 +476,32 @@ function render () {
 // apuntar en un papel ni comprobar contra lo que se acaba de escribir. Para cambiarla
 // está el botón de al lado, que es una decisión.
 let generada = ''
+let pidiendo = null
+
+/**
+ * La contraseña se pide al service worker, que la genera y la apunta en la lista de la
+ * sesión (§4.1.2). Si ESTE sitio ya tiene una de esta sesión, sale esa: el caso normal es
+ * que el registro falló y borró el formulario, y otra distinta dejaría la primera —la que
+ * quizá ya quedó en el sitio— sin nadie que la recuerde en la casilla.
+ */
+function pedirGenerada (nueva) {
+  if (pidiendo) return pidiendo
+  pidiendo = (async () => {
+    const g = (!nueva && await ask('gen-last', { url: ctx.url })) || await ask('gen-new', { url: ctx.url })
+    generada = g.value
+  })().catch(fail).finally(() => { pidiendo = null; paint() })
+  return pidiendo
+}
 
 function paintGen () {
   const on = !!ctx.gen
   $('genBox').hidden = !on
   if (!on) return
-  if (!generada) generada = generatePassword({ length: 20 })
+  if (!generada) pedirGenerada(false)
   $('genVal').textContent = generada
 }
 
-$('genAgain').onclick = () => {
-  generada = generatePassword({ length: 20 })
-  paint()
-}
+$('genAgain').onclick = () => pedirGenerada(true)
 
 /**
  * USARLA: se manda a la página, que es la única que alcanza el campo.

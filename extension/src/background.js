@@ -44,6 +44,7 @@ import { parseInvite } from './vendor/vault/invite.js'
 import { entryWho } from './vendor/passmanager/model.js'
 import { fieldHasher } from './vendor/passmanager/crypto.js'
 import { KINDS } from './vendor/passmanager/fields.js'
+import { generatePassword } from './vendor/passmanager/generate.js'
 // La misma regla de identidad que usa la página: la clase si se reconoce, y si no la
 // etiqueta. Dos ideas distintas de qué es «el mismo campo» sería un campo duplicado.
 import { fieldKey, fieldOffers } from './detect.js'
@@ -1741,8 +1742,67 @@ async function serveStart ({ pid } = {}) {
   return { ok: true, devices, rewrapped: deuda?.wrapped || 0 }
 }
 
+// --- las contraseñas generadas en esta sesión (DISENO §4.1.2) --------------------
+//
+// Una contraseña generada que se pierde antes de guardarla deja al usuario fuera de su
+// cuenta: el registro falla y borra el formulario, la pestaña se cierra, se pulsa «Otra»
+// sin querer. Por eso cada una que se enseña queda apuntada hasta que se cierre el
+// navegador, y se puede volver a copiar o a usar.
+//
+//   · en `chrome.storage.session`: nunca toca el disco y muere con el navegador;
+//   · se genera AQUÍ, con el generador de la librería, y se apunta en el mismo paso — no
+//     hay forma de enseñar una que no quede apuntada;
+//   · solo la leen las pantallas de la extensión: estas operaciones no están en la lista
+//     de lo que puede pedir una página (ver el filtro de origen de abajo);
+//   · salir de una cuenta de equipo prestado las borra: son de quien estaba sentado.
+const GENERATED = 'passmanager/generated'
+const MAX_GENERATED = 30
+
+/** El sitio, solo si es una página web: `chrome://` o la propia extensión no son un sitio. */
+const webHostOf = (url) => /^https?:/i.test(url || '') ? hostOf(url) : ''
+
+async function generatedList () {
+  const l = (await chrome.storage.session.get(GENERATED))[GENERATED]
+  return Array.isArray(l) ? l : []
+}
+
+async function generateNew ({ url } = {}) {
+  const item = {
+    id: crypto.randomUUID(),
+    value: generatePassword({ length: 20 }),
+    host: webHostOf(url),
+    ts: Date.now(),
+  }
+  const l = [item, ...(await generatedList())].slice(0, MAX_GENERATED)
+  await chrome.storage.session.set({ [GENERATED]: l })
+  return item
+}
+
+/** La más reciente de ese sitio, para no inventar otra cada vez que se abre el modal. */
+async function generatedLast ({ url } = {}) {
+  const host = webHostOf(url)
+  if (!host) return null
+  return (await generatedList()).find(g => g.host === host) || null
+}
+
+async function generatedForget ({ id } = {}) {
+  const l = await generatedList()
+  await chrome.storage.session.set({ [GENERATED]: l.filter(g => g.id !== id) })
+  return { ok: true }
+}
+
+async function generatedClear () {
+  await chrome.storage.session.remove(GENERATED)
+  return { ok: true }
+}
+
 const OPS = {
   status,
+  'gen-new': p => generateNew(p),
+  'gen-last': p => generatedLast(p),
+  'gen-list': () => generatedList(),
+  'gen-forget': p => generatedForget(p),
+  'gen-clear': () => generatedClear(),
   capture,
   'pending-save': pendingSave,
   'pending-detail': pendingDetail,
@@ -1827,7 +1887,11 @@ const ID_OPS = {
   // Lo que la página necesita para AVISAR a la bóveda de que se va: quién es esta sesión y
   // por dónde. La llave NO sale de aquí — la página firma pidiendo `id.signData`.
   'id.loginMeta': () => identity.loginMeta(),
-  'id.logoutLogin': ({ id = null } = {}) => identity.leaveLogin(id),
+  'id.logoutLogin': async ({ id = null } = {}) => {
+    const r = await identity.leaveLogin(id)
+    await generatedClear()
+    return r
+  },
   // EL SELLADO de la pestaña de bóveda: su socket abre y sella con la llave de cifrado del
   // PERFIL, que vive aquí. Se le pide que abra o que selle; la privada no cruza.
   'id.encPub': () => identity.encryptionPubkey(),

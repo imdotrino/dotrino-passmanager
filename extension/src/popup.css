@@ -80,3 +80,19 @@ button.link {
   background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
   cursor: pointer; text-decoration: underline;
 }
+
+/* Lo generado en esta sesión (DISENO §4.1.2): el valor en monoespaciada, que es como se
+   lee una contraseña sin confundir la ele con el uno. */
+.gen-box { display: grid; gap: 8px; }
+.gen-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.gen-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+}
+.gen-who { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.gen-item .genval {
+  font: 13px/1.3 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color: var(--fg); word-break: break-all;
+}
+.gen-item .btns { display: flex; gap: 4px; flex-shrink: 0; }
+.gen-item .mini { padding: 2px 7px; font-size: 11px; }
