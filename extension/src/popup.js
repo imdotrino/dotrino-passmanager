@@ -161,62 +161,66 @@ async function pintarPedidos (caja) {
  *
  * Tapadas salvo la recién creada: el popup se abre veinte veces al día y con gente al lado.
  */
-async function pintarGeneradas (caja, url) {
-  const vistas = new Set()
+async function renderGenerated (box, url) {
+  const revealed = new Set()
 
-  const dibujar = async () => {
+  const draw = async () => {
     let items = []
     try { items = await ask('gen-list') } catch (e) { toast(humanError(e), 'error') }
 
-    const nueva = el('button', { className: 'ghost wide', textContent: t(lang, 'genNew') })
-    nueva.dataset.testid = 'popup-gen-new'
-    nueva.onclick = async () => {
-      nueva.disabled = true
+    const newBtn = el('button', { className: 'ghost wide', textContent: t(lang, 'genNew') })
+    newBtn.dataset.testid = 'popup-gen-new'
+    newBtn.onclick = async () => {
+      newBtn.disabled = true
       try {
         const g = await ask('gen-new', { url })
-        vistas.add(g.id)
-        await dibujar()
-      } catch (e) { toast(humanError(e), 'error') } finally { nueva.disabled = false }
+        revealed.add(g.id)
+        await draw()
+      } catch (e) { toast(humanError(e), 'error') } finally { newBtn.disabled = false }
     }
 
-    const filas = items.map((g) => {
-      const ver = vistas.has(g.id)
-      const valor = el('code', { className: 'genval', textContent: ver ? g.value : '••••••••••••' })
-      valor.dataset.testid = `popup-gen-value-${g.id}`
-      const mostrar = el('button', { className: 'ghost mini', textContent: t(lang, ver ? 'genHide' : 'genShow') })
-      mostrar.dataset.testid = `popup-gen-show-${g.id}`
-      mostrar.onclick = () => { if (ver) vistas.delete(g.id); else vistas.add(g.id); dibujar() }
-      const copiar = el('button', { className: 'ghost mini', textContent: t(lang, 'copyValue') })
-      copiar.dataset.testid = `popup-gen-copy-${g.id}`
-      copiar.onclick = async () => {
+    const rows = items.map((g) => {
+      const shown = revealed.has(g.id)
+      const value = el('code', { className: 'genval', textContent: shown ? g.value : '••••••••••••' })
+      value.dataset.testid = `popup-gen-value-${g.id}`
+      const toggle = el('button', { className: 'ghost mini', textContent: t(lang, shown ? 'genHide' : 'genShow') })
+      toggle.dataset.testid = `popup-gen-show-${g.id}`
+      toggle.onclick = () => { if (shown) revealed.delete(g.id); else revealed.add(g.id); draw() }
+      const copy = el('button', { className: 'ghost mini', textContent: t(lang, 'copyValue') })
+      copy.dataset.testid = `popup-gen-copy-${g.id}`
+      copy.onclick = async () => {
         try { await navigator.clipboard.writeText(g.value); toast(t(lang, 'copied')) } catch (e) { toast(humanError(e), 'error') }
       }
-      const olvidar = el('button', { className: 'ghost mini', textContent: '×', title: t(lang, 'genForget') })
-      olvidar.setAttribute('aria-label', t(lang, 'genForget'))
-      olvidar.dataset.testid = `popup-gen-forget-${g.id}`
-      olvidar.onclick = async () => { await ask('gen-forget', { id: g.id }).catch(() => {}); vistas.delete(g.id); dibujar() }
-      const donde = [g.host || t(lang, 'genNoSite'), hace(g.ts)].join(' · ')
-      const fila = el('li', { className: 'gen-item' }, [
-        el('div', { className: 'gen-who' }, [valor, el('span', { className: 'hint', textContent: donde })]),
-        el('div', { className: 'btns' }, [mostrar, copiar, olvidar]),
+      const forget = el('button', { className: 'ghost mini', textContent: '×', title: t(lang, 'genForget') })
+      forget.setAttribute('aria-label', t(lang, 'genForget'))
+      forget.dataset.testid = `popup-gen-forget-${g.id}`
+      forget.onclick = async () => {
+        try { await ask('gen-forget', { id: g.id }) } catch (e) { toast(humanError(e), 'error'); return }
+        revealed.delete(g.id)
+        draw()
+      }
+      const where = [g.host || t(lang, 'genNoSite'), timeAgo(g.ts)].join(' · ')
+      const row = el('li', { className: 'gen-item' }, [
+        el('div', { className: 'gen-who' }, [value, el('span', { className: 'hint', textContent: where })]),
+        el('div', { className: 'btns' }, [toggle, copy, forget]),
       ])
-      fila.dataset.testid = `popup-gen-${g.id}`
-      return fila
+      row.dataset.testid = `popup-gen-${g.id}`
+      return row
     })
 
-    caja.replaceChildren(
+    box.replaceChildren(
       el('h2', { textContent: t(lang, 'genTitleSession') }),
-      nueva,
-      ...(filas.length
-        ? [el('ul', { className: 'gen-list' }, filas), el('p', { className: 'hint', textContent: t(lang, 'genSessionHint') })]
+      newBtn,
+      ...(rows.length
+        ? [el('ul', { className: 'gen-list' }, rows), el('p', { className: 'hint', textContent: t(lang, 'genSessionHint') })]
         : []),
     )
   }
-  await dibujar()
+  await draw()
 }
 
 /** «hace 5 minutos»: lo que distingue dos contraseñas generadas para el mismo sitio. */
-function hace (ts) {
+function timeAgo (ts) {
   const s = Math.round((ts - Date.now()) / 1000)
   const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' })
   for (const [u, secs] of [['day', 86400], ['hour', 3600], ['minute', 60]]) {
@@ -307,8 +311,8 @@ async function renderSite (estado0) {
   const pedidos = el('div')
   pintarPedidos(pedidos)
 
-  const generadas = el('div', { className: 'gen-box' })
-  pintarGeneradas(generadas, url)
+  const generatedBox = el('div', { className: 'gen-box' })
+  renderGenerated(generatedBox, url)
 
   // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es
   // de la bóveda entera, como los perfiles, y no una acción más de la última tarjeta.
@@ -317,7 +321,7 @@ async function renderSite (estado0) {
     abrirGestor,
     ...(propia ? [recoveryNotice({ lang, ask, onGo: () => ask('open-convert') })] : []),
     el('h2', { textContent: t(lang, 'onThisSite') }),
-    list, estado, generadas, pie,
+    list, estado, generatedBox, pie,
   )
 
   try {

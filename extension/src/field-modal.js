@@ -476,7 +476,7 @@ function render () {
 // apuntar en un papel ni comprobar contra lo que se acaba de escribir. Para cambiarla
 // está el botón de al lado, que es una decisión.
 let generada = ''
-let pidiendo = null
+let genPending = null
 
 /**
  * La contraseña se pide al service worker, que la genera y la apunta en la lista de la
@@ -484,24 +484,24 @@ let pidiendo = null
  * que el registro falló y borró el formulario, y otra distinta dejaría la primera —la que
  * quizá ya quedó en el sitio— sin nadie que la recuerde en la casilla.
  */
-function pedirGenerada (nueva) {
-  if (pidiendo) return pidiendo
-  pidiendo = (async () => {
-    const g = (!nueva && await ask('gen-last', { url: ctx.url })) || await ask('gen-new', { url: ctx.url })
+function requestGenerated (fresh) {
+  if (genPending) return genPending
+  genPending = (async () => {
+    const g = (!fresh && await ask('gen-last', { url: ctx.url })) || await ask('gen-new', { url: ctx.url })
     generada = g.value
-  })().catch(fail).finally(() => { pidiendo = null; paint() })
-  return pidiendo
+  })().catch(fail).finally(() => { genPending = null; paint() })
+  return genPending
 }
 
 function paintGen () {
   const on = !!ctx.gen
   $('genBox').hidden = !on
   if (!on) return
-  if (!generada) pedirGenerada(false)
+  if (!generada) requestGenerated(false)
   $('genVal').textContent = generada
 }
 
-$('genAgain').onclick = () => pedirGenerada(true)
+$('genAgain').onclick = () => requestGenerated(true)
 
 /**
  * USARLA: se manda a la página, que es la única que alcanza el campo.
