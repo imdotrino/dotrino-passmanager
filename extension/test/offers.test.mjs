@@ -28,14 +28,13 @@ for (const c of casos) {
 
 // --- y la casilla de las contraseñas (§4.1.1) ---------------------------------------
 //
-// La misma tabla, pero en la casilla de contraseña de un formulario donde se ESTRENA una
-// (`creates`, lo decide `createsPassword`): una vacía ofrece generar, haya algo guardado o
-// no. Es la fila que pone el generador donde hace falta — al registrarse.
+// La misma tabla, pero en una casilla de contraseña: una vacía ofrece generar, haya algo
+// guardado o no.
 const conSecreto = [
-  { que: 'contraseña vacía y sin nada guardado', f: { value: '', stored: false, creates: true }, fill: false, save: false, gen: true },
-  { que: 'contraseña vacía y con algo guardado', f: { value: '', stored: true, creates: true }, fill: true, save: false, gen: true },
-  { que: 'contraseña escrita', f: { value: 'abc', stored: false, creates: true }, fill: false, save: true, gen: false },
-  { que: 'contraseña escrita y con algo guardado', f: { value: 'abc', stored: true, creates: true }, fill: false, save: true, gen: false },
+  { que: 'contraseña vacía y sin nada guardado', f: { value: '', stored: false, secret: true }, fill: false, save: false, gen: true },
+  { que: 'contraseña vacía y con algo guardado', f: { value: '', stored: true, secret: true }, fill: true, save: false, gen: true },
+  { que: 'contraseña escrita', f: { value: 'abc', stored: false, secret: true }, fill: false, save: true, gen: false },
+  { que: 'contraseña escrita y con algo guardado', f: { value: 'abc', stored: true, secret: true }, fill: false, save: true, gen: false },
 ]
 
 for (const c of conSecreto) {
@@ -44,12 +43,11 @@ for (const c of conSecreto) {
   })
 }
 
-// Y en la de ENTRAR no se genera nada (dueño, 2026-09-21): la contraseña ya existe. Vacía y
-// sin nada guardado no hay botón, y con algo guardado solo rellenar. Antes salía un marcador
-// en cada login con una «contraseña nueva» que nadie pidió.
+// Y en la de ENTRAR también se genera (dueño, 2026-09-28, deroga lo del 2026-09-21): una
+// contraseña vacía siempre tiene marcador, porque es la puerta al generador.
 const alEntrar = [
-  { que: 'entrar: contraseña vacía y sin nada guardado → sin botón', f: { value: '', stored: false, creates: false }, fill: false, save: false, gen: false },
-  { que: 'entrar: contraseña vacía y con algo guardado → rellenar', f: { value: '', stored: true, creates: false }, fill: true, save: false, gen: false },
+  { que: 'entrar: contraseña vacía y sin nada guardado → generar', f: { value: '', stored: false, secret: true }, fill: false, save: false, gen: true },
+  { que: 'entrar: contraseña vacía y con algo guardado → rellenar y generar', f: { value: '', stored: true, secret: true }, fill: true, save: false, gen: true },
 ]
 for (const c of alEntrar) {
   test(c.que, () => {
@@ -62,20 +60,20 @@ for (const c of alEntrar) {
 test('registrarse en un sitio nuevo: la contraseña vacía ya tiene botón', () => {
   const antes = fieldOffers({ value: '', stored: false })
   assert.equal(antes.fill || antes.save || antes.gen, false, 'un campo normal vacío sigue sin botón')
-  const ahora = fieldOffers({ value: '', stored: false, creates: true })
+  const ahora = fieldOffers({ value: '', stored: false, secret: true })
   assert.equal(ahora.gen, true)
 })
 
 // Generar no puede depender de la bóveda: si dependiera, la página sabría si hay algo
 // guardado con solo mirar el botón. Depende del `type=password`, que la escribió ella.
 test('generar no mira lo que hay guardado', () => {
-  const sin = fieldOffers({ value: '', stored: false, creates: true })
-  const con = fieldOffers({ value: '', stored: true, creates: true })
+  const sin = fieldOffers({ value: '', stored: false, secret: true })
+  const con = fieldOffers({ value: '', stored: true, secret: true })
   assert.equal(sin.gen, con.gen)
 })
 
 test('los espacios tampoco son contraseña', () => {
-  assert.equal(fieldOffers({ value: '   ', stored: false, creates: true }).gen, true)
+  assert.equal(fieldOffers({ value: '   ', stored: false, secret: true }).gen, true)
 })
 
 test('UNA letra ya basta: el botón es por campo, no por formulario', () => {

@@ -70,19 +70,21 @@ async function pulsarMarcador (selector) {
 }
 
 try {
-  // --- dónde NO se genera (dueño, 2026-09-21) --------------------------------------
+  // --- también en la de ENTRAR (dueño, 2026-09-28; deroga lo del 2026-09-21) --------
   //
-  // En la casilla de ENTRAR la contraseña ya existe: ofrecer una nueva es un marcador que no
-  // sirve. Aquí se mira por el camino de verdad —el content script decide `creates` con lo
-  // que ve— pulsando donde estaría el marcador.
-  console.log('\nen un formulario de entrar no se ofrece generar')
+  // Una contraseña vacía siempre tiene marcador: es la puerta al generador. Aquí se mira por
+  // el camino de verdad pulsando donde está el marcador.
+  console.log('\nen un formulario de entrar también se ofrece generar')
   for (const [pagina, campo] of [['login-plain.html', '#password'], ['login.html', 'input[name=password]']]) {
     await page.goto(`${SITE}/${pagina}`)
     await page.waitForTimeout(1200)
     await pulsarMarcador(campo)
-    await page.waitForTimeout(800)
-    ok(!page.frames().some((x) => x.url().includes('field-modal.html')),
-      `${pagina}: la contraseña vacía, sin nada guardado, no tiene marcador`)
+    const mm = await modal()
+    ok(!!mm && await mm.locator('[data-testid=field-modal-gen-value]').isVisible(),
+      `${pagina}: la contraseña vacía, sin nada guardado, abre el generador`)
+    await page.keyboard.press('Escape')
+    await page.mouse.click(5, 5)
+    await page.waitForTimeout(300)
   }
 
 
@@ -91,8 +93,8 @@ try {
   await page.waitForTimeout(1200)
 
   const r = await que([
-    { id: 0, key: 'secret', value: '', username: '', secret: '', creates: true },
-    { id: 1, key: 'username', value: '', username: '', secret: '', creates: true },
+    { id: 0, key: 'secret', value: '', username: '', secret: '' },
+    { id: 1, key: 'username', value: '', username: '', secret: '' },
   ])
   ok(r[0]?.gen === true, 'la contraseña vacía ofrece generar')
   ok(r[0]?.fill === false && r[0]?.save === false, 'y nada más: no hay qué rellenar ni qué guardar')
@@ -152,7 +154,7 @@ try {
   console.log('\ncon algo ya guardado, rellenar manda y generar sigue estando')
   await page.goto(`${SITE}/signup.html`)
   await page.waitForTimeout(1200)
-  const r2 = await que([{ id: 0, key: 'secret', value: '', username: '', secret: '', creates: true }])
+  const r2 = await que([{ id: 0, key: 'secret', value: '', username: '', secret: '' }])
   ok(r2[0]?.fill === true, 'con algo guardado, la contraseña vacía ofrece rellenar')
   ok(r2[0]?.gen === true, 'y generar sigue disponible: cambiar de contraseña es normal')
 
@@ -175,15 +177,15 @@ try {
   ok(!!m3 && await m3.locator('[data-testid=field-modal-gen-value]').isVisible(),
     'ahí sí sale el generador')
 
-  // Con algo guardado, la casilla de entrar SÍ tiene marcador: para rellenar. Y el modal no
-  // trae una «contraseña nueva» colgada.
-  console.log('\nen la de entrar, con algo guardado: rellenar, sin generador')
+  // Con algo guardado, la casilla de entrar tiene marcador para rellenar, y el generador
+  // también (dueño, 2026-09-28): en la de entrar también se cambia de contraseña.
+  console.log('\nen la de entrar, con algo guardado: rellenar y generar')
   await page.goto(`${SITE}/login-plain.html`)
   await page.waitForTimeout(1200)
   await pulsarMarcador('#password')
   const m4 = await modal()
   ok(!!m4, 'el marcador sale, para rellenar')
-  if (m4) ok(!(await m4.locator('[data-testid=field-modal-gen-value]').isVisible()), 'y el modal no ofrece una contraseña nueva')
+  if (m4) ok(await m4.locator('[data-testid=field-modal-gen-value]').isVisible(), 'y el modal ofrece también una contraseña nueva')
 
   console.log('\nel generador del popup, con lo generado en la sesión')
   await ext.goto(`chrome-extension://${id}/src/popup.html`)

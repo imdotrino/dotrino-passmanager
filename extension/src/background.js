@@ -1423,13 +1423,11 @@ async function offersFor ({ url, fields } = {}) {
     // Si hay algo escrito, hay botón — aunque esa entrada ya lo tenga igual, porque las
     // otras pueden no tenerlo. Qué cambia de verdad lo dice el modal, que es de la
     // extensión y no lo lee la página.
-    // Generar, solo en la casilla de contraseña de un formulario donde se ESTRENA una
-    // (§4.1.1): un registro o una contraseña nueva. En la de entrar, la contraseña ya existe
-    // y ofrecer otra es un marcador que no sirve.
+    // Generar, en toda casilla de contraseña vacía (ver `fieldOffers`).
     out.push({
       id: f.id,
       ids,
-      ...fieldOffers({ value: f.value || '', stored: ids.length > 0, creates: f.key === 'secret' && f.creates === true }),
+      ...fieldOffers({ value: f.value || '', stored: ids.length > 0, secret: f.key === 'secret' }),
     })
   }
   return out

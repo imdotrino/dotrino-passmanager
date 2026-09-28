@@ -19,6 +19,7 @@
 
 import { t, pickLang, kindLabel, errorText } from './i18n.js'
 import { hostApprovals } from './approval.js'
+import { mountAccountSwitch } from './account-switch.js'
 // El generador de la librería, el MISMO que usa la CLI: aleatoriedad de
 // `crypto.getRandomValues` y elección sin sesgo. Escribir otro aquí sería tener dos ideas
 // distintas de qué es una contraseña generada (CLAUDE.md, «si falta una característica»).
@@ -48,6 +49,24 @@ const ask = (op, payload) => new Promise((resolve, reject) => {
 // dibuja DENTRO de este iframe a propósito: una ventana aparte quitaría el foco, el modal
 // se cerraría solo (se cierra al pulsar fuera) y el relleno se perdería a medio camino.
 hostApprovals({ resize })
+
+// EN QUÉ CUENTA se guarda (y de cuál se rellena): cambiarla es cambiar de perfil, y las
+// entradas se vuelven a pedir a la bóveda de la cuenta elegida (`account-switch.js`).
+// Lo elegido de la cuenta anterior no vale en la nueva: se olvida.
+const cuenta = mountAccountSwitch($('account'), {
+  ask, lang, resize, testid: 'field-modal-account',
+  onChange: async () => {
+    $('err').hidden = true
+    buscando = ''
+    editando = ''
+    nuevoNombre = null
+    valores = new Map()
+    valoresDe = null
+    at = 0
+    await start()
+  },
+  onError: fail,
+})
 
 document.documentElement.lang = lang
 $('save').textContent = t(lang, 'save')
@@ -106,7 +125,7 @@ function ago (ts) {
 }
 
 async function start () {
-  await loadRecords()
+  await Promise.all([loadRecords(), cuenta.refresh()])
   if (ctx.canSave) {
     try { detail = await ask('pending-detail') } catch (_) { detail = null }
   }

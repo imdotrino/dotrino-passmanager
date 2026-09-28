@@ -14,6 +14,7 @@
 
 import { t, pickLang, kindLabel, errorText } from './i18n.js'
 import { hostApprovals } from './approval.js'
+import { mountAccountSwitch } from './account-switch.js'
 
 const lang = pickLang()
 
@@ -65,6 +66,14 @@ const resize = () => {
 // bóveda pregunta antes (§3.3.1). La pregunta se dibuja dentro de este mismo iframe: es
 // del origen de la extensión, y así el aviso no pierde lo que el usuario ya marcó.
 hostApprovals({ resize })
+
+// EN QUÉ CUENTA: cambiarla es cambiar de perfil, y lo de abajo se vuelve a pedir a la
+// bóveda de la cuenta elegida (`account-switch.js`).
+const cuenta = mountAccountSwitch($('account'), {
+  ask, lang, resize, testid: 'save-prompt-account',
+  onChange: () => load({ cambio: true }),
+  onError: fail,
+})
 
 /** «hace 3 días». Para distinguir dos entradas que por fuera se ven iguales. */
 function ago (ts) {
@@ -415,9 +424,13 @@ function syncButtons () {
   $('save').title = nada ? t(lang, 'pickNothing') : ''
 }
 
-async function load () {
+/** `cambio`: se vuelve a cargar porque se eligió otra cuenta, no porque se abra el aviso. */
+async function load ({ cambio = false } = {}) {
+  $('err').hidden = true
   detail = await ask('pending-detail')
   if (!detail?.has) return close()
+  nuevoNombre = null
+  editando = ''
   // De quién y de dónde es lo que se acaba de escribir. Llega aquí, no por la URL.
   host = detail.host || ''
   user = detail.username || ''
@@ -436,15 +449,20 @@ async function load () {
 
   // Nada que añadir ni que cambiar: no se molesta al usuario con un aviso que solo puede
   // contestar que sí a lo que ya tenía igual.
-  if (!rowsFor(target).length) {
+  //
+  // Salvo tras cambiar de cuenta: ahí el usuario está mirando, y descartar lo apuntado
+  // porque ESTA cuenta ya lo tiene le quitaría la opción de volver a la otra. Se enseña
+  // sin filas y con «Guardar» deshabilitado.
+  if (!cambio && !rowsFor(target).length) {
     try { await ask('dismiss-pending') } catch (_) {}
     return close()
   }
 
+  await cuenta.refresh()
   renderTargets()
   renderWho()
   renderFields()
-  $('save').focus()
+  if (!cambio) $('save').focus()
 }
 
 async function save () {

@@ -1179,37 +1179,28 @@ Consecuencias en el código:
 > (`gen`, §4.0), y ahí no se registra nadie: registrarse pasa en el navegador. Un gestor
 > que no genera obliga a inventárselas, y ahí es donde se repite la de siempre.
 
-**Una casilla de contraseña vacía ofrece una contraseña nueva donde se ESTRENA una**: un
-registro o un cambio de contraseña. Es una fila más de la tabla del §4.1, y la única que no
-depende de la bóveda:
+**Toda casilla de contraseña vacía ofrece una contraseña nueva** (dueño, 2026-09-28: *«en
+un campo vacío de password SÍ debe asomar el marcador para usar el generador»*). Es una
+fila más de la tabla del §4.1, y la única que no depende de la bóveda:
 
 | | el campo está vacío | tiene algo escrito |
 |---|---|---|
 | **nada guardado suyo** | **generar** | guardar |
 | **algo guardado suyo** | **rellenar** + generar | guardar |
 
-**En la casilla de ENTRAR no se genera** (dueño, 2026-09-21, en el login de
-practicetestautomation.com): la contraseña ya existe, así que ahí la tabla es la del §4.1 a
-secas — vacía y sin nada guardado, sin botón; con algo guardado, rellenar. Hasta entonces
-esta sección decía «siempre», y cada login del mundo sacaba un marcador con una «contraseña
-nueva» que nadie había pedido.
+**Derogado lo del 2026-09-21**, que en la casilla de ENTRAR quitaba el generador porque
+«la contraseña ya existe». El precio de esa regla era que en la de entrar el marcador era
+la única puerta al generador, y sin él no había forma de llegar desde la página: cambiar de
+contraseña también pasa por formularios que el gestor lee como de entrar.
 
-Qué formulario estrena una lo decide `createsPassword` (`detect.js`), y lo primero que
-conteste manda: lo que el sitio **declara** (`autocomplete="new-password"` sí,
-`current-password` no); si no declara nada, que haya una casilla de «repite la contraseña»
-detrás; y si tampoco, lo que dice la propia casilla («nueva», «crea», «elige»). Sin ninguna
-de las tres es entrar. El precio, dicho: un registro de una sola casilla que no declara nada
-ni se llama «nueva» no ofrece el generador.
-
-Antes, la primera casilla decía «sin botón» — que es exactamente el momento de registrarse
-en un sitio nuevo, y por tanto el momento en que el generador tenía que aparecer y no
-podía.
+`createsPassword`, que adivinaba si un formulario estrenaba contraseña, se quitó: ya no
+decidía nada. La generada se sigue escribiendo también en la casilla de «repite la
+contraseña» cuando se reconoce (`confirmFor`), que nunca dependió de aquello.
 
 **Esto no reabre el rastro que cerró la regla del §4.1.** Aquella quitó la comparación con
 lo guardado porque dejaba que la página propusiera un valor y leyera el botón para saber si
-había acertado. Generar depende de tres cosas —que el campo sea de contraseña, que esté
-vacío y que el formulario estrene una— y **las tres las sabe ya la página**: el
-`type="password"`, el `autocomplete` y las etiquetas los escribió ella. No se consulta la
+había acertado. Generar depende de dos cosas —que el campo sea de contraseña y que esté
+vacío— y **las dos las sabe ya la página**: el `type="password"` lo escribió ella. No se consulta la
 bóveda, así que no hay nada que leer ahí.
 
 **Dónde ocurre cada cosa:**
@@ -1251,8 +1242,8 @@ formulario, que toca también a la captura y al aviso.
 > contraseñas generadas en la sesión»*.
 
 **El popup tiene un generador siempre a mano**, debajo de «En este sitio». El del campo
-(§4.1.1) solo sale donde se estrena una contraseña, y hay casos que no pasan por ahí: el
-registro que no se deja detectar, o la contraseña que no es de ningún sitio (el wifi, un
+(§4.1.1) solo sale en una casilla de contraseña de una página, y hay casos que no pasan
+por ahí: la contraseña que no es de ningún sitio (el wifi, un
 archivo cifrado).
 
 **Todo lo generado queda apuntado hasta que se cierra el navegador.** El caso que lo pide:

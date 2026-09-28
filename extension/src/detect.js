@@ -18,9 +18,6 @@ const SEARCH_HINTS = ['search', 'buscar', 'query', 'q', 'filter', 'filtrar', 'fi
 // «Repite la contraseña». Solo sirven para RECONOCER la segunda casilla de un registro,
 // nunca para adivinar: si no coincide ninguna, no hay campo de confirmar y no se toca.
 const CONFIRM_HINTS = ['confirm', 'repeat', 'repet', 'repit', 'again', 'retype', 'verify', 'verific']
-// Lo que dice una casilla de contraseña de SÍ MISMA cuando ahí se estrena una: «nueva»,
-// «crea», «elige». Por palabras enteras (`matchesHint`): «new» no casa con «renewal».
-const NEW_PASSWORD_HINTS = ['new', 'nueva', 'nuevo', 'create', 'crea', 'choose', 'elige', 'newpassword']
 
 /**
  * ¿El campo está a la vista? Solo la geometría: ni `disabled` ni `readOnly` entran aquí.
@@ -320,33 +317,9 @@ export function findLoginForms (doc = document) {
     if (!username && candidates.length === 1) username = candidates[0]
 
     const confirm = confirmFor(password, sameScope)
-    forms.push({ form: password.form || null, password, username, confirm, creates: createsPassword(password, confirm) })
+    forms.push({ form: password.form || null, password, username, confirm })
   }
   return forms
-}
-
-/**
- * ¿AQUÍ SE CREA UNA CONTRASEÑA, o se escribe una que ya existe?
- *
- * Es lo que decide si se ofrece generar (§4.1.1). Antes se ofrecía en TODA casilla de
- * contraseña vacía, y en un formulario de entrar eso es un marcador que no sirve y un modal
- * con una «contraseña nueva» que nadie pidió (dueño, 2026-09-21, en el login de
- * practicetestautomation.com).
- *
- * En orden, y lo primero que conteste manda:
- *   · lo que el sitio DECLARA: `new-password` sí, `current-password` no;
- *   · una casilla de «repite la contraseña» detrás: eso es un registro;
- *   · lo que dice la propia casilla: «nueva», «crea», «elige».
- * Si nada de eso, es entrar: una casilla de contraseña a secas pide la que ya tienes.
- */
-export function createsPassword (password, confirm = null) {
-  const ac = (password.getAttribute('autocomplete') || '').toLowerCase().split(/\s+/)
-  if (ac.includes('new-password')) return true
-  if (ac.includes('current-password')) return false
-  if (confirm) return true
-  const h = haystack(password)
-  const { tokens, compacto } = tokenize(h)
-  return NEW_PASSWORD_HINTS.some(x => matchesHint(h, tokens, compacto, x))
 }
 
 /**
@@ -594,11 +567,13 @@ export function readUsername ({ form, username, password } = {}) {
  *
  * @param {object} f `{ value, stored, secret }` — `secret` = es un campo de contraseña
  */
-export function fieldOffers ({ value, stored, creates } = {}) {
+export function fieldOffers ({ value, stored, secret } = {}) {
   const lleno = !!String(value ?? '').trim()
-  // `creates`: es una casilla donde se ESTRENA una contraseña (`createsPassword`). Generar
-  // solo tiene sentido ahí; en la de entrar, la contraseña ya existe.
-  return { fill: !lleno && !!stored, save: lleno, gen: !lleno && !!creates }
+  // Generar, en TODA contraseña vacía (dueño, 2026-09-28: «en un campo vacío de password
+  // SÍ debe asomar el marcador para usar el generador»). Deroga lo del 2026-09-21, que lo
+  // limitaba a los formularios de registro: en la de entrar también se cambia de
+  // contraseña, y ahí el marcador era la única puerta al generador.
+  return { fill: !lleno && !!stored, save: lleno, gen: !lleno && !!secret }
 }
 
 /** Rellena como si lo escribiera una persona: los frameworks escuchan estos eventos. */

@@ -178,8 +178,6 @@ function descFor (f, i) {
     value: String(f.el.value || '').trim(),
     username: f.form?.username?.value || '',
     secret: f.form?.password?.value || '',
-    // Si en este formulario se estrena una contraseña: solo ahí se ofrece generar una.
-    creates: !!f.form?.creates,
   }
 }
 
@@ -592,7 +590,12 @@ addEventListener('message', async (e) => {
       break
     case 'size-save-prompt': ui.sizeSavePrompt(e.data.h); break
     case 'field-modal-ready': sendModalContext(); break
-    case 'close-field-modal': ui.closeFieldModal(); abierto = null; break
+    case 'close-field-modal':
+      ui.closeFieldModal(); abierto = null
+      // Desde el modal se puede cambiar de cuenta: lo que se sabía era de la otra bóveda.
+      forgetEntries()
+      scan().catch(() => {})
+      break
     case 'size-field-modal': ui.sizeFieldModal(e.data.h); break
     case 'fill-field-modal': fillFromModal(e.data.values); break
     case 'saved-field-modal': forgetEntries(); scan().catch(() => {}); break
