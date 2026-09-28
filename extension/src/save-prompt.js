@@ -48,11 +48,18 @@ const close = () => post({ op: 'close-save-prompt' })
  * Y decirle cuánto ocupa. El iframe lo dibuja la página, así que su alto no puede salir
  * de su propio CSS: sin esto la lista de campos se corta por abajo.
  */
-const resize = () => requestAnimationFrame(() => {
-  // En el fotograma siguiente, con la lista ya colocada: medida antes, sale corta y el
-  // aviso aparece con barra de scroll. Los 2 px son el borde del cuerpo.
+const measure = () => {
+  // Los 2 px son el borde del cuerpo.
   post({ op: 'size-save-prompt', h: Math.ceil(document.documentElement.getBoundingClientRect().height) + 2 })
-})
+}
+const resize = () => {
+  // DOS medidas. La de ahora es la que hace visible el aviso (ui.js), y hace falta: un
+  // iframe oculto no recibe fotogramas, así que esperando solo al siguiente no se
+  // mostraba nunca. La del fotograma siguiente, con la lista ya colocada, corrige el alto:
+  // medida solo antes, sale corta y el aviso aparece con barra de scroll.
+  measure()
+  requestAnimationFrame(measure)
+}
 
 // Ver lo que ya estaba guardado («esto cambia, antes decía…») lo saca de la bóveda, y la
 // bóveda pregunta antes (§3.3.1). La pregunta se dibuja dentro de este mismo iframe: es
@@ -74,6 +81,9 @@ function fail (e) {
   $('err').textContent = errorText(lang, e)
   $('err').hidden = false
   for (const b of document.querySelectorAll('button')) b.disabled = false
+  // Pero «Guardar» sigue a las casillas: con nada marcado —o sin haber cargado nada— no
+  // hay qué guardar.
+  syncButtons()
   resize()
 }
 
@@ -434,6 +444,7 @@ async function load () {
   renderTargets()
   renderWho()
   renderFields()
+  $('save').focus()
 }
 
 async function save () {
@@ -458,6 +469,6 @@ $('no').onclick = async () => {
   close()
 }
 
-$('save').focus()
-resize()
+// Sin `resize()` aquí: medirse es lo que hace visible el aviso (ui.js), y todavía no se
+// sabe si hay algo que enseñar. Lo hace `renderFields`, o `fail`, o una aprobación.
 load().catch(fail)

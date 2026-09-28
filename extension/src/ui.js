@@ -119,7 +119,13 @@ function styles () {
       box-shadow: 0 8px 32px rgba(0,0,0,.28);
       pointer-events: auto;
       color-scheme: normal;
+      /* Invisible hasta que el aviso dice cuánto ocupa: lo dice SOLO cuando ya sabe que
+         hay algo que guardar (o una pregunta o un error que enseñar). Montarlo visible
+         enseñaba «Guardar / Ahora no» sobre nada mientras preguntaba a la bóveda, y si
+         al final no había nada, eso era todo lo que el usuario llegaba a ver. */
+      visibility: hidden;
     }
+    .save-prompt.ready { visibility: visible; }
     /* El modal de un campo: pegado a su marcador, no en el centro de la pantalla. Va en
        coordenadas del documento para seguir a su campo al hacer scroll. */
     .field-modal {
@@ -405,6 +411,7 @@ export function closeSavePrompt () {
  */
 export function sizeSavePrompt (h) {
   if (!prompt || !Number.isFinite(h)) return
+  prompt.classList.add('ready')
   prompt.style.height = `${Math.max(96, Math.min(h, Math.round(window.innerHeight * 0.7)))}px`
 }
 

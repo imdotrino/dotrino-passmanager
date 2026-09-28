@@ -106,6 +106,8 @@ try {
   // AL IMPRIMIR NO SALE. La capa cuelga del <html>, fuera del <body>, y la hoja de impresión
   // de un sitio no la alcanza: el aviso acababa en el PDF de una factura de facturero.
   const marco = await frame.frameElement()
+  // Se hace visible al medirse, un fotograma después de pintar las filas.
+  await marco.waitForElementState('visible', { timeout: 4000 }).catch(() => {})
   ok(await marco.isVisible(), 'en pantalla, el aviso se ve')
   await page.emulateMedia({ media: 'print' })
   ok(!(await marco.isVisible()), 'al imprimir, el aviso no sale')
