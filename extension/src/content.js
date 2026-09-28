@@ -19,6 +19,8 @@ const t = (key, ...args) => (cache.i18n ? cache.i18n.t(lang, key, ...args) : '')
 
 let lastForms = []
 let lastData = []
+/** Cuánto ocupa cada campo detectado, para notar un relleno que no avisa (ver abajo). */
+let huella = ''
 // Los módulos YA resueltos: `submit` y `pagehide` no admiten esperar a un `import()`.
 const cache = {}
 mods.then((m) => Object.assign(cache, m))
@@ -95,6 +97,8 @@ async function scan () {
     // usuario escriba en ellos (§4.1). Solo se marcan cuando tienen algo.
     lastData = detect.findDataFields(document, { free: true })
   } catch { lastForms = []; lastData = [] }
+  // Lo que se acaba de ver ya está visto: el vigilante de rellenos solo salta si cambia.
+  huella = huellaDeCampos()
 
   const markable = []
   for (const f of lastForms) {
@@ -479,13 +483,42 @@ function captureFrom (form, { force = false, from = 'submit' } = {}) {
 // esto, abrir tus ajustes y volver atrás pediría guardar lo que ya estaba ahí.
 let touched = false
 let typingT = null
-addEventListener('input', () => {
+const onTyped = () => {
   touched = true
   // Escribir cambia lo que el gestor puede ofrecer: un campo vacío no tiene nada que
   // guardar, y en cuanto tiene algo, sí. Con freno, que esto corre por cada tecla.
   clearTimeout(typingT)
   typingT = setTimeout(() => { scan().catch(() => {}) }, 250)
-}, { capture: true, passive: true })
+}
+addEventListener('input', onTyped, { capture: true, passive: true })
+// `change` también: hay gestores que rellenan disparando solo ese.
+addEventListener('change', onTyped, { capture: true, passive: true })
+
+/**
+ * LO QUE RELLENA OTRO SIN AVISAR (dueño, 2026-09-28: «no detecta los fields autollenados
+ * por otras extensiones o el password manager de Chrome»).
+ *
+ * Quien rellena desde fuera escribe `value` y no siempre dispara ningún evento. Y Chrome,
+ * al autocompletar una contraseña, no deja leerla a la página hasta el primer clic — y
+ * cuando la deja, tampoco avisa. Así que se mira: una vez por segundo, con la pestaña a la
+ * vista, cuánto ocupa cada campo ya detectado. Si cambió, se vuelve a pasar.
+ *
+ * Se guarda la LONGITUD, no el valor: esto no tiene por qué tener la contraseña en memoria.
+ * No marca `touched`: nadie tecleó, y rellenar solo no es llenar un formulario.
+ */
+const huellaDeCampos = () => {
+  const els = []
+  for (const f of lastForms) els.push(f.username, f.password)
+  for (const d of lastData) els.push(d.el)
+  return els.filter(Boolean).map(el => String(el.value || '').length).join(',')
+}
+setInterval(() => {
+  if (document.hidden || !(lastForms.length || lastData.length)) return
+  const h = huellaDeCampos()
+  if (h === huella) return
+  huella = h
+  scan().catch(() => {})
+}, 1000)
 
 // 1. El envío del formulario, que es el caso normal. En captura para que llegue aunque
 //    la página cancele el evento después.

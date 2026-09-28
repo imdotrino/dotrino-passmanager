@@ -23,6 +23,7 @@
     "test:labels": "node extension/test/labels.e2e.mjs",
     "test:gestor": "node extension/test/gestor.e2e.mjs",
     "test:cuentas": "node extension/test/cuentas.e2e.mjs",
+    "test:autollenado": "node extension/test/autollenado.e2e.mjs",
     "store:shots": "node extension/store/tienda.mjs",
     "test:perfil": "node extension/test/perfil.e2e.mjs",
     "test:compartir": "node extension/test/compartir.e2e.mjs",
