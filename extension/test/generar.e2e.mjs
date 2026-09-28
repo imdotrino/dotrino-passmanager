@@ -80,8 +80,8 @@ try {
     await page.waitForTimeout(1200)
     await pulsarMarcador(campo)
     const mm = await modal()
-    ok(!!mm && await mm.locator('[data-testid=field-modal-gen-value]').isVisible(),
-      `${pagina}: la contraseña vacía, sin nada guardado, abre el generador`)
+    ok(!!mm && await mm.locator('[data-testid=field-modal-gen-start]').isVisible(),
+      `${pagina}: la contraseña vacía, sin nada guardado, ofrece el generador`)
     await page.keyboard.press('Escape')
     await page.mouse.click(5, 5)
     await page.waitForTimeout(300)
@@ -107,7 +107,14 @@ try {
   let generada = ''
   if (m) {
     const val = m.locator('[data-testid=field-modal-gen-value]')
-    ok(await val.isVisible(), 'y enseña una contraseña nueva')
+    // Abrir el modal NO genera nada (dueño, 2026-09-28): hay un botón para eso.
+    await m.waitForTimeout(400)
+    ok(!(await val.isVisible()), 'abrir el modal no genera ninguna contraseña')
+    const sesion0 = ((await pedir('gen-list'))?.result) || []
+    ok(sesion0.length === 0, 'ni la apunta en la sesión')
+    await m.locator('[data-testid=field-modal-gen-start]').click()
+    await val.waitFor({ state: 'visible', timeout: 4000 })
+    ok(await val.isVisible(), 'el botón «Generar contraseña» enseña una nueva')
     // La pide al service worker (que la apunta en la sesión): llega un instante después.
     await m.waitForFunction(() => document.querySelector('[data-testid=field-modal-gen-value]')?.textContent.trim().length > 0)
     generada = (await val.textContent() || '').trim()
@@ -174,8 +181,9 @@ try {
   await page.waitForTimeout(1200)
   await pulsarMarcador('input[name=pass1]')
   const m3 = await modal()
-  ok(!!m3 && await m3.locator('[data-testid=field-modal-gen-value]').isVisible(),
-    'ahí sí sale el generador')
+  // Visible el bloque: con una ya generada para este sitio en la sesión sale esa, y si no,
+  // el botón de generar.
+  ok(!!m3 && await m3.locator('#genBox').isVisible(), 'ahí sí sale el generador')
 
   // Con algo guardado, la casilla de entrar tiene marcador para rellenar, y el generador
   // también (dueño, 2026-09-28): en la de entrar también se cambia de contraseña.
@@ -185,7 +193,7 @@ try {
   await pulsarMarcador('#password')
   const m4 = await modal()
   ok(!!m4, 'el marcador sale, para rellenar')
-  if (m4) ok(await m4.locator('[data-testid=field-modal-gen-value]').isVisible(), 'y el modal ofrece también una contraseña nueva')
+  if (m4) ok(await m4.locator('#genBox').isVisible(), 'y el modal ofrece también el generador')
 
   console.log('\nel generador del popup, con lo generado en la sesión')
   await ext.goto(`chrome-extension://${id}/src/popup.html`)

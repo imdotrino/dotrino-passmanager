@@ -11,8 +11,8 @@
 // Van solo los perfiles ABIERTOS. Una cuenta de usuario y contraseña que está cerrada no
 // es a dónde guardar: para usarla hay que volver a entrar, y eso es del popup.
 //
-// Con un solo perfil el selector se ve, deshabilitado: dice en qué cuenta cae esto aunque
-// no haya otra que elegir.
+// Nunca se deshabilita, tampoco con una sola cuenta (dueño, 2026-09-28: «debe poder
+// seleccionarse el único valor, no compliques las cosas»).
 
 import { t } from './i18n.js'
 
@@ -24,7 +24,6 @@ const CSS = `
     background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.2);
     border-radius: 6px; padding: 2px 4px;
   }
-  .account select:disabled { opacity: .7; }
   .account select:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
   .account option { color: #000; }
 `
@@ -66,15 +65,12 @@ export function mountAccountSwitch (box, { ask, lang, testid, onChange, onError,
       if (p.current) { o.selected = true; actual = p.id }
       sel.append(o)
     }
-    sel.disabled = lista.length < 2
-    sel.title = sel.disabled ? t(lang, 'accountOnlyOne') : ''
     resize?.()
   }
 
   sel.addEventListener('change', async () => {
     const id = sel.value
     if (!id || id === actual) return
-    sel.disabled = true
     try {
       await ask('profile-use', { id })
       actual = id
@@ -82,8 +78,6 @@ export function mountAccountSwitch (box, { ask, lang, testid, onChange, onError,
     } catch (e) {
       sel.value = actual
       onError?.(e)
-    } finally {
-      sel.disabled = sel.options.length < 2
     }
   })
 

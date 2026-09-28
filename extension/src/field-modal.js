@@ -75,6 +75,7 @@ $('fillTitle').textContent = t(lang, 'fillSection')
 $('saveTitle').textContent = t(lang, 'saveSection')
 $('genTitle').textContent = t(lang, 'genSection')
 $('genUse').textContent = t(lang, 'genUse')
+$('genStart').textContent = t(lang, 'genStart')
 $('genHint').textContent = t(lang, 'genHint')
 $('genAgain').title = t(lang, 'genAgain')
 $('genAgain').setAttribute('aria-label', t(lang, 'genAgain'))
@@ -496,6 +497,8 @@ function render () {
 // está el botón de al lado, que es una decisión.
 let generada = ''
 let genPending = null
+/** Si ya se miró si este sitio tiene una generada en la sesión. Mirar no genera nada. */
+let genMirada = false
 
 /**
  * La contraseña se pide al service worker, que la genera y la apunta en la lista de la
@@ -512,14 +515,33 @@ function requestGenerated (fresh) {
   return genPending
 }
 
+/**
+ * La de ESTE sitio en la sesión, si la hay. Solo la busca: no inventa ninguna.
+ *
+ * Abrir el modal no genera nada (dueño, 2026-09-28: «no se debe generar automáticamente
+ * una contraseña cuando se abre el modal, debe haber un botón específico»). Se genera al
+ * pulsar «Generar contraseña»; lo que sí sale solo es la que ya generaste aquí antes.
+ */
+function lookupGenerated () {
+  genMirada = true
+  ask('gen-last', { url: ctx.url })
+    .then((g) => { if (g?.value && !generada) generada = g.value })
+    .catch(fail)
+    .finally(() => paint())
+}
+
 function paintGen () {
   const on = !!ctx.gen
   $('genBox').hidden = !on
   if (!on) return
-  if (!generada) requestGenerated(false)
+  if (!generada && !genMirada) lookupGenerated()
+  $('genStart').hidden = !!generada
+  $('genRow').hidden = !generada
+  $('genHint').hidden = !generada
   $('genVal').textContent = generada
 }
 
+$('genStart').onclick = () => requestGenerated(true)
 $('genAgain').onclick = () => requestGenerated(true)
 
 /**

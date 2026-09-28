@@ -178,14 +178,15 @@
        una guardada, que es justo lo que no puede pasar. -->
   <div id="genBox" hidden>
     <h2 id="genTitle"></h2>
-    <div class="row gen">
+    <button class="mini" id="genStart" type="button" data-testid="field-modal-gen-start"></button>
+    <div class="row gen" id="genRow">
       <code class="genval" id="genVal" data-testid="field-modal-gen-value"></code>
       <button class="reroll" id="genAgain" type="button"
               data-testid="field-modal-gen-again">↻</button>
       <button class="mini" id="genUse" type="button"
               data-testid="field-modal-gen-use"></button>
     </div>
-    <p class="genhint" id="genHint"></p>
+    <p class="genhint" id="genHint" hidden></p>
   </div>
 
   <div id="fillBox" hidden>

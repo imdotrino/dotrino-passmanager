@@ -71,7 +71,8 @@ try {
   ok(await sel.inputValue() === primera, 'y marcada la activa')
 
   await sel.selectOption(segunda)
-  await frame.waitForFunction((a) => !document.querySelector('[data-testid=save-prompt-account]').disabled, null)
+  await frame.waitForFunction((id) => document.querySelector('[data-testid=save-prompt-account]').value === id, segunda)
+  await page.waitForTimeout(500)
   await frame.locator('[data-testid=save-prompt-field]').first().waitFor({ timeout: 8000 })
   ok((await pedir('status')).result.active === segunda, 'elegir otra cuenta la deja activa')
 
