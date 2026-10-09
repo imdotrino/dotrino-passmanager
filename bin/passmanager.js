@@ -16,6 +16,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createInterface } from 'node:readline'
 
 import { Identity } from '@dotrino/identity/node'
@@ -583,7 +584,12 @@ if (!ORDENES[orden]) {
 }
 
 ORDENES[orden](...args)
-  .then(() => { if (orden !== 'serve') closeReader() })
+  .then(async () => {
+    if (orden !== 'serve') closeReader()
+    // §15: esta CLI corre desde un checkout; lo que se queda atrás son sus pilares.
+    const { printDependencyNotices } = await import('@dotrino/update/deps')
+    await printDependencyNotices({ dir: fileURLToPath(new URL('..', import.meta.url)) })
+  })
   .catch(e => {
     closeReader()
     if (e?.message !== 'ambiguo') console.error(e?.message || e)
