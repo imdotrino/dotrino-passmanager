@@ -227,6 +227,31 @@ try {
   const fuga = intrusa.frames().some(f => f.url().includes('/src/save-prompt.html'))
   ok(!fuga, 'y no se asoma en otra pestaña de otro sitio')
   await intrusa.close()
+
+  // --- 8. EL FORMULARIO DENTRO DE UN MARCO ----------------------------------
+  //
+  // El aviso es de la página principal (dueño, 2026-10-13). Un acceso embebido en un
+  // marco se captura igual, pero al enviarse solo recarga el marco, y el aviso salía
+  // DENTRO de él: recortado por el tamaño del marco, y a veces repetido en cada uno.
+  const conMarco = await ctx.newPage()
+  await conMarco.goto(`${SITE}/framed.html`)
+  const dentro = conMarco.frameLocator('#marco')
+  await dentro.locator('input[name=user]').fill('marco@dotrino.com')
+  await dentro.locator('input[name=password]').fill('clave-del-marco')
+  await conMarco.waitForTimeout(600)
+  await dentro.locator('button[type=submit]').click()
+  const delMarco = await esperarAviso(conMarco)
+  ok(!!delMarco, 'el aviso sale aunque el formulario esté en un marco')
+  await conMarco.waitForTimeout(2500)   // las cuatro vueltas de `offerSave` del marco
+  const avisos = conMarco.frames().filter(f => f.url().includes('/src/save-prompt.html'))
+  ok(avisos.length === 1, 'y sale UNA vez: ' + avisos.length)
+  ok(avisos.every(f => f.parentFrame() === conMarco.mainFrame()),
+    'en la página principal, no dentro del marco')
+  if (delMarco) {
+    const quien = await avisos[0].locator('#who').textContent()
+    ok(quien.includes('marco@dotrino.com'), 'y es lo que se escribió en el marco: ' + quien)
+  }
+  await conMarco.close()
 } finally {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })

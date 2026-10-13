@@ -583,12 +583,28 @@ async function offerSave (waits = [0, 400, 1000, 2000]) {
     const r = await ask('pending-save', { host: location.hostname })
     const p = r?.result
     if (!p?.has) continue
-    const { ui } = await mods
     // Un sí y nada más: ni el sitio ni el usuario pasan por aquí. Todo lo que el aviso
     // enseña se lo pregunta él al service worker desde el origen de la extensión.
-    ui.mountSavePrompt()
+    //
+    // Dentro de un marco no se dibuja nada: el service worker ya avisó a la página
+    // principal, que es la única que monta el aviso.
+    if (EN_MARCO) return
+    await showSavePrompt(p.ts)
     return
   }
+}
+
+// ¿Este script corre dentro de un marco? El aviso de guardar es de la página principal.
+const EN_MARCO = window !== window.top
+
+// La captura que ya se enseñó. Una página y un marco suyo del mismo sitio preguntan los
+// dos, y sin esto el aviso se montaría dos veces seguidas.
+let avisoDe = null
+async function showSavePrompt (ts) {
+  const { ui } = await mods
+  if (ts === avisoDe && ui.promptWindow()) return
+  avisoDe = ts
+  ui.mountSavePrompt()
 }
 
 // El aviso se cierra y se dimensiona solo: es un iframe de la extensión y no alcanza al
@@ -638,6 +654,13 @@ addEventListener('message', async (e) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Solo del propio popup: un messageFor con `sender.tab` viene de una página.
   if (sender.tab) { sendResponse({ error: { code: 'denied' } }); return false }
+
+  // Un marco de esta página tiene algo que ofrecer guardar: lo dibuja la página principal.
+  if (msg?.op === 'offer-save') {
+    if (EN_MARCO) { sendResponse({ error: { code: 'not-top-frame' } }); return false }
+    showSavePrompt(msg.payload?.ts).then(() => sendResponse({ result: { ok: true } }))
+    return true
+  }
 
   if (msg?.op === 'page-fill') {
     fillLogin(msg.payload || {}).then(filled => sendResponse({ result: { filled } }))

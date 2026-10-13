@@ -1115,7 +1115,18 @@ async function pendingSave ({ host } = {}, sender) {
   const mismoHost = !!host && !!p.host && host === p.host
   const mismaPestana = p.from === 'submit' && sender?.tab?.id != null && sender.tab.id === p.tabId
   if (!mismaPestana && !mismoHost) return { has: false }
-  return { has: true }
+  // EL AVISO SALE EN LA PÁGINA PRINCIPAL, nunca dentro de un marco (dueño, 2026-10-13).
+  // Un marco pregunta igual —el formulario puede vivir en uno, y al enviarse solo recarga
+  // ese marco—, pero quien lo dibuja es la página que lo contiene: se le avisa desde aquí.
+  // `ts` identifica la captura, para que la página no monte dos veces el mismo aviso.
+  if (sender?.frameId) {
+    try {
+      await chrome.tabs.sendMessage(sender.tab.id, { op: 'offer-save', payload: { ts: p.ts } }, { frameId: 0 })
+    } catch (e) {
+      console.warn('passmanager: could not reach the top frame to offer the save prompt', e)
+    }
+  }
+  return { has: true, ts: p.ts }
 }
 
 /**
