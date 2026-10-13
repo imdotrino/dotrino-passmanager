@@ -15,3 +15,6 @@ android/local.properties
 android/app/build
 android/build
 ios/build
+ios/Passmanager/Info.plist
+ios/Passmanager/Passmanager.entitlements
+ios/Passmanager.xcodeproj

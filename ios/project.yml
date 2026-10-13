@@ -1,0 +1,86 @@
+# Contraseñas para iOS: la versión NATIVA del gestor de contraseñas de Dotrino (CONVENCIONES §16).
+# Es un aparato del acta con el permiso `passwords` que habla `pm2.*` con la bóveda: busca, copia
+# y edita. Diseño en ../docs/DISENO.md §6.3.
+#
+# ⚠️ ESCRITA Y SIN COMPILAR (2026-10-13: la Mac no estaba disponible). Ver README.md.
+#
+#   cd ios && xcodegen generate
+#   xcodebuild -project Passmanager.xcodeproj -scheme Passmanager -destination 'platform=iOS Simulator,name=iPhone 16' test
+#
+# Firma: equipo DOTRINO S.A.S. (P7G853375S), automática, con los grupos compartidos del
+# ecosistema (dotrino-native/docs/DISENO.md §2.1): el perfil es el mismo en todas las apps.
+name: Passmanager
+options:
+  bundleIdPrefix: com.dotrino
+  deploymentTarget:
+    iOS: "16.4"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: P7G853375S
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+packages:
+  DotrinoNative:
+    path: ../native
+targets:
+  Passmanager:
+    type: application
+    platform: iOS
+    sources:
+      - Passmanager
+      # Los textos son UN archivo para las dos apps nativas: el de Android.
+      - path: ../android/app/src/main/assets/i18n.json
+        buildPhase: resources
+    dependencies:
+      - package: DotrinoNative
+        product: DotrinoNative
+      - package: DotrinoNative
+        product: DotrinoNativeUI
+    info:
+      path: Passmanager/Info.plist
+      properties:
+        CFBundleDisplayName: Contraseñas
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Cifrado exento, la misma declaración que la app Dotrino (dueño, 2026-10-05).
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleDevelopmentRegion: es
+        CFBundleLocalizations: [es, en]
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIUserInterfaceStyle: Light
+        # Presence («¿eres tú?») antes de ver o copiar una contraseña, donde la persona lo enciende.
+        NSFaceIDUsageDescription: "Para confirmar que eres tú antes de ver o copiar una contraseña."
+    entitlements:
+      path: Passmanager/Passmanager.entitlements
+      properties:
+        keychain-access-groups: ["$(AppIdentifierPrefix)com.dotrino.shared"]
+        com.apple.security.application-groups: [group.com.dotrino]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dotrino.passmanager
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  PassmanagerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [PassmanagerTests]
+    dependencies:
+      - target: Passmanager
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Passmanager.app/Passmanager"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  Passmanager:
+    build:
+      targets:
+        Passmanager: all
+    test:
+      targets: [PassmanagerTests]
