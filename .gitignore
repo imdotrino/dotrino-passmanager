@@ -8,3 +8,10 @@ package-lock.json
 
 # Lo deja el proxio de verdad que levanta `npm run test:login` (escribe en el cwd).
 usage-stats.json
+
+android/.gradle
+android/.kotlin
+android/local.properties
+android/app/build
+android/build
+ios/build

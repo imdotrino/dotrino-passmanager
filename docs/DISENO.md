@@ -1632,11 +1632,15 @@ contraseñas, para que el criterio sea uno solo y no dos.
 lib/          @dotrino/passmanager — modelo, cifrado, la interfaz de bóveda
 extension/    extensión Chrome MV3
 web/          pass.dotrino.com — consola de la bóveda + landing
+android/      app nativa de Android (Kotlin, vistas nativas)
+ios/          app nativa de iOS (SwiftUI)
+native/       submódulo dotrino-native (identidad, transporte sellado, barra)
 docs/         este documento
 ```
 
-La app nativa **no vive aquí**: es una pantalla más de `dotrino-app`, que ya es el
-aparato con hardware y con el flujo de aprobación.
+Las apps nativas **viven aquí** (dueño, 2026-10-13; CONVENCIONES §16.3: un repo por app
+con sus tres versiones). Antes este documento las ponía como una pantalla de
+`dotrino-app`; esa app sigue siendo donde se **aprueban** los pedidos, y nada más. Ver §6.3.
 
 ### 6.1. La interfaz de bóveda
 
@@ -1741,6 +1745,55 @@ sigue siendo cosa de quien tiene la llave** — la consola de órdenes y la app 
 No es una limitación que se arrastra: es la misma regla aplicada a una pieza que
 tentaba a saltársela.
 
+## 6.3. Las apps nativas (Android e iOS)
+
+> Pedidas por el dueño el 2026-10-13: *«las aplicaciones gestionarán contraseñas,
+> permitirán cambiarlas con las políticas de aprobación y sobre todo búsqueda y copiado»*.
+
+**Qué son.** Un aparato más del acta con el permiso `passwords`, igual que la extensión:
+hablan `pm2.*` con la bóveda del perfil (`docs/sealed-passwords.md`) y abren sus propios
+sobres. No guardan nada: cada valor se pide cuando hace falta y vive en memoria mientras
+su pantalla está abierta. Sin bóveda emparejada no hay nada que enseñar, y la app lo dice.
+
+**Qué hacen.**
+
+| | |
+|---|---|
+| **buscar** | una caja siempre a la vista; se busca en el teléfono sobre las vistas (nombre, sitio, usuario), que no llevan ningún valor |
+| **copiar** | usuario y contraseña a un toque desde la lista; cualquier dato desde el detalle. Va al portapapeles marcado como sensible y se borra al minuto si la app sigue delante |
+| **ver** | lo público, tal cual; lo privado, tapado hasta pulsar «Ver». El código de dos pasos se calcula en el teléfono |
+| **crear / editar / borrar** | con el generador de contraseñas del `lib` (mismos alfabetos) |
+
+**Las políticas de aprobación son las de la bóveda, sin nada propio.** Leer algo privado
+pasa por `pm2.get`, y la bóveda decide si pide el visto bueno (§2.0): la app espera y lo
+dice en pantalla. **Cambiar una contraseña no lee la anterior**: el editor no trae lo
+privado —vacío se queda como está, escribir lo reemplaza—, que es justo lo que `patch`
+permite. Encima, y aparte, el teléfono puede pedir su huella antes de ver o copiar algo
+privado (`Presence` de `dotrino-native`); nace apagado y se enciende desde la propia lista.
+
+**Lo que todavía NO hacen**, dicho: rellenar en otras apps o en el navegador del teléfono
+(el servicio de autocompletar de cada sistema), passkeys, importar, y ser ellas la bóveda.
+Una entrada con passkey se ve y se edita, pero su llave se queda donde está.
+
+**Cómo están hechas.** El núcleo (`android/app/…/core/`, `ios/Passmanager/Core/`) es el
+puerto de `lib/src/sealed/` y `lib/src/vault/sealed.js`; identidad, transporte sellado y
+barra salen de `dotrino-native` (≥ 0.34.1), no se reescriben. Tres diferencias con el JS,
+las tres a propósito:
+
+- **vaciar un campo fijo lo quita**, y ya. El JS además lo vuelve a escribir vacío;
+- **el resumen de un campo libre tras un `patch` se calcula sobre su valor**, como en
+  `put`. El JS lo calcula sobre el JSON del campo, y por eso tras editar dice «cambió»;
+- **el nombre visible lo manda quien edita** (`Changes.hint`): tiene delante el nombre y el
+  usuario, que son públicos, y la vista sola no dice de cuál de los dos salió el actual.
+
+**Cómo se prueban.** Contra la librería JS de verdad, no contra una copia de sus reglas:
+`lib/test/native-bridge.mjs` levanta una bóveda sellada con dos aparatos —el nativo y uno
+JS— y lo que escribe uno lo abre el otro (`BridgeTest`). Y contra un proxio y una bóveda
+reales con `test/e2e-native.mjs` (`VaultE2eTest`, y la build de depuración en el emulador).
+
+**Estado.** Android: probada en emulador, **sin publicar** en Play y sin probar con la app
+de identidad de un teléfono real. iOS: **escrita y sin compilar** (`ios/README.md`).
+
 ## 7. Las passkeys en Chrome — HECHO (2026-08-26)
 
 Chrome **no expone API de proveedor de credenciales a extensiones** — Android 14+ e
@@ -1802,6 +1855,7 @@ Cobertura esperada:
 | **1** | Bóveda + autocompletado + TOTP + importar (1Password, Bitwarden, CSV de Chrome). La extensión con **caché local**. | Sin esto no hay producto, y aquí está el grueso del trabajo. Sin importación nadie migra. |
 | **2** | El **vault del PC** responde de a una | Barato: daemon, cajones, bitácora y enrolamiento (`@dotrino/remote-agent`) ya existen. |
 | **3** | El **teléfono** responde de a una, con huella | Necesita trabajo en `dotrino-app`, hoy verde (APK debug sin probar en teléfono). |
+| **3b** | Las **apps nativas** del gestor (§6.3): buscar, copiar, editar | El teléfono como aparato que PIDE, que es lo que se usa a diario. Android hecha; iOS escrita. |
 | **4** | **Passkeys** | Reusa todo lo anterior: detectar el sitio, hablar con la bóveda, devolver algo a la página. |
 
 El orden lo fija el riesgo, no la vistosidad: **el autocompletado es lo que mata a

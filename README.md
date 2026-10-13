@@ -19,10 +19,13 @@ pide de a una por el proxio y nada viaja en claro. Ver
 | `bin/` | la bóveda: crear, editar, generar, importar, y responder a los aparatos | hecha |
 | `extension/` | extensión Chrome MV3 — pide, no guarda | hecha, sin publicar en la tienda |
 | `web/` | landing en [pass.dotrino.com](https://pass.dotrino.com/) | en vivo |
+| `android/` | app nativa de Android (`com.dotrino.passmanager`): buscar, copiar, crear, editar | hecha y probada en emulador; **sin publicar** |
+| `ios/` | app nativa de iOS, la misma | **escrita y sin compilar** (ver `ios/README.md`) |
+| `native/` | submódulo `dotrino-native`: identidad, transporte sellado y barra, compartidos | — |
 
 La consola web llega en el paso 2, con el vault: antes no hay nada que sincronice la
-bóveda de la extensión con la de la web. La app nativa es una pantalla de
-`dotrino-app`, no vive aquí.
+bóveda de la extensión con la de la web. Las apps nativas viven aquí (CONVENCIONES
+§16.3: un repo por app, con sus tres versiones); diseño en `docs/DISENO.md` §6.3.
 
 ## Plan
 

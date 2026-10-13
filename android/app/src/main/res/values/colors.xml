@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «Cool & Cozy», el tema del home (dotrino.com) y de la PWA (src/style.css :root). -->
+<resources>
+    <color name="m_bg">#F4F7F9</color>
+    <color name="m_card">#FFFFFF</color>
+    <color name="m_card2">#F1F4F6</color>
+    <color name="m_line">#E3E9ED</color>
+    <color name="m_line2">#CFD8DE</color>
+    <color name="m_text">#181C1E</color>
+    <color name="m_muted">#4A5560</color>
+    <color name="m_accent">#00658C</color>
+    <color name="m_accent_press">#00506F</color>
+    <color name="m_accent_soft">#1A00658C</color>
+    <color name="m_on_accent">#FFFFFF</color>
+    <color name="m_online">#00897B</color>
+    <color name="m_gold">#C98A00</color>
+    <color name="m_danger">#BA1A1A</color>
+    <!-- Los componentes del ecosistema (dotrino-native) con la misma paleta: se sobrescriben
+         aquí sus recursos, así la barra y los modales compartidos salen claros. -->
+    <color name="dotrino_bg">#F4F7F9</color>
+    <color name="dotrino_card">#FFFFFF</color>
+    <color name="dotrino_fg">#181C1E</color>
+    <color name="dotrino_muted">#4A5560</color>
+    <color name="dotrino_accent">#00658C</color>
+</resources>

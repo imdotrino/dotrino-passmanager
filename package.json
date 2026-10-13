@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Gestor de contraseñas de Dotrino: la bóveda que responde y las piezas que piden",
+  "dotrino": {
+    "platforms": [
+      "pwa",
+      "ios",
+      "android"
+    ]
+  },
   "bin": {
     "dotrino-passmanager": "bin/passmanager.js"
   },
@@ -11,6 +18,7 @@
     "test": "cd lib && npm test",
     "serve": "node bin/passmanager.js serve",
     "test:e2e": "node --test test/*.test.mjs",
+    "test:android": "cd android && ./gradlew :app:testDebugUnitTest",
     "test:web": "python3 -m http.server 8099 --directory web/test",
     "test:bench": "node extension/test/bench.e2e.mjs",
     "test:save-prompt": "node extension/test/save-prompt.e2e.mjs",

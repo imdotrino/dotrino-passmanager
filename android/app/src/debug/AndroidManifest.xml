@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SOLO la build de depuración: deja arrancar la app contra la bóveda de prueba de
+     test/e2e-native.mjs (proxio local, sin TLS) con las llaves del aparato en software. Nada de
+     esto existe en la build que se publica. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:name=".DebugApp" android:usesCleartextTraffic="true" />
+</manifest>
