@@ -233,10 +233,10 @@ Ninguna.
 
    Encaja como capa ENCIMA: el nombre solo lleva al código, y el acta se sigue comprobando
    contra él, así que un directorio comprometido puede desviar o negar, no robar la
-   contraseña. **Cuando se construya** hay que cambiar lo que choca con cobrar: *«no se
-   monetiza al usuario de las apps»* (`MODELO-NEGOCIO.md`) y la moneda de soporte como única
-   monetización (`CONVENCIONES-APPS.md` §6). Falta diseñar las reasignaciones a la vista (un
-   registro de solo añadir).
+   contraseña. **Diseñado el 2026-10-14** en
+   [`dotrino-names/docs/DISENO.md`](https://github.com/imdotrino/dotrino-names/blob/main/docs/DISENO.md):
+   nombre → cuenta, pago anual (excepción declarada en `MODELO-NEGOCIO.md`) y las
+   reasignaciones a la vista en un registro de transparencia. Sin código todavía.
 4. ~~**La librería de OPAQUE**~~ — **decidido: `@dotrino/opaque`, un paquete del ecosistema
    sobre `opaque-ke`** (Rust, de Meta, RFC 9807, auditado por NCC Group en 2021). No se
    escribe criptografía: el paquete da la API que usan el vault y el gestor, se prueba con
