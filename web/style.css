@@ -1,29 +1,19 @@
 :root {
-  --bg: #f4f7f9;
-  --panel: #ffffff;
-  --line: #e3e9ed;
-  --fg: #181c1e;
-  --dim: #4a5560;
-  --brand: #00658c;
-  --brand-dark: #00506f;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12161a;
-    --panel: #181d23;
-    --line: #262e36;
-    --fg: #e8eaf0;
-    --dim: #9aa3b5;
-    --brand: #4bb3dd;
-    --brand-dark: #7cc9e8;
-  }
+  /* Colores del ecosistema (@dotrino/theme, CONVENCIONES §5): aquí solo se nombran. */
+  --bg: var(--dt-bg);
+  --panel: var(--dt-surface);
+  --line: var(--dt-line-soft);
+  --fg: var(--dt-text);
+  --dim: var(--dt-text-dim);
+  --brand: var(--dt-accent);
+  --brand-dark: var(--dt-accent-press);
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 16px/1.6 var(--dt-font);
   padding-bottom: env(safe-area-inset-bottom);
 }
 main { max-width: 880px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) 20px 72px; }
@@ -53,6 +43,6 @@ code {
 .links { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
 .links a {
   padding: 9px 16px; border-radius: 9px; text-decoration: none; font-weight: 600; font-size: 15px;
-  background: var(--brand); color: #fff;
+  background: var(--brand); color: var(--dt-accent-ink);
 }
 .links a + a { background: none; color: var(--brand); border: 1px solid var(--line); }
