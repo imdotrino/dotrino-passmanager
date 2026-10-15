@@ -86,19 +86,37 @@
     return cred
   }
 
+  /**
+   * ¿Tiene Dotrino algo de este sitio? Se pregunta con un tope corto: es lo público y
+   * recordado, y mientras se espera el navegador no enseña nada. Sin respuesta a tiempo,
+   * no tiene — y manda el navegador.
+   */
+  const HAS_TIMEOUT_MS = 2500
+  const tiene = async (rpId) => {
+    const r = await preguntar('webauthn-has', { rpId }, HAS_TIMEOUT_MS)
+    return (r?.fallback || !r?.result) ? { passkey: false, entry: false } : r.result
+  }
+
   navigator.credentials.create = async function (opts) {
     const datos = serializar(opts)
     if (!datos) return original.create(opts)
+    // Crear una passkey solo se queda en Dotrino si el usuario ya guarda este sitio en
+    // Dotrino. Si no, es del gestor que ya use (el de Google, el del sistema).
+    if (!(await tiene(datos.rpId)).entry) return original.create(opts)
     const r = await preguntar('webauthn-create', datos)
-    // Si el usuario no elige a Dotrino, o algo falla, manda el navegador. Nunca se
-    // rompe el acceso al sitio por culpa nuestra.
+    // Si algo falla, manda el navegador. Nunca se rompe el acceso al sitio por culpa nuestra.
     if (r?.fallback || !r?.result) return original.create(opts)
     return credencial(r.result)
   }
 
   navigator.credentials.get = async function (opts) {
+    // `conditional` es el autocompletado de passkeys del navegador: se pide al cargar la
+    // página, sin que el usuario haya pulsado nada. Dotrino no tiene esa lista, y firmar
+    // aquí sería entrar sin que nadie lo pidiera. Es del navegador, entero.
+    if (opts?.mediation === 'conditional') return original.get(opts)
     const datos = serializar(opts)
     if (!datos) return original.get(opts)
+    if (!(await tiene(datos.rpId)).passkey) return original.get(opts)
     const r = await preguntar('webauthn-get', datos)
     if (r?.fallback || !r?.result) return original.get(opts)
     return credencial(r.result)

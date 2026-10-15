@@ -821,6 +821,26 @@ async function unlink () {
 // La llave se genera aquí y se manda a la bóveda para que la CUSTODIE; firmar exige
 // pedírsela, igual que cualquier otra credencial. El aparato no se queda con nada.
 
+/**
+ * ¿TIENE DOTRINO ALGO DE ESTE SITIO? Lo pregunta la página ANTES de quedarse con una
+ * passkey, y se contesta con lo público y recordado (`findFor`), sin abrir nada.
+ *
+ * Sin esto el gestor se quedaba con TODA passkey: la de un sitio que el usuario guarda en
+ * el gestor de Google se creaba en Dotrino sin preguntar, y al entrar se esperaba a la
+ * bóveda antes de dejar pasar al navegador (dueño, 2026-10-15: «si no tiene no debería
+ * interferir»). Con nada guardado del sitio, manda el navegador.
+ *
+ * `passkey`: hay una passkey del sitio (para entrar). `entry`: hay cualquier entrada del
+ * sitio (para crear una: el usuario ya usa Dotrino ahí).
+ */
+async function webauthnHas (p) {
+  const entries = await findFor(`https://${p.rpId}/`)
+  return {
+    passkey: entries.some(e => e.hasWebauthn),
+    entry: entries.length > 0,
+  }
+}
+
 async function webauthnCreate (p) {
   const v = await connect()
   const { entry, response } = await createCredential({
@@ -1817,6 +1837,7 @@ const OPS = {
   'pending-detail': pendingDetail,
   'save-pending': savePending,
   'dismiss-pending': dismissPending,
+  'webauthn-has': webauthnHas,
   'webauthn-create': webauthnCreate,
   'webauthn-get': webauthnGet,
   link: p => link(p),
@@ -1934,7 +1955,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
   // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
   // extensión.
-  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
+  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-has', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

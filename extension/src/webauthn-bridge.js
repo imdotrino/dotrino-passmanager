@@ -6,7 +6,7 @@
 
 const PIDE = 'dotrino-passmanager:webauthn:req'
 const RESPONDE = 'dotrino-passmanager:webauthn:res'
-const OPS = ['webauthn-create', 'webauthn-get']
+const OPS = ['webauthn-has', 'webauthn-create', 'webauthn-get']
 
 window.addEventListener('message', (e) => {
   // Solo mensajes de ESTA ventana y con una operación conocida. Lo que llegue de un
