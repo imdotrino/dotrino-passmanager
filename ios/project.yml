@@ -20,7 +20,7 @@ settings:
     DEVELOPMENT_TEAM: P7G853375S
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: 0.1.0
-    CURRENT_PROJECT_VERSION: 1
+    CURRENT_PROJECT_VERSION: 2
 packages:
   DotrinoNative:
     path: ../native
@@ -53,6 +53,9 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIUserInterfaceStyle: Light
         # Presence («¿eres tú?») antes de ver o copiar una contraseña, donde la persona lo enciende.
+        # dotrino-native trae el lector de QR (emparejar con la bóveda): sin esta frase App Store
+        # Connect rechaza el build (90683), aunque la pantalla no se abra nunca.
+        NSCameraUsageDescription: "Para escanear el código de emparejamiento de tu bóveda."
         NSFaceIDUsageDescription: "Para confirmar que eres tú antes de ver o copiar una contraseña."
     entitlements:
       path: Passmanager/Passmanager.entitlements
