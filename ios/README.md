@@ -3,21 +3,26 @@
 La versión nativa del gestor de contraseñas de Dotrino (`com.dotrino.passmanager`), la
 misma que `../android/`. Diseño: [`../docs/DISENO.md`](../docs/DISENO.md) §6.3.
 
-## ⚠️ Estado: escrita y SIN COMPILAR
+## Estado: compila y pasa las pruebas, SIN publicar
 
-Se escribió el 2026-10-13 con la Mac no disponible. **Nunca pasó por `swiftc`**: puede no
-compilar a la primera, y nada de lo que hay aquí se ha ejecutado. Lo que sí está probado es
-la lógica, en su gemela de Android (mismos nombres, mismo orden), contra la librería JS y
-contra una bóveda real. Tampoco se compiló lo que esta app usa de `dotrino-native` 0.34
-(`Crypto.wrapForMember`, `Profile.openSealed`, `Profile.vaultEncPub`, `Profile.can`).
+Escrita el 2026-10-13 sin Mac; compilada y probada el 2026-10-15 en la Mac (Xcode 26.5,
+simulador iPhone 15 Pro, `dotrino-native` v0.35.2):
 
-Lo primero, con una Mac delante:
+- compiló a la primera;
+- `CoreTests` (4): las huellas y los resúmenes dan lo mismo que el JS;
+- `VaultE2eTests`, contra un proxio y una bóveda de verdad levantados en otra máquina de la LAN;
+- la app arranca en el simulador y enseña «este teléfono todavía no tiene perfil».
+
+Falta: probarla con un perfil de verdad en un iPhone, y TestFlight (no existe todavía la
+ficha `com.dotrino.passmanager` en App Store Connect).
+
+Para repetirlo, con una Mac delante:
 
 ```sh
 git submodule update --init
 cd ios && xcodegen generate
 xcodebuild -project Passmanager.xcodeproj -scheme Passmanager \
-  -destination 'platform=iOS Simulator,name=iPhone 16' test
+  -destination 'platform=iOS Simulator,name=iPhone 15 Pro' test
 ```
 
 1. que compile (y `swift test` en `../native`, por `WrapTests`);

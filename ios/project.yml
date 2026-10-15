@@ -2,10 +2,10 @@
 # Es un aparato del acta con el permiso `passwords` que habla `pm2.*` con la bóveda: busca, copia
 # y edita. Diseño en ../docs/DISENO.md §6.3.
 #
-# ⚠️ ESCRITA Y SIN COMPILAR (2026-10-13: la Mac no estaba disponible). Ver README.md.
+# Compila y pasa las pruebas (2026-10-15). Estado en README.md.
 #
 #   cd ios && xcodegen generate
-#   xcodebuild -project Passmanager.xcodeproj -scheme Passmanager -destination 'platform=iOS Simulator,name=iPhone 16' test
+#   xcodebuild -project Passmanager.xcodeproj -scheme Passmanager -destination 'platform=iOS Simulator,name=iPhone 15 Pro' test
 #
 # Firma: equipo DOTRINO S.A.S. (P7G853375S), automática, con los grupos compartidos del
 # ecosistema (dotrino-native/docs/DISENO.md §2.1): el perfil es el mismo en todas las apps.
