@@ -3,7 +3,7 @@
 La versión nativa del gestor de contraseñas de Dotrino (`com.dotrino.passmanager`), la
 misma que `../android/`. Diseño: [`../docs/DISENO.md`](../docs/DISENO.md) §6.3.
 
-## Estado: compila y pasa las pruebas, SIN publicar
+## Estado: en TestFlight (0.1.0 (2)), sin probar con un perfil real
 
 Escrita el 2026-10-13 sin Mac; compilada y probada el 2026-10-15 en la Mac (Xcode 26.5,
 simulador iPhone 15 Pro, `dotrino-native` v0.35.2):
@@ -13,8 +13,11 @@ simulador iPhone 15 Pro, `dotrino-native` v0.35.2):
 - `VaultE2eTests`, contra un proxio y una bóveda de verdad levantados en otra máquina de la LAN;
 - la app arranca en el simulador y enseña «este teléfono todavía no tiene perfil».
 
-Falta: probarla con un perfil de verdad en un iPhone, y TestFlight (no existe todavía la
-ficha `com.dotrino.passmanager` en App Store Connect).
+En TestFlight desde el 2026-10-15: ficha «Dotrino Contraseñas» (`6823342465`), grupo interno
+«Dotrino — equipo» con distribución automática. El build 1 lo rechazó App Store Connect por
+falta de `NSCameraUsageDescription` (90683; el lector de QR de `dotrino-native`).
+
+Falta: probarla con un perfil de verdad en un iPhone.
 
 Para repetirlo, con una Mac delante:
 
