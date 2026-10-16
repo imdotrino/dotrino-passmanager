@@ -17,7 +17,6 @@ import androidx.credentials.provider.ProviderClearCredentialStateRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -58,13 +57,18 @@ class PasskeyService : CredentialProviderService() {
         callback: OutcomeReceiver<BeginGetCredentialResponse, GetCredentialException>,
     ) {
         I18n.load(this)
-        // Opening the vault may take longer than the system waits (first connection, record to
-        // bring up to date). It goes on in the background either way; if it is not ready in time,
-        // the person gets a row that opens the app and finds the passkeys there.
-        val booting = scope.async { Passmanager.boot(this@PasskeyService) }
+        // THE SYSTEM WAITS 3 SECONDS, AND IN THE BACKGROUND THE APP HAS NO NETWORK (Android blocks it
+        // for a process that is not in front: «DNS … isBlocked=true»). So the vault is only asked
+        // when it is ALREADY open and online in this process, and briefly; otherwise the answer is
+        // at once a «open Contraseñas» row, which brings the app to the front — with network —
+        // and lists the passkeys there. Waiting longer here only meant offering nothing at all
+        // (seen 2026-10-16: the system timed out and went straight to Google).
+        val vault = Passmanager.vault
+        val online = Passmanager.session?.isOnline == true
+        if (vault == null || !online) { callback.onResult(Passkeys.unlockResponse(this)); return }
         scope.launch {
             val r = try {
-                withTimeoutOrNull(BEGIN_MS) { Passkeys.entries(this@PasskeyService, booting.await(), request.beginGetCredentialOptions) }
+                withTimeoutOrNull(BEGIN_MS) { Passkeys.entries(this@PasskeyService, vault, request.beginGetCredentialOptions) }
             } catch (e: Exception) {
                 android.util.Log.w("passmanager", "passkeys: could not list them now", e); null
             }
@@ -81,5 +85,5 @@ class PasskeyService : CredentialProviderService() {
         callback.onResult(null)
     }
 
-    private companion object { const val BEGIN_MS = 4_000L }
+    private companion object { const val BEGIN_MS = 1_500L }
 }
