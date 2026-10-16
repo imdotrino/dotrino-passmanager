@@ -156,6 +156,7 @@ const STRINGS = {
     forgetLogin: 'Olvidar esta cuenta en este navegador',
     // La bóveda propia en el formato viejo no atiende hasta que se convierte (`sealed-passwords.md` §2.7).
     notSealed: 'Tu bóveda todavía no tiene contraseña de recuperación. Si pierdes este navegador, pierdes lo que guardaste.',
+    notTheVault: 'Para esto la bóveda tiene que estar abierta: pulsa «Hacer de bóveda» y vuelve a intentarlo.',
     openConvert: 'Ponerla ahora',
     askFrom: (d) => `Lo pide: ${d}`,
     // La pregunta de la bóveda antes de soltar algo guardado. Llana a propósito
@@ -387,6 +388,7 @@ const STRINGS = {
     closedLogin: (u) => `${u} · signed out`,
     forgetLogin: 'Forget this account on this browser',
     notSealed: 'Your vault has no recovery password yet. If you lose this browser, you lose what you saved.',
+    notTheVault: 'The vault has to be open for this: press «Act as the vault» and try again.',
     openConvert: 'Set it now',
     askFrom: (d) => `Asked by: ${d}`,
     askTitle: 'Take this out of your vault',
@@ -508,6 +510,8 @@ const ERROR_TEXT = {
   // La página se quedó hablando con una extensión que ya no está.
   'no-worker': 'noWorker',
   'not-sealed': 'notSealed',
+  // Lo administra la bóveda en marcha, como en el binario: sin la pestaña abierta, nadie.
+  'not-the-vault': 'notTheVault',
   // «No lo autoricé» y «esta bóveda no me deja pedir» son dos cosas: una se arregla
   // volviendo a pulsar, la otra dando permiso al aparato (§2.0).
   'not-approved': 'askDenied',

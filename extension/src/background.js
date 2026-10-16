@@ -1677,6 +1677,17 @@ async function removeEntry ({ id, url }) {
 
 let serving = null   // { pid, responder, members, replies }
 
+/** Una pregunta a la pestaña de bóveda (`logins.js`), que es donde corre el núcleo. */
+function alaPestana (op, payload) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ op, ...payload }, (r) => {
+      if (chrome.runtime.lastError) return reject(new VaultError(CODES.DENIED, 'the vault tab is not open'))
+      if (r?.error) return reject(new VaultError(CODES.DENIED, r.error.message))
+      resolve(r?.result)
+    })
+  })
+}
+
 async function membersNow () {
   return (await (await identityCore()).handlers.profileMembers({})).members || []
 }
@@ -1706,15 +1717,12 @@ async function servingFor (pid) {
     // pide a sí misma por la red: lo suyo lo abre directo.
     isAllowed: (pub) => { const m = miembro(pub); return !!m && !m.isMe && (m.caps || []).includes('passwords') },
     encPubOf: (pub) => miembro(pub)?.encPub || null,
-    // El criterio del demonio: pregunta, salvo que el acta le dé `unattended`.
-    needsApproval: async (pub) => !(miembro(pub)?.caps || []).includes('unattended'),
-    // La pregunta sale en la pantalla que tengas delante, que casi siempre es la propia
-    // pestaña de bóveda. Se nombra la entrada abriéndola aquí, que sí puede, y se dice QUIÉN
-    // la pide: sin eso no hay forma de saber si fuiste tú.
-    approve: ({ op, payload, pubkey }) => {
-      const m = miembro(pubkey)
-      return askApproval({ op, payload, vault: propia, device: m?.label || m?.id || '' })
-    }
+    // LA POLÍTICA ES LA DEL BINARIO, y la decide su núcleo, que corre en la pestaña de
+    // bóveda: sin nadie que apruebe no se pregunta; con aprobadores, se les manda el pedido
+    // (a su teléfono) salvo que el acta dé `unattended`. Antes aquí se preguntaba siempre en
+    // pantalla, y eso era otra regla en otra bóveda.
+    needsApproval: (pub) => alaPestana('vault.needs', { pubkey: pub }),
+    approve: ({ op, payload, pubkey }) => alaPestana('vault.approve', { req: { op, payload, pubkey } })
   })
   serving = s
   return s
@@ -1893,6 +1901,26 @@ const ID_OPS = {
     return { id, publickey: await identity.publickey() }
   },
   'id.signData': async ({ data }) => (await identityCore()).handlers.signData({ data }),
+  // LA BÓVEDA DE LA PESTAÑA (`logins.js`) corre el núcleo del binario y le habla a esta
+  // identidad como si la tuviera delante: cualquier handler, por nombre. Solo desde las
+  // páginas de la propia extensión (el filtro de abajo), y lo que vuelve es lo que devuelve
+  // el handler — ninguna llave privada.
+  'id.handler': async ({ name, params } = {}) => {
+    const core = await identityCore()
+    if (typeof name !== 'string' || typeof core.handlers[name] !== 'function') {
+      throw Object.assign(new Error(`identity: unknown handler ${name}`), { code: 'bad-handler' })
+    }
+    return core.handlers[name](params || {})
+  },
+  // La llave de sellado de la bóveda la guarda la pestaña: cuando el acta pide una nueva,
+  // se le pregunta a ella (`logins.js`, `vault.mintSealKey`).
+  'id.sealKeysFromTab': async ({ on } = {}) => (await identityCore()).handlers.setSealKeyProvider({
+    provider: on ? () => alaPestana('vault.mintSealKey', {}) : null
+  }),
+  'id.state': async () => {
+    const core = await identityCore()
+    return { me: core.me, masterLocked: !!core.masterLocked }
+  },
   'id.signDelegation': async ({ sub, scope, opts }) =>
     (await identityCore()).handlers.signDelegation({ sub, scope, ...(opts || {}) }),
   'id.listDelegations': async () => (await identityCore()).handlers.listDelegations({}),

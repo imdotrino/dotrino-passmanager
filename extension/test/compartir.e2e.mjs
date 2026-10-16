@@ -4,11 +4,12 @@
 // extensión y la pestaña «Esta pestaña es tu bóveda» no tienen dos copias: la pestaña pone
 // la conexión y lo que atiende es lo MISMO que rellena la extensión. Lo que se prueba:
 //
-//   · A guarda una contraseña en su bóveda propia, da de alta un aparato de usuario y
-//     contraseña con permiso para contraseñas y enciende la pestaña de bóveda;
+//   · A guarda una contraseña en su bóveda propia, enciende la pestaña de bóveda y da de
+//     alta un aparato de usuario y contraseña con permiso para contraseñas;
 //   · B —otro navegador— entra con ese usuario y contraseña, y su cuenta pide a la bóveda
 //     de A en vez de estrenar una vacía (antes quedaba como «propia», sin convertir);
-//   · B encuentra lo que guardó A, lo abre cuando A dice que sí, y lo que guarda B lo ve A;
+//   · B encuentra lo que guardó A y lo abre (sin aprobador en el acta no se pregunta, como en
+//     el binario), y lo que guarda B lo ve A;
 //   · a B no le envolvió nadie lo escrito antes de que entrara: lo completa la bóveda de A
 //     sola, sin pedir la contraseña de recuperación.
 //
@@ -84,15 +85,21 @@ try {
   } })
   ok(!puesta?.error, 'A guarda la del banco' + (puesta?.error ? ` — ${puesta.error.code}: ${puesta.error.message}` : ''))
 
-  console.log('\nA: un aparato de usuario y contraseña que puede pedir contraseñas, y la pestaña encendida')
-  const alta = await A.logins('addLogin', { user: USUARIO, password: CLAVE, label: 'equipo prestado', caps: ['sign', 'read', 'store', 'passwords'] })
-  ok(alta.ok && !!alta.address, 'se da de alta' + (alta.ok ? ` (${alta.address})` : ` — ${alta.code}: ${alta.message}`))
+  console.log('\nA: la pestaña encendida, y un aparato de usuario y contraseña que puede pedir contraseñas')
+  // PRIMERO la bóveda: dar de alta un inicio de sesión lo hace la bóveda en marcha, igual
+  // que en el binario (`logins add` pide el demonio encendido).
+  const sinBoveda = await A.logins('addLogin', { user: 'nadie', password: CLAVE, label: 'x' })
+  ok(!sinBoveda.ok && sinBoveda.code === 'not-the-vault', `sin la bóveda encendida no se da de alta, y se dice (${sinBoveda.code})`)
   const atiende = await A.logins('serveLogins', { proxyUrl: PROXY_URL })
   ok(atiende.ok, 'la pestaña de bóveda se enciende' + (atiende.ok ? '' : ` — ${atiende.code}: ${atiende.message}`))
   ok(atiende.passwords?.ok === true, 'y atiende las contraseñas de la bóveda propia' +
     (atiende.passwords?.ok ? '' : ` — ${atiende.passwords?.code}: ${atiende.passwords?.message}`))
-  ok(atiende.passwords?.devices === 1, `a 1 aparato de la cuenta (dice ${atiende.passwords?.devices})`)
-  ok(atiende.passwords?.rewrapped > 0, 'y le envolvió al recién llegado lo que ya había, sin pedir la frase')
+  const alta = await A.logins('addLogin', { user: USUARIO, password: CLAVE, label: 'equipo prestado', caps: ['sign', 'read', 'store', 'passwords'] })
+  ok(alta.ok && !!alta.address, 'se da de alta' + (alta.ok ? ` (${alta.address})` : ` — ${alta.code}: ${alta.message}`))
+  const { id: pidA } = (await A.pedir('id.whoami'))?.result || {}
+  const repaso = (await A.pedir('pm.serve-start', { pid: pidA }))?.result
+  ok(repaso?.devices === 1, `atiende a 1 aparato de la cuenta (dice ${repaso?.devices})`)
+  ok(repaso?.rewrapped > 0, 'y le envolvió al recién llegado lo que ya había, sin pedir la frase')
 
   console.log('\nB: entra con usuario y contraseña')
   const entrada = await B.logins('enterWithPassword', { address: alta.address, password: CLAVE, remember: true, label: 'el cyber', proxyUrl: PROXY_URL })
@@ -106,18 +113,13 @@ try {
   ok(!hallado?.error, 'B pregunta qué hay para el banco' + (hallado?.error ? ` — ${hallado.error.code}: ${hallado.error.message}` : ''))
   ok(lista.length === 1 && lista[0].title === 'El banco', `y encuentra la de A (${lista.map((e) => e.title).join(', ') || 'nada'})`)
 
-  // La contraseña es privada: A tiene que decir que sí, y la pregunta dice quién la pide.
+  // LA REGLA DEL BINARIO: sin nadie en el acta que apruebe, no se pregunta (dueño,
+  // 2026-09-24). La cuenta de A no tiene aprobador, así que la contraseña sale sin pantalla
+  // de por medio — la misma respuesta que daría el demonio.
   const pedida = B.pedir('get', { id: lista[0]?.id, keys: ['secret'] })
   const si = A.page.locator('[data-testid=approval-yes]')
-  let pregunto = false
-  try { await si.waitFor({ state: 'visible', timeout: 20000 }); pregunto = true } catch (_) {}
-  ok(pregunto, 'A pregunta antes de soltar la contraseña')
-  if (pregunto) {
-    const quien = await A.page.locator('[data-testid=approval-device]').textContent().catch(() => '')
-    ok(/equipo prestado/.test(quien || ''), `y dice quién la pide: «${quien}»`)
-    await si.click()
-  }
   const abierta = await pedida
+  ok(!(await si.isVisible().catch(() => false)), 'A no pregunta: su cuenta no tiene a nadie que apruebe')
   ok(abierta?.result?.secret === 'la-de-verdad',
     'B recibe la contraseña de A' + (abierta?.error ? ` — ${abierta.error.code}: ${abierta.error.message}` : ''))
 

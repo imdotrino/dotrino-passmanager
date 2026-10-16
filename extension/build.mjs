@@ -1,7 +1,7 @@
 // Copia `lib/src` dentro de la extensión. Una extensión MV3 solo puede importar de su
 // propia carpeta, así que la librería viaja con ella. Se regenera, no se commitea.
-import { cp, rm, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { cp, rm, mkdir, readFile, writeFile, readdir } from 'node:fs/promises'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -41,24 +41,63 @@ console.log('vendor: sealed/* → la copia de @dotrino/identity/content')
 // ni el permiso `offscreen` — un documento offscreen ES una página de la extensión y lleva
 // su misma CSP, así que no habría ahorrado nada. Probado en un Chrome de verdad:
 // `npm run test:opaque`.
-for (const f of ['passwordLogins.js', 'loginClient.js', 'enroll.js', 'protocol.js', 'index.js']) {
-  await cp(join(here, '../../dotrino-vault/lib/src/', f), join(vendor, 'vault/', f))
-}
+// LA BÓVEDA ENTERA: el MISMO núcleo que el binario (`browser.js` → `core/`), que corre en
+// la pestaña de bóveda (`logins.js`). Y lo que importa: compat, roadmap y las reglas del
+// almacén. La librería de contraseñas ya viaja arriba (`vendor/passmanager`).
+const VAULT_FILES = ['index.js', 'enroll.js', 'protocol.js', 'passwordLogins.js', 'loginClient.js', 'b64.js',
+  'browser.js', 'procContext.js', 'sealed.js', 'admin.js', 'revocation.js']
+await mkdir(join(vendor, 'vault/core'), { recursive: true })
+for (const f of VAULT_FILES) await cp(join(here, '../../dotrino-vault/lib/src/', f), join(vendor, 'vault/', f))
+await cp(join(here, '../../dotrino-vault/lib/src/core'), join(vendor, 'vault/core'), { recursive: true })
+await cp(join(here, '../../dotrino-compat/src'), join(vendor, 'compat'), { recursive: true })
+await mkdir(join(vendor, 'roadmap'), { recursive: true })
+for (const f of ['index.js', 'manifests.js']) await cp(join(here, '../../dotrino-roadmap/src/', f), join(vendor, 'roadmap/', f))
+await mkdir(join(vendor, 'store'), { recursive: true })
+await cp(join(here, '../../dotrino-store/store/core.js'), join(vendor, 'store/core.js'))
 await cp(join(here, '../../dotrino-opaque/src/index.js'), join(vendor, 'opaque/index.js'))
 await mkdir(join(vendor, 'opaque/build'), { recursive: true })
 for (const f of ['opaque.js', 'wasm-bytes.js']) {
   await cp(join(here, '../../dotrino-opaque/build/', f), join(vendor, 'opaque/build/', f))
 }
-console.log('vendor: @dotrino/{vault,opaque} → extension/src/vendor/ (usuario y contraseña)')
+console.log('vendor: @dotrino/{vault (núcleo entero),compat,roadmap,store/core,opaque} → extension/src/vendor/')
 
-// Los imports desnudos de esas copias pasan a ser las que viajan al lado.
-for (const f of ['passwordLogins.js', 'loginClient.js', 'enroll.js', 'index.js']) {
-  const ruta = join(vendor, 'vault/', f)
-  await writeFile(ruta, (await readFile(ruta, 'utf8'))
-    .replace(/from '@dotrino\/identity\/capabilities'/g, "from '../identity/capabilities.js'")
-    .replace(/from '@dotrino\/identity\/acta'/g, "from '../identity/acta.js'")
-    .replace(/from '@dotrino\/opaque'/g, "from '../opaque/index.js'"))
+// LOS IMPORTS DESNUDOS de esas copias pasan a ser las que viajan al lado. Un navegador no
+// los resuelve, y una extensión no puede usar un import map (es un script en línea y su CSP
+// no lo deja). Es el mismo papel que el import map de `id.dotrino.com`: un mapa, uno solo.
+const DESNUDOS = {
+  '@dotrino/identity/capabilities': 'identity/capabilities.js',
+  '@dotrino/identity/acta': 'identity/acta.js',
+  '@dotrino/identity/content': 'identity/content.js',
+  '@dotrino/identity/machine': 'identity/machine.js',
+  '@dotrino/identity/facade': 'identity/facade.js',
+  '@dotrino/opaque': 'opaque/index.js',
+  '@dotrino/compat': 'compat/index.js',
+  '@dotrino/compat/ranges': 'compat/ranges.js',
+  '@dotrino/roadmap': 'roadmap/index.js',
+  '@dotrino/passmanager': 'passmanager/index.js',
+  '@dotrino/passmanager/sealed': 'passmanager/sealed/index.js',
+  '@dotrino/store/core': 'store/core.js',
+  '@dotrino/proxy-client': 'proxy-client/index.js',
 }
+async function reescribirDesnudos (dir) {
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const ruta = join(dir, e.name)
+    if (e.isDirectory()) { await reescribirDesnudos(ruta); continue }
+    if (!e.name.endsWith('.js')) continue
+    const code = await readFile(ruta, 'utf8')
+    const nuevo = code.replace(/(from\s*|import\s*\(\s*)(['"])(@dotrino\/[^'"]+)\2/g, (todo, antes, q, spec) => {
+      const destino = DESNUDOS[spec]
+      if (!destino) throw new Error(`vendor: ${ruta.replace(here + '/', '')} importa ${spec} y no hay copia al lado (añádelo a DESNUDOS)`)
+      let rel = relative(dirname(ruta), join(vendor, destino))
+      if (!rel.startsWith('.')) rel = './' + rel
+      return antes + q + rel + q
+    })
+    if (nuevo !== code) await writeFile(ruta, nuevo)
+  }
+}
+await reescribirDesnudos(join(vendor, 'vault'))
+await reescribirDesnudos(join(vendor, 'roadmap'))
+
 // Y EL MOSTRADOR NO SE TRAE EL WASM. En la extensión el OPAQUE se INYECTA —vive en la
 // página sandbox, que es la única que puede instanciarlo—, así que importar aquí los 268 KB
 // del módulo sería meterlos en una página que ni siquiera podría usarlos. Se sustituye por
@@ -77,22 +116,6 @@ const SIN_WASM = 'const fuera = () => { throw new Error("opaque: inject it (in t
   const ruta = join(vendor, 'vault/loginClient.js')
   await writeFile(ruta, (await readFile(ruta, 'utf8')).replace(
     "import { client as opaquePorDefecto } from '../opaque/index.js'", SIN_WASM))
-}
-// UN SERVICE WORKER NO ADMITE `import()` DINÁMICO (lo prohíbe la especificación). El
-// mostrador carga así el alta —en una página es lo correcto, porque arrastra el WASM— y
-// aquí hay que dejarlo estático.
-{
-  const ruta = join(vendor, 'vault/index.js')
-  await writeFile(ruta, (await readFile(ruta, 'utf8'))
-    .replace("import { MSG, SCOPE } from './protocol.js'",
-      "import { MSG, SCOPE } from './protocol.js'\nimport { registerLogin } from './passwordLogins.js'")
-    .replace("      const { registerLogin } = await import('./passwordLogins.js')\n", '')
-    // Y el cliente del proxio: el mostrador lo levantaría solo con otro `import()`
-    // dinámico. Aquí SIEMPRE se le pasa hecho (`logins.js`), así que esa rama no existe —
-    // y en vez de dejarla muerta, se dice.
-    .replace(
-      "  const client = injectedClient || await (async () => {",
-      "  if (!injectedClient) throw new Error('device vault: pass a connected client (a service worker cannot import() the transport)')\n  const client = injectedClient || await (async () => {"))
 }
 // La copia del OPAQUE resuelve su WASM por ruta relativa: se conserva `build/`.
 {
@@ -134,7 +157,10 @@ await mkdir(join(vendor, 'topbar'), { recursive: true })
 await cp(join(here, '../../dotrino-topbar/src/index.js'), join(vendor, 'topbar/index.js'))
 await cp(join(here, '../../dotrino-nav/src'), join(vendor, 'nav'), { recursive: true })
 await cp(join(here, '../../dotrino-support/src'), join(vendor, 'support'), { recursive: true })
-console.log('vendor: dotrino-{topbar,nav,support}/src → extension/src/vendor/')
+// El sol/luna del topbar (topbar ≥ 0.16) cambia el tema con `@dotrino/theme`.
+await mkdir(join(vendor, 'theme'), { recursive: true })
+await cp(join(here, '../../dotrino-theme/src/index.js'), join(vendor, 'theme/index.js'))
+console.log('vendor: dotrino-{topbar,nav,support,theme}/src → extension/src/vendor/')
 
 // Los imports desnudos del topbar pasan a ser las copias que viajan al lado. Y se borra
 // la línea de EJEMPLO que enseña cómo cargarlo por jsDelivr: es un comentario y no se
@@ -145,6 +171,8 @@ await writeFile(topbarPath, (await readFile(topbarPath, 'utf8'))
   .replace("from '@dotrino/nav'", "from '../nav/index.js'")
   .replace("import '@dotrino/support'", "import '../support/index.js'")
   .replace("from '@dotrino/identity/avatar'", "from '../identity/avatar.js'")
+  .replace("from '@dotrino/identity/keyid'", "from '../identity/keyid.js'")
+  .replace("from '@dotrino/theme'", "from '../theme/index.js'")
   .split('\n').filter((l) => !l.includes('cdn.jsdelivr')).join('\n'))
 
 // Y fuera el contador de aperturas, con su import remoto.
@@ -209,7 +237,9 @@ console.log('vendor: dotrino-identity/vault/content.js → extension/src/vendor/
 // un import que no resuelve. Y muere en silencio: sin worker no hay marcador, no hay
 // aviso y no hay error en ninguna parte — la extensión parece estar y no está.
 const identitySrc = join(here, '../../dotrino-identity/vault')
-const identityFiles = new Set(['core.js', 'acta.js', 'capabilities.js', 'remote.js', 'keyid.js', 'avatar.js'])
+const identityFiles = new Set(['core.js', 'acta.js', 'capabilities.js', 'remote.js', 'keyid.js', 'avatar.js',
+  // La bóveda de la pestaña envuelve el núcleo con la misma clase que el binario.
+  'facade.js', 'machine.js'])
 for (const f of [...identityFiles]) await seguirImports(join(identitySrc, f), identityFiles)
 for (const f of identityFiles) await cp(join(identitySrc, f), join(vendor, 'identity/', f))
 

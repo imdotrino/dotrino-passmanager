@@ -1,33 +1,30 @@
-// ENTRAR CON USUARIO Y CONTRASEÑA, en la extensión (`docs/temporary-access.md`).
+// LA BÓVEDA DE LA EXTENSIÓN (`docs/temporary-access.md`, `dotrino-vault/docs/three-versions.md`).
 //
-// Esto corre en la PÁGINA del gestor, no en el service worker, y las dos cosas tienen
-// motivo:
+// Corre el MISMO núcleo que el binario (`@dotrino/vault/browser`): emparejar, firmar, el
+// almacén, los cajones, las aprobaciones, la consola remota, los incidentes y entrar con
+// usuario y contraseña. Lo que pone la extensión es lo de su contexto:
 //
-//   · el WASM de OPAQUE vive en una página sandbox (`opaque-bridge.js`), y un service
-//     worker no puede embeber un iframe;
-//   · el socket con el proxio aguanta lo que aguante esta pestaña, y una pestaña abierta
-//     dura mucho más que un worker, que se duerme a los 30 s.
+//   · corre en la PESTAÑA de bóveda, no en el service worker: el WASM de OPAQUE vive en
+//     una página sandbox (`opaque-bridge.js`) y un worker se duerme a los 30 s;
+//   · la identidad vive en el worker y no puede haber dos núcleos sobre el mismo almacén,
+//     así que aquí se le pide por mensaje cada cosa (firmar, el acta) — **ninguna llave
+//     privada cruza**;
+//   · las CONTRASEÑAS las atiende el worker, que es el único que escribe su almacén, pero
+//     con la política del binario (quién pide aprobación y a quién).
 //
-// Lo que NO está aquí es la identidad: su núcleo vive en el worker y no puede haber dos
-// sobre el mismo almacén. Se le pide por mensaje lo que hace falta —firmar, emitir el
-// papel, meter al aparato en el acta— y **ninguna llave privada cruza**.
-//
-// LA LIMITACIÓN, y se dice en pantalla: atender a alguien que entra desde otro equipo
-// funciona mientras esta pestaña esté abierta. Es la misma regla que la bóveda-pestaña del
-// ecosistema («atiende mientras esta página esté abierta»); la que está encendida de verdad
-// es la del binario.
-
-import { createLoginDesk, registerLogin, loginAddress, accountFingerprint, sealDeviceKeys, openDeviceKeys } from './vendor/vault/passwordLogins.js'
+// UNA bóveda escribe, como en el binario: lo que se administra desde el gestor (los inicios
+// de sesión) se le pide a la pestaña de bóveda por un canal entre páginas. Sin la pestaña
+// abierta no hay a quién pedírselo, y se dice (`not-the-vault`).
+import { loginAddress, accountFingerprint, sealDeviceKeys, openDeviceKeys, vaultChannel } from './vendor/vault/passwordLogins.js'
 import { loginWithPassword as entrarConContrasena, closeLogin as cerrarEnLaBoveda } from './vendor/vault/loginClient.js'
-import { vaultChannel } from './vendor/vault/passwordLogins.js'
-import { startDeviceVault } from './vendor/vault/index.js'
+import { startBrowserVault } from './vendor/vault/browser.js'
 import { WebSocketProxyClient } from './vendor/proxy-client/index.js'
 import { client as opaque, server as opaqueServer } from './opaque-bridge.js'
 import { makeDeviceKey, makeDeviceEncKey } from './vendor/identity/capabilities.js'
 import { identitySealing } from './vendor/passmanager/transport/sealed.js'
 import { isRequest } from './vendor/passmanager/transport/protocol.js'
 
-const KEY = (pid) => `logins/${pid}`
+const LEGACY_KEY = (pid) => `logins/${pid}`
 
 /**
  * El proxio del ecosistema. Uno solo para las dos mitades —atender y entrar—, porque son
@@ -47,28 +44,40 @@ function alWorker (op, payload = {}) {
   })
 }
 
-/** La identidad vista desde aquí: cada método es un viaje al worker, donde vive su llave. */
-const identidad = {
-  me: null,
-  signData: (data) => alWorker('id.signData', { data }),
-  signDelegation: (sub, scope, opts) => alWorker('id.signDelegation', { sub, scope, opts }),
-  listDelegations: () => alWorker('id.listDelegations'),
-  revokeDelegation: (nonce) => alWorker('id.revokeDelegation', { nonce }),
-  revokeDevice: (sub) => alWorker('id.revokeDevice', { sub }),
-  admitMember: (m) => alWorker('id.admitMember', m),
-  profileActa: () => alWorker('id.profileActa'),
-  joinProfile: (acta) => alWorker('id.joinProfile', { acta })
+/**
+ * EL NÚCLEO DE IDENTIDAD VISTO DESDE AQUÍ. Tiene la forma del de verdad (`handlers`, `me`,
+ * `masterLocked`) y cada llamada es un viaje al worker, donde vive la llave.
+ */
+async function nucleoRemoto () {
+  let estado = await alWorker('id.state')
+  const refresco = setInterval(() => { alWorker('id.state').then((e) => { estado = e }).catch(() => {}) }, 15000)
+  return {
+    handlers: new Proxy({}, {
+      get: (_, name) => {
+        // LA LLAVE DE SELLADO vive en el disco de esta pestaña y el acta la sella el worker:
+        // el proveedor no puede cruzar un mensaje (es una función), así que el worker se
+        // queda con uno que le pregunta a esta pestaña (`vault.mintSealKey`).
+        if (name === 'setSealKeyProvider') {
+          return ({ provider } = {}) => {
+            selladoras = typeof provider === 'function' ? provider : null
+            return alWorker('id.sealKeysFromTab', { on: !!selladoras })
+          }
+        }
+        return (params) => alWorker('id.handler', { name, params: params ?? {} })
+      }
+    }),
+    get me () { return estado?.me || null },
+    get masterLocked () { return !!estado?.masterLocked },
+    stop: () => clearInterval(refresco)
+  }
 }
 
-let mostrador = null     // { pid, desk, flushed }
-let atendiendo = null    // { vault: el handle de `startDeviceVault`, client, onMessage }
+/** Lo que `accountFingerprint` necesita: el acta de la cuenta. */
+const identidad = { profileActa: () => alWorker('id.profileActa') }
 
 /**
  * EL SELLADO del socket de esta pestaña, con la llave de cifrado del PERFIL. La llave vive
  * en el worker: aquí se le pide que selle o que abra, y la privada no cruza.
- *
- * Es el dialecto del núcleo (`encryptionPubkey`/`decrypt` → cadena) que ya entiende
- * `identitySealing`, así que el sobre es el MISMO de las otras bóvedas.
  */
 const sellador = {
   encryptionPubkey: () => alWorker('id.encPub'),
@@ -76,38 +85,53 @@ const sellador = {
   decrypt: (from, envelope) => alWorker('id.decrypt', { from, envelope })
 }
 
-/**
- * El escritorio de ESTE perfil. Quiere `load`/`save` síncronos y `chrome.storage` es
- * asíncrono: se hidrata al abrirlo y se escribe detrás.
- *
- * Y se le inyecta el OPAQUE del puente: aquí el WASM está al otro lado de la frontera del
- * sandbox, así que el mostrador contesta promesas.
- */
-async function escritorio () {
-  const { id: pid, publickey } = await alWorker('id.whoami')
-  identidad.me = { publickey }
-  if (mostrador?.pid === pid) return mostrador
-  stopServing()
-  const clave = KEY(pid)
-  let estado = (await chrome.storage.local.get(clave))[clave] || null
-  let cola = Promise.resolve()
-  const desk = createLoginDesk({
-    load: () => estado,
-    save: (s) => {
-      estado = s
-      cola = cola.then(() => chrome.storage.local.set({ [clave]: s }))
-      cola.catch((e) => console.error('[logins] no se pudo guardar: %s', e?.message || e))
-    },
-    opaque: opaqueServer
+let atendiendo = null    // { vault, client, onMessage, passwords, canal, nucleo }
+let selladoras = null    // el proveedor de llaves de sellado de la bóveda de esta pestaña
+
+// --- EL CANAL ENTRE PÁGINAS ---------------------------------------------------
+//
+// La pestaña de bóveda contesta; las demás páginas de la extensión preguntan. Solo lo que
+// la pantalla de inicios de sesión necesita, y nada más.
+const CANAL = 'dotrino-vault-tab'
+const METODOS = new Set(['listLogins', 'loginRegisterBegin', 'loginRegisterFinish', 'loginBegin', 'loginEnd', 'closeLogin', 'clearLoginBlock', 'removeLogin'])
+
+function servirCanal (vault) {
+  const bc = new BroadcastChannel(CANAL)
+  bc.onmessage = async ({ data }) => {
+    if (!data || data.t !== 'req' || !METODOS.has(data.method)) return
+    try {
+      bc.postMessage({ t: 'res', id: data.id, result: await vault[data.method](...(data.args || [])) })
+    } catch (e) {
+      bc.postMessage({ t: 'res', id: data.id, error: { message: e?.message || String(e), code: e?.code || null } })
+    }
+  }
+  return bc
+}
+
+/** La bóveda a la que pedirle: la de esta página, o la de la pestaña de bóveda. */
+async function boveda () {
+  if (atendiendo) return atendiendo.vault
+  return new Proxy({}, {
+    // `then` no: sin esto, `await boveda()` tomaría el proxy por una promesa.
+    get: (_, method) => method === 'then' ? undefined : (...args) => new Promise((resolve, reject) => {
+      const bc = new BroadcastChannel(CANAL)
+      const id = Math.random().toString(36).slice(2)
+      const fin = (fn) => { clearTimeout(t); bc.close(); fn() }
+      // Sin respuesta en un rato, no hay pestaña de bóveda: se dice, con su código.
+      const t = setTimeout(() => fin(() => reject(Object.assign(new Error('the vault tab is not open: open it to manage password logins'), { code: 'not-the-vault' }))), 2000)
+      bc.onmessage = ({ data }) => {
+        if (data?.t !== 'res' || data.id !== id) return
+        if (data.error) fin(() => reject(Object.assign(new Error(data.error.message), { code: data.error.code })))
+        else fin(() => resolve(data.result))
+      }
+      bc.postMessage({ t: 'req', id, method, args })
+    })
   })
-  mostrador = { pid, desk, flushed: () => cola }
-  return mostrador
 }
 
 /** Los aparatos de usuario y contraseña de este perfil, con sus sesiones abiertas. */
 export async function listLogins () {
-  const { desk } = await escritorio()
-  const filas = desk.list()
+  const filas = await (await boveda()).listLogins()
   if (!filas.length) return []
   const huella = await accountFingerprint(identidad)
   return filas.map((l) => ({ ...l, address: loginAddress(l.user, huella) }))
@@ -115,36 +139,26 @@ export async function listLogins () {
 
 /**
  * ALTA. Las llaves del aparato NACEN aquí y salen ya cerradas con lo que deriva de la
- * contraseña: lo que queda guardado es un paquete que esta extensión no puede abrir.
- *
- * Se pueden tener VARIOS por perfil y cada uno con sus permisos: son miembros del acta como
- * cualquier otro aparato.
+ * contraseña: lo que guarda la bóveda es un paquete que no puede abrir. Es el mismo camino
+ * que `logins add` del binario y que la pestaña de `vault.dotrino.com`.
  */
 export async function addLogin ({ user, password, label = '', caps = ['sign', 'read', 'store'] } = {}) {
   if (typeof password !== 'string' || password.length < 12) {
     throw Object.assign(new Error('la contraseña tiene que tener al menos 12 caracteres'), { code: 'weak-password' })
   }
-  const { desk, flushed } = await escritorio()
+  const v = await boveda()
   const nombre = String(label || 'equipo prestado')
   const reg = await opaque.registrationStart({ password })
-  const { response } = await desk.registerBegin({ user, request: reg.request })
+  const { response } = await v.loginRegisterBegin({ user, request: reg.request })
   const fin = await opaque.registrationFinish({ state: reg.state, response, password })
   const device = await makeDeviceKey({ label: nombre })
   const enc = await makeDeviceEncKey()
   const blob = await sealDeviceKeys(fin.exportKey, { sign: device.privateJwk, enc: enc.encPrivateJwk })
-  const r = await registerLogin({
-    identity: identidad,
-    logins: desk,
-    user,
-    upload: fin.upload,
-    pub: device.publickey,
-    encPub: enc.encPublickey,
-    label: nombre,
-    blob,
+  const r = await v.loginRegisterFinish({
+    user, upload: fin.upload, pub: device.publickey, encPub: enc.encPublickey, label: nombre, blob,
     // Los PERMISOS del acta, cualquiera de ellos y tal cual: los traduce el pilar.
     caps
   })
-  await flushed()
   return { ...r, address: loginAddress(user, await accountFingerprint(identidad)) }
 }
 
@@ -153,87 +167,108 @@ export async function passwdLogin ({ user, oldPassword, newPassword } = {}) {
   if (typeof newPassword !== 'string' || newPassword.length < 12) {
     throw Object.assign(new Error('la contraseña tiene que tener al menos 12 caracteres'), { code: 'weak-password' })
   }
-  const { desk, flushed } = await escritorio()
+  const v = await boveda()
   const start = await opaque.loginStart({ password: oldPassword })
-  const begun = await desk.loginBegin({ user, request: start.request })
+  const begun = await v.loginBegin({ user, request: start.request })
   let fin
   try { fin = await opaque.loginFinish({ state: start.state, response: begun.response, password: oldPassword }) }
   catch (_) { throw Object.assign(new Error('contraseña incorrecta'), { code: 'login-failed' }) }
-  const entrada = await desk.loginEnd({ lid: begun.lid, finalization: fin.finalization, label: 'gestor' })
+  const entrada = await v.loginEnd({ lid: begun.lid, finalization: fin.finalization, label: 'gestor' })
   const keys = await openDeviceKeys(fin.exportKey, entrada.blob)
 
   const reg = await opaque.registrationStart({ password: newPassword })
-  const { response } = await desk.registerBegin({ user, request: reg.request, replace: true })
+  const { response } = await v.loginRegisterBegin({ user, request: reg.request, replace: true })
   const nueva = await opaque.registrationFinish({ state: reg.state, response, password: newPassword })
-  await desk.registerFinish({ user, upload: nueva.upload, blob: await sealDeviceKeys(nueva.exportKey, keys), replace: true })
-  await flushed()
+  await v.loginRegisterFinish({ user, upload: nueva.upload, blob: await sealDeviceKeys(nueva.exportKey, keys), replace: true })
   return { ok: true, user }
 }
 
 /** Cerrar lo que quedó abierto (sin `sid`, todo lo de ese usuario). */
 export async function closeLogin ({ user, sid = null } = {}) {
-  const { desk, flushed } = await escritorio()
-  if (sid) { const r = desk.closeSession({ user, sid }); await flushed(); return r }
-  const fila = desk.list().find((x) => x.user === user)
-  for (const s of fila?.sessions || []) desk.closeSession({ user, sid: s.sid })
-  await flushed()
+  const v = await boveda()
+  if (sid) return v.closeLogin({ user, sid })
+  const fila = (await v.listLogins()).find((x) => x.user === user)
+  for (const s of fila?.sessions || []) await v.closeLogin({ user, sid: s.sid })
   return { ok: true, closed: (fila?.sessions || []).length }
 }
 
 /** Quitar la espera que dejan los intentos fallidos. */
 export async function unblockLogin ({ user } = {}) {
-  const { desk, flushed } = await escritorio()
-  const r = desk.clearBlock({ user })
-  await flushed()
-  return r
+  return (await boveda()).clearLoginBlock({ user })
 }
 
 /** Quitarlo lo saca de aquí **y su llave del acta**: las dos cosas, o ninguna. */
 export async function removeLogin ({ user } = {}) {
-  const { desk, flushed } = await escritorio()
-  const fila = desk.list().find((x) => x.user === user)
+  const v = await boveda()
+  const fila = (await v.listLogins()).find((x) => x.user === user)
   if (!fila) return { ok: false }
-  desk.remove({ user })
-  await flushed()
-  await identidad.revokeDevice(fila.pub)
-  return { ok: true, deviceId: fila.deviceId }
+  const r = await v.removeLogin({ user })
+  await alWorker('id.revokeDevice', { sub: fila.pub })
+  return { ...r, deviceId: fila.deviceId }
 }
 
 /**
- * ATENDER a quien entra desde otro equipo. El socket vive en esta página: mientras la
- * pestaña esté abierta, un equipo prestado encuentra esta bóveda por su dirección.
- */
-/**
- * HACER DE BÓVEDA: atender a los aparatos de la cuenta mientras esta pestaña esté abierta.
+ * HACER DE BÓVEDA: el núcleo entero, mientras esta pestaña esté abierta.
  *
- * Son dos cosas por el MISMO socket, como en el demonio:
- *   · la identidad (`startDeviceVault`): entrar con usuario y contraseña, firmar, el acta;
- *   · las CONTRASEÑAS de la bóveda propia. No hay otra copia: lo que se atiende es lo mismo
- *     que rellena esta extensión, y lo decide y lo escribe el worker. Aquí solo se sostiene
- *     la conexión, que es lo que un worker no puede (se duerme a los 30 s).
+ * Las contraseñas van por el MISMO socket, como en el demonio, pero las atiende el worker:
+ * la petición llega aquí ya abierta (la abrió el cliente, con `sealing`) y se le pasa tal
+ * cual; lo que él conteste sale SELLADO para quien preguntó. Cuándo pedir aprobación y a
+ * quién lo decide el núcleo, con la regla del binario (`vault.needs` / `vault.approve`).
  *
  * Sin `requireSealed` en el cliente, y no es un olvido: entrar con contraseña viaja en claro
  * a propósito (quien entra todavía no tiene llave). Lo que corta es el responder, que no
  * atiende una petición de contraseñas que no llegue sellada — igual que en el demonio.
- *
- * Que las contraseñas no se puedan atender (falta convertir) no apaga lo demás: se enciende
- * igual y se dice qué falta.
  */
 export async function serveLogins ({ proxyUrl = null } = {}) {
-  const { pid, desk } = await escritorio()
-  if (atendiendo) return { ok: true, already: true, logins: desk.list().length, passwords: atendiendo.passwords }
-  const client = new WebSocketProxyClient({
-    url: proxyUrl || PROXY_URL,
-    // El camino es el proxio: aquí no se negocia WebRTC con nadie.
-    enableWebRTC: false,
-    autoReconnect: true,
-    sealing: identitySealing(sellador)
-  })
-  await client.connect()
-  const vault = await startDeviceVault(identidad, { client, logins: desk })
+  if (atendiendo) return { ok: true, already: true, logins: atendiendo.vault.listLogins().length, passwords: atendiendo.passwords }
+  const { id: pid } = await alWorker('id.whoami')
+  const nucleo = await nucleoRemoto()
+  // LA POLÍTICA, para el worker: cuándo se pide aprobación y la espera del sí. Y la llave
+  // de sellado, que el worker pide ya DURANTE el arranque: por eso se escucha antes.
+  let enMarcha = null
+  const pedirA = () => { if (!enMarcha) throw new Error('the vault is still starting'); return enMarcha }
+  const politica = (m, _sender, reply) => {
+    if (m?.op === 'vault.needs') { pedirA().passwordsNeedApproval(m.pubkey).then((v) => reply({ result: v }), (e) => reply({ error: { message: e.message } })); return true }
+    if (m?.op === 'vault.approve') { pedirA().approvePasswordRequest(m.req).then((v) => reply({ result: v }), (e) => reply({ error: { message: e.message } })); return true }
+    if (m?.op === 'vault.mintSealKey') {
+      if (!selladoras) { reply({ error: { message: 'this vault tab has no sealing keys' } }); return false }
+      Promise.resolve(selladoras()).then((v) => reply({ result: v }), (e) => reply({ error: { message: e.message } }))
+      return true
+    }
+    return false
+  }
+  chrome.runtime.onMessage.addListener(politica)
 
-  // LAS CONTRASEÑAS. La petición llega aquí ya abierta (la abrió el cliente, con `sealing`)
-  // y se la pasa al worker tal cual; lo que él conteste sale SELLADO para quien preguntó.
+  let client = null
+  let vault
+  try {
+  vault = await startBrowserVault({
+    core: nucleo,
+    proxyUrl: proxyUrl || PROXY_URL,
+    // El cliente lo crea esta página (un service worker no podría sostenerlo) y con el
+    // sellado del perfil, que es el sobre de las contraseñas.
+    makeClient: ({ url, acceptDirectFrom }) => {
+      client = new WebSocketProxyClient({ url, enableWebRTC: false, autoReconnect: true, sealing: identitySealing(sellador), acceptDirectFrom })
+      return client
+    },
+    opaque: opaqueServer,
+    servePasswords: false,
+    // Lo que el gestor guardaba antes en `chrome.storage`, una vez.
+    legacyLogins: async () => {
+      const k = LEGACY_KEY(pid)
+      const state = (await chrome.storage.local.get(k))[k] || null
+      return state ? { state, drop: () => chrome.storage.local.remove(k) } : null
+    },
+    log: (...a) => console.log(...a)
+  })
+  } catch (e) {
+    chrome.runtime.onMessage.removeListener(politica)
+    nucleo.stop()
+    throw e
+  }
+  enMarcha = vault
+
+  // LAS CONTRASEÑAS, al worker.
   const onMessage = async (from, msg, meta) => {
     const p = typeof msg === 'string' ? (() => { try { return JSON.parse(msg) } catch (_) { return null } })() : msg
     if (!isRequest(p)) return
@@ -254,16 +289,21 @@ export async function serveLogins ({ proxyUrl = null } = {}) {
   try { passwords = { ok: true, ...(await alWorker('pm.serve-start', { pid })) } }
   catch (e) { passwords = { ok: false, code: e?.code || null, message: e?.message || String(e) } }
 
-  atendiendo = { vault, client, onMessage, passwords }
-  return { ok: true, logins: desk.list().length, passwords }
+  atendiendo = { vault, client, onMessage, passwords, canal: servirCanal(vault), politica, nucleo }
+  return { ok: true, logins: vault.listLogins().length, passwords }
 }
 
 export function stopServing () {
   if (!atendiendo) return { ok: false }
-  try { atendiendo.client.off?.('message', atendiendo.onMessage) } catch (_) {}
-  try { atendiendo.vault.close() } catch (_) {}
-  try { atendiendo.client.close?.() } catch (_) {}
+  const a = atendiendo
   atendiendo = null
+  try { a.client.off?.('message', a.onMessage) } catch (_) {}
+  try { chrome.runtime.onMessage.removeListener(a.politica) } catch (_) {}
+  try { a.canal.close() } catch (_) {}
+  try { a.nucleo.stop() } catch (_) {}
+  selladoras = null
+  alWorker('id.sealKeysFromTab', { on: false }).catch(() => {})
+  Promise.resolve(a.vault.close()).catch(() => {})
   return { ok: true }
 }
 
@@ -306,8 +346,6 @@ export async function enterWithPassword ({ address, password, remember = false, 
     })
   } finally { try { client.close() } catch (_) {} }
   const r = await alWorker('id.adoptLogin', { entrada, remember, proxy: url })
-  // El perfil cambió: lo que haya pintado con el anterior ya no vale (no es reactivo).
-  mostrador = null
   return { ...r, address: entrada.address, user: entrada.user, caps: entrada.caps }
 }
 
@@ -348,6 +386,5 @@ export async function leaveLogin ({ proxyUrl = null } = {}) {
   } catch (_) { /* la bóveda apagada no puede impedir salir de aquí */ }
 
   const r = await alWorker('id.logoutLogin', {})
-  mostrador = null
   return { ...r, told }
 }
