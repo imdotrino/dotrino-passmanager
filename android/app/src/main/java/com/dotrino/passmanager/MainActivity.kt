@@ -75,7 +75,9 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); out.putString("query", query) }
-    override fun onResume() { super.onResume(); clearClipIfDue(); if (vault == null) boot() }
+    // Coming back READS AGAIN: a passkey saved from the system sheet, or a deletion approved on
+    // another device, happened while this screen was behind, and the old list would hide it.
+    override fun onResume() { super.onResume(); clearClipIfDue(); if (vault == null) boot() else reload() }
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
 
     // ---------- start ----------
