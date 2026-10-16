@@ -205,10 +205,10 @@ class PmVault(
         val r = recipients()
         if (!r.containsKey("recoveryPub")) throw PmError("ask the vault for the recipients first", "no-recipients")
         val members = (r[kind] as? JsonArray).orEmpty()
-        // Nobody to wrap a passkey to is not «zero recipients», it is an error: saved like that,
-        // no device could use it. Same code the vault would answer.
-        if (kind == "passkeys" && members.isEmpty()) {
-            throw PmError("no device in the account record can open passkeys: grant `passkeys` to one before saving it", "no-passkeys-device")
+        // A passkey wrapped to NOBODY (no device and no recovery copy) would be lost whole.
+        // Same code the vault would answer.
+        if (kind == "passkeys" && members.isEmpty() && r.str("recoveryPub") == null) {
+            throw PmError("nobody could ever open this passkey: no device has `passwords` and the account has no recovery copy", "no-passkeys-device")
         }
         val wraps = LinkedHashMap<String, JsonElement>()
         r.str("recoveryPub")?.let { wraps[RECOVERY] = Crypto.wrapForMember(cek, it) }
@@ -237,8 +237,8 @@ class PmVault(
         for (f in Entry.FIXED) e.let { it.copyFixed(f) }.takeIf { it.isNotEmpty() }?.let { fields[f] = seal(cek, it) }
         // The private mark belongs to the ENVELOPE, with its value: who opens it alone must know.
         for (f in e.fields) if (f.value.isNotEmpty()) fields["f:" + PmKeys.fieldIndex(k.kidx, f.key)] = seal(cek, f.toJson().toString())
-        // The passkey's private key goes with ITS key and its recipients (only devices with
-        // `passkeys`); the user handle, with everything else.
+        // The passkey's private key goes with ITS key (its own generation, for the same devices
+        // with `passwords`); the user handle, with everything else.
         val wa = e.webauthn
         val cekPk = if (wa != null && wa.privateKey.isNotEmpty()) Crypto.makeContentKey() else null
         if (wa != null) {
