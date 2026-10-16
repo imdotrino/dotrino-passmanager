@@ -194,6 +194,17 @@ class PasskeyActivity : Activity() {
         val req = PendingIntentHandler.retrieveBeginGetCredentialRequest(intent) ?: throw PmError("the system sent no request", "bad-request")
         val v = vault()
         val entries = withContext(Dispatchers.IO) { Passkeys.entries(this@PasskeyActivity, v, req.beginGetCredentialOptions) }
+        // NOTHING THAT SERVES IS SAID, not closed in silence. Usually the site only accepts other
+        // keys (it lists them in `allowCredentials`): one deleted on the site still lives here.
+        if (entries.isEmpty()) {
+            val sites = req.beginGetCredentialOptions.filterIsInstance<androidx.credentials.provider.BeginGetPublicKeyCredentialOption>()
+                .mapNotNull { runCatching { Passkeys.rpIdOfGet(Passkeys.parse(it.requestJson)) }.getOrNull() }.distinct()
+            say(t("passkey.noneForSite", "site" to sites.joinToString(", ")))
+            val closed = kotlinx.coroutines.CompletableDeferred<Unit>()
+            box.add(pill(t("close"), filled = true) { closed.complete(Unit) }.apply { tag = "passkey-close" },
+                top = 24, width = ViewGroup.LayoutParams.WRAP_CONTENT)
+            closed.await()
+        }
         return Intent().also { PendingIntentHandler.setBeginGetCredentialResponse(it, BeginGetCredentialResponse(credentialEntries = entries)) }
     }
 }

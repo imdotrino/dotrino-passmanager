@@ -103,7 +103,8 @@
   "passkey.exists": "Ya tienes una passkey de tu bóveda para esta cuenta.",
   "passkey.failed": "No se pudo completar: {why}",
   "passkey.label": "Passkey",
-  "passkey.detail": "Para {site} · usada {n} veces"
+  "passkey.detail": "Para {site} · usada {n} veces",
+  "passkey.noneForSite": "Contraseñas no tiene una passkey que sirva para {site}. Si la borraste en el sitio, la que queda aquí ya no sirve: puedes borrarla."
  },
  "en": {
   "close": "Close",
@@ -209,6 +210,7 @@
   "passkey.exists": "You already have a passkey from your vault for this account.",
   "passkey.failed": "It could not be completed: {why}",
   "passkey.label": "Passkey",
-  "passkey.detail": "For {site} · used {n} times"
+  "passkey.detail": "For {site} · used {n} times",
+  "passkey.noneForSite": "Passwords has no passkey that works for {site}. If you deleted it on the site, the one left here no longer works: you can delete it."
  }
 }
