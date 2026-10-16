@@ -53,6 +53,8 @@ class MainActivity : Activity() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var vault: PmVault? = null
     private var views: List<EntryView> = emptyList()
+    /** Deletions sent and waiting for an approval: the row says so until the vault answers. */
+    private val pendingDelete = HashSet<String>()
     private var loaded = false
     private var query = ""
     private var content: FrameLayout? = null
@@ -174,6 +176,7 @@ class MainActivity : Activity() {
         scope.launch {
             try {
                 views = withContext(Dispatchers.IO) { v.list() }.sortedBy { titleOf(it).lowercase() }
+                pendingDelete.retainAll(views.map { it.id }.toSet())   // what went, went
                 loaded = true
                 renderList()
             } catch (e: Exception) { showProblem(messageOf(e)) }
@@ -183,6 +186,7 @@ class MainActivity : Activity() {
     /** What a row is called: the visible name; without one, its title or its first site. */
     fun titleOf(v: EntryView): String = v.hint.ifEmpty { v.title.ifEmpty { v.sites.firstOrNull() ?: "—" } }
     private fun subtitleOf(v: EntryView): String =
+        (if (v.id in pendingDelete) t("delete.pendingTag") + " · " else "") +
         // A passkey says so: next to the passwords it looks the same, and it is not.
         (if (v.hasWebauthn) t("passkey.label") + " · " else "") +
             (if (v.hint.isNotEmpty() && v.title.isNotEmpty() && v.title != v.hint) v.title else v.sites.joinToString(", ")).ifEmpty { t("detail.noSites") }
@@ -293,6 +297,31 @@ class MainActivity : Activity() {
         if (clipUntil == 0L || System.currentTimeMillis() < clipUntil) return
         clipUntil = 0
         runCatching { (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).clearPrimaryClip() }
+    }
+
+    /**
+     * DELETING IS A REQUEST, NOT A WAIT (dueño, 2026-10-16: «no me debería quedar esperando la
+     * aprobación: se manda la solicitud, se pone pendiente»). The vault keeps the request alive
+     * and deletes it when somebody approves, even if this phone stopped listening; so the row is
+     * marked pending and the person goes on. A refusal takes the mark off and says so.
+     */
+    fun requestDelete(v: EntryView) {
+        val vault = vault ?: return
+        pendingDelete.add(v.id); renderList()
+        toast(t("delete.pending"))
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { vault.remove(v.id) }
+                pendingDelete.remove(v.id); toast(t("deleted")); reload()
+            } catch (e: Exception) {
+                if ((e as? PmError)?.code == "approval-timeout") {
+                    // This phone stopped listening; the vault did not. Look again once its own wait is over.
+                    ui.postDelayed({ pendingDelete.remove(v.id); reload() }, 6 * 60_000L)
+                } else {
+                    pendingDelete.remove(v.id); renderList(); toast(messageOf(e))
+                }
+            }
+        }
     }
 
     fun messageOf(e: Throwable): String {

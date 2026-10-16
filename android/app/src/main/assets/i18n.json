@@ -104,7 +104,9 @@
   "passkey.failed": "No se pudo completar: {why}",
   "passkey.label": "Passkey",
   "passkey.detail": "Para {site} · usada {n} veces",
-  "passkey.noneForSite": "Contraseñas no tiene una passkey que sirva para {site}. Si la borraste en el sitio, la que queda aquí ya no sirve: puedes borrarla."
+  "passkey.noneForSite": "Contraseñas no tiene una passkey que sirva para {site}. Si la borraste en el sitio, la que queda aquí ya no sirve: puedes borrarla.",
+  "delete.pending": "Pedido enviado: se borrará cuando lo apruebes en uno de tus aparatos.",
+  "delete.pendingTag": "Borrado pendiente"
  },
  "en": {
   "close": "Close",
@@ -211,6 +213,8 @@
   "passkey.failed": "It could not be completed: {why}",
   "passkey.label": "Passkey",
   "passkey.detail": "For {site} · used {n} times",
-  "passkey.noneForSite": "Passwords has no passkey that works for {site}. If you deleted it on the site, the one left here no longer works: you can delete it."
+  "passkey.noneForSite": "Passwords has no passkey that works for {site}. If you deleted it on the site, the one left here no longer works: you can delete it.",
+  "delete.pending": "Request sent: it will be deleted when you approve it on one of your devices.",
+  "delete.pendingTag": "Deletion pending"
  }
 }
