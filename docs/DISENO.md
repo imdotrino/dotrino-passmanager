@@ -1847,6 +1847,19 @@ Tres decisiones que evitan los fallos caros:
 - **La credencial se guarda ANTES de devolverla.** Si el sitio la registra y nosotros no
   la tenemos, el usuario se queda fuera de su cuenta sin saber por qué.
 
+**Crear SE PREGUNTA** (dueño, 2026-10-16). Cuando un sitio pide crear una passkey, la
+extensión enseña su aviso —un iframe suyo, así que el clic no lo puede dar la página— con
+«Guardar en Dotrino» y «Ahora no»; «Ahora no» se la deja al navegador (`passkey-prompt.js`).
+Antes se decidía en silencio: primero todo a Dotrino (y el gestor de Google no veía nada),
+luego solo si el sitio ya estaba en Dotrino (y no había forma de elegir Dotrino en un sitio
+nuevo). Entrar no pregunta: si hay passkey del sitio en Dotrino, se usa; si no, el navegador.
+
+**El sitio que pide lo dice el REMITENTE, no el mensaje.** `rpId` y origen salen de
+`sender.origin` y el `rpId` tiene que ser ese host o un dominio padre (`passkeyCaller`).
+Hasta la 0.50.0 se tomaban del mensaje de la página, y un sitio cualquiera podía pedir la
+firma de la passkey de otro diciendo que era él (arreglado en la 0.51.0; lo cubre
+`test/passkey-paso.e2e.mjs`).
+
 Y la regla que lo hace seguro de usar: **si el gestor no puede, manda el navegador.**
 Cualquier fallo —sin bóveda, sin passkey, sin respuesta— cae al `navigator.credentials`
 original. Que el gestor falle no puede dejar a nadie sin entrar en su sitio. Verificado

@@ -1,12 +1,11 @@
-// LAS PASSKEYS DE UN SITIO QUE NO ESTÁ EN DOTRINO SON DEL NAVEGADOR (dueño, 2026-10-15:
-// «si no tiene no debería interferir»).
+// AL CREAR UNA PASSKEY, LA EXTENSIÓN PREGUNTA DÓNDE (dueño, 2026-10-16: «el problema no era
+// que asomara, sino que bloqueaba silenciosamente»). Antes decidía sola: primero todo a
+// Dotrino, después solo los sitios ya guardados en Dotrino. Ahora sale un aviso con
+// «Guardar en Dotrino» y «Ahora no», y «Ahora no» se la deja al navegador.
 //
-// Antes el gestor se quedaba con toda passkey que un sitio pidiera crear, y el gestor de
-// Google no llegaba a verla. Esta prueba pone un autenticador virtual en Chrome —el lugar
-// del gestor del navegador— y mira quién se queda con la llave:
-//
-//   · sitio sin nada en Dotrino → el autenticador virtual
-//   · sitio que ya está en Dotrino → Dotrino, y el virtual no cambia
+// La prueba pone un autenticador virtual en Chrome —el lugar del gestor del navegador— y
+// mira quién se queda con la llave en cada salida. Y una más: un sitio no puede pedir una
+// passkey de OTRO sitio diciendo que es él (el origen sale del remitente, no del mensaje).
 //
 //   node test/passkey-paso.e2e.mjs
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -69,20 +68,40 @@ try {
   const passkeysDotrino = async () =>
     ((await pedir('find', { url: 'https://localhost/' }))?.result || []).filter(e => e.hasWebauthn).length
 
-  // 1. Nada de localhost en Dotrino: la passkey es del navegador.
-  ok(!!(await crear('ana')), 'sin nada en Dotrino, crear la passkey funciona')
+  const aviso = async () => {
+    for (let i = 0; i < 100; i++) {
+      const f = page.frames().find(f => f.url().includes('/src/passkey-prompt.html'))
+      if (f) { await f.waitForSelector('[data-testid=passkey-prompt-save]:not([disabled])', { timeout: 10000 }); return f }
+      await page.waitForTimeout(100)
+    }
+    throw new Error('the passkey prompt never showed up')
+  }
+
+  // 1. «Ahora no»: la passkey es del navegador, y Dotrino no guarda nada.
+  let creando = crear('ana')
+  let f = await aviso()
+  ok((await f.textContent('[data-testid=passkey-prompt-who]')).includes('localhost'), 'el aviso dice de qué sitio es')
+  await f.click('[data-testid=passkey-prompt-dismiss]')
+  ok(!!(await creando), 'con «Ahora no», crear la passkey funciona')
   ok(await delNavegador() === 1, 'y se la queda el autenticador del navegador')
   ok(await passkeysDotrino() === 0, 'Dotrino no guarda nada')
 
-  // 2. El usuario ya guarda localhost en Dotrino: la passkey va a Dotrino.
-  const puesto = await pedir('put', { entry: {
-    type: 'login', title: 'localhost', sites: ['localhost'], username: 'ana', secret: 'x',
-  } })
-  ok(!puesto?.error, 'guardar un acceso de localhost en Dotrino')
-  await page.reload()
-  ok(!!(await crear('ana2')), 'con el sitio en Dotrino, crear la passkey funciona')
+  // 2. «Guardar en Dotrino»: aunque el sitio no esté guardado en Dotrino, se puede elegir.
+  creando = crear('ana2')
+  f = await aviso()
+  await f.click('[data-testid=passkey-prompt-save]')
+  ok(!!(await creando), 'con «Guardar en Dotrino», crear la passkey funciona')
   ok(await passkeysDotrino() === 1, 'y se la queda Dotrino')
   ok(await delNavegador() === 1, 'el autenticador del navegador no cambia')
+  ok(!page.frames().some(f => f.url().includes('/src/passkey-prompt.html')), 'el aviso se cierra solo')
+
+  // 3. Un sitio no puede pedir la passkey de otro: localhost diciendo «soy example.com».
+  const ajeno = await page.evaluate(() => new Promise((resolve) => {
+    addEventListener('message', (e) => { if (e.data?.channel === 'dotrino-passmanager:webauthn:res' && e.data.id === 'x1') resolve(e.data) })
+    postMessage({ channel: 'dotrino-passmanager:webauthn:req', id: 'x1', op: 'webauthn-get',
+      payload: { rpId: 'example.com', origin: 'https://example.com', challenge: 'YWJj', allowCredentials: [] } }, location.origin)
+  }))
+  ok(ajeno.fallback === true && !ajeno.result, 'pedir la passkey de otro sitio se rechaza')
 } finally {
   await ctx.close()
   server.close()

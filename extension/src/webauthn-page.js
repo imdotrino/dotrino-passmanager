@@ -100,9 +100,8 @@
   navigator.credentials.create = async function (opts) {
     const datos = serializar(opts)
     if (!datos) return original.create(opts)
-    // Crear una passkey solo se queda en Dotrino si el usuario ya guarda este sitio en
-    // Dotrino. Si no, es del gestor que ya use (el de Google, el del sistema).
-    if (!(await tiene(datos.rpId)).entry) return original.create(opts)
+    // Crear SE PREGUNTA: la extensión enseña su aviso («Guardar en Dotrino» / «Ahora no») y
+    // espera. «Ahora no», cerrar o no contestar es del navegador, como siempre.
     const r = await preguntar('webauthn-create', datos)
     // Si algo falla, manda el navegador. Nunca se rompe el acceso al sitio por culpa nuestra.
     if (r?.fallback || !r?.result) return original.create(opts)

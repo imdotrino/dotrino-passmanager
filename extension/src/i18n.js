@@ -182,6 +182,12 @@ const STRINGS = {
     // El aviso de después de entrar (`save-prompt.html`).
     saveAsNew: 'Guardar como nueva',
     notNow: 'Ahora no',
+    // --- dónde se guarda una passkey nueva ---
+    pkTitle: '¿Guardas la passkey en Dotrino?',
+    pkFor: (site, user) => user ? `${site} · ${user}` : site,
+    pkWhy: 'Con «Ahora no», la guarda tu navegador como siempre.',
+    pkSave: 'Guardar en Dotrino',
+    pkSaving: 'Guardando en tu bóveda…',
     noUser: 'sin usuario',
     fieldNew: 'nuevo',
     fieldChanged: 'cambia',
@@ -412,6 +418,12 @@ const STRINGS = {
     // The prompt shown after you sign in (`save-prompt.html`).
     saveAsNew: 'Save as new',
     notNow: 'Not now',
+    // --- where a new passkey is saved ---
+    pkTitle: 'Save the passkey in Dotrino?',
+    pkFor: (site, user) => user ? `${site} · ${user}` : site,
+    pkWhy: 'With «Not now», your browser saves it as usual.',
+    pkSave: 'Save in Dotrino',
+    pkSaving: 'Saving in your vault…',
     noUser: 'no username',
     fieldNew: 'new',
     fieldChanged: 'changes',

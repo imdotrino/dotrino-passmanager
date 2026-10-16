@@ -822,26 +822,94 @@ async function unlink () {
 // pedírsela, igual que cualquier otra credencial. El aparato no se queda con nada.
 
 /**
- * ¿TIENE DOTRINO ALGO DE ESTE SITIO? Lo pregunta la página ANTES de quedarse con una
- * passkey, y se contesta con lo público y recordado (`findFor`), sin abrir nada.
- *
- * Sin esto el gestor se quedaba con TODA passkey: la de un sitio que el usuario guarda en
- * el gestor de Google se creaba en Dotrino sin preguntar, y al entrar se esperaba a la
- * bóveda antes de dejar pasar al navegador (dueño, 2026-10-15: «si no tiene no debería
- * interferir»). Con nada guardado del sitio, manda el navegador.
- *
- * `passkey`: hay una passkey del sitio (para entrar). `entry`: hay cualquier entrada del
- * sitio (para crear una: el usuario ya usa Dotrino ahí).
+ * QUIÉN PREGUNTA, de verdad. El origen sale del REMITENTE (`sender.origin`, el marco que
+ * llama), nunca de lo que la página escribe en el mensaje: si se fiara de eso, cualquier
+ * sitio podría pedir una firma con la passkey de otro diciendo «soy github.com». Y el sitio
+ * que pide (`rpId`) tiene que ser ese host o uno de sus dominios padre, como en WebAuthn.
  */
-async function webauthnHas (p) {
-  const entries = await findFor(`https://${p.rpId}/`)
+function passkeyCaller (rpId, sender) {
+  let o
+  try { o = new URL(sender?.origin || sender?.url || '') } catch { o = null }
+  if (!o || !o.hostname) throw Object.assign(new Error('passkeys: unknown caller origin'), { code: CODES.DENIED })
+  const local = o.hostname === 'localhost' || o.hostname === '127.0.0.1'
+  if (o.protocol !== 'https:' && !(local && o.protocol === 'http:')) {
+    throw Object.assign(new Error(`passkeys: ${o.origin} is not a secure origin`), { code: CODES.DENIED })
+  }
+  const rp = String(rpId || o.hostname).toLowerCase()
+  if (o.hostname !== rp && !o.hostname.endsWith('.' + rp)) {
+    throw Object.assign(new Error(`passkeys: ${o.origin} cannot ask for a passkey of ${rp}`), { code: CODES.DENIED })
+  }
+  return { rpId: rp, origin: o.origin }
+}
+
+/**
+ * ¿TIENE DOTRINO UNA PASSKEY DE ESTE SITIO? Lo pregunta la página antes de ENTRAR, y se
+ * contesta con lo público y recordado (`findFor`), sin abrir nada. Sin ninguna, manda el
+ * navegador: no hay nada que ofrecer.
+ */
+async function webauthnHas (p, sender) {
+  const { rpId } = passkeyCaller(p.rpId, sender)
+  const entries = await findFor(`https://${rpId}/`)
   return {
     passkey: entries.some(e => e.hasWebauthn),
     entry: entries.length > 0,
   }
 }
 
-async function webauthnCreate (p) {
+// --- crear una passkey: SE PREGUNTA dónde -------------------------------------
+//
+// Antes se decidía en silencio —primero toda passkey a Dotrino, después solo si el sitio ya
+// estaba guardado aquí—, y las dos veces alguien se quedó sin la opción que quería (dueño,
+// 2026-10-16: «el problema no era que asomara, sino que bloqueaba silenciosamente»). Ahora se
+// enseña un aviso de la extensión con las dos salidas: guardarla en Dotrino o dejársela al
+// navegador. El clic nace en un iframe de la extensión, así que la página no puede elegir.
+const OFFER_MS = 120_000
+const offers = new Map()
+
+async function webauthnCreate (p, sender) {
+  const { rpId, origin } = passkeyCaller(p.rpId, sender)
+  if (!sender?.tab?.id) throw Object.assign(new Error('passkeys: no tab to ask in'), { code: CODES.DENIED })
+  const req = crypto.randomUUID()
+  let decide, finish
+  const choice = new Promise(r => { decide = r })
+  const done = new Promise(r => { finish = r })
+  offers.set(req, { rpId, rpName: p.rpName || '', userName: p.userName || '', decide, done })
+  let timer
+  try {
+    // El aviso va al marco de arriba: dentro de un iframe pequeño no se vería.
+    await chrome.tabs.sendMessage(sender.tab.id, { op: 'dotrino-passkey-prompt', req }, { frameId: 0 })
+    const c = await Promise.race([choice, new Promise(r => { timer = setTimeout(() => r('timeout'), OFFER_MS) })])
+    if (c !== 'dotrino') throw Object.assign(new Error('the person chose the browser'), { code: 'use-browser' })
+    try {
+      const response = await createPasskey({ ...p, rpId, origin })
+      finish({ ok: true })
+      return response
+    } catch (e) { finish({ error: e }); throw e }
+  } finally {
+    clearTimeout(timer)
+    offers.delete(req)
+  }
+}
+
+/** Lo que enseña el aviso: el sitio y la cuenta. Solo para la extensión. */
+function passkeyOffer ({ req } = {}) {
+  const o = offers.get(req)
+  if (!o) throw Object.assign(new Error('that passkey request is gone'), { code: CODES.NOT_FOUND })
+  return { rpId: o.rpId, rpName: o.rpName, userName: o.userName }
+}
+
+/** La respuesta del aviso. Con «Dotrino» espera a que se guarde, para enseñar el error si lo hay. */
+async function passkeyChoose ({ req, choice } = {}) {
+  const o = offers.get(req)
+  if (!o) throw Object.assign(new Error('that passkey request is gone'), { code: CODES.NOT_FOUND })
+  o.decide(choice === 'dotrino' ? 'dotrino' : 'browser')
+  if (choice !== 'dotrino') return { ok: true }
+  const r = await o.done
+  if (r.error) throw r.error
+  return { ok: true }
+}
+
+async function createPasskey (p) {
   const v = await connect()
   const { entry, response } = await createCredential({
     rpId: p.rpId,
@@ -864,7 +932,10 @@ async function webauthnCreate (p) {
   return response
 }
 
-async function webauthnGet (p) {
+async function webauthnGet (p, sender) {
+  // El sitio y el origen, del remitente: ver `passkeyCaller`.
+  const { rpId, origin } = passkeyCaller(p.rpId, sender)
+  p = { ...p, rpId, origin }
   const v = await connect()
   const candidatas = await v.find(`https://${p.rpId}/`)
 
@@ -1848,6 +1919,9 @@ const OPS = {
   'webauthn-has': webauthnHas,
   'webauthn-create': webauthnCreate,
   'webauthn-get': webauthnGet,
+  // Del aviso de la extensión (no de la página): qué se ofrece y qué eligió la persona.
+  'passkey-offer': passkeyOffer,
+  'passkey-choose': passkeyChoose,
   link: p => link(p),
   unlink,
   profiles: listProfiles,
