@@ -73,7 +73,9 @@ function keysOf (e) {
 /** El sitio de la tarjeta, y nada si repite lo que ya dice el nombre de arriba. */
 function siteLine (lang, e) {
   const s = siteLabel(lang, e)
-  return s && s !== (e.hint || '') ? s : ''
+  const sitio = s && s !== (e.hint || '') ? s : ''
+  // Una passkey lo dice: al lado de las contraseñas se ve igual, y no lo es.
+  return e.hasWebauthn ? [t(lang, 'pkTag'), sitio].filter(Boolean).join(' · ') : sitio
 }
 
 /**

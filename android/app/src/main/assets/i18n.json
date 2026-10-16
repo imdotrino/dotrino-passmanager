@@ -101,7 +101,9 @@
   "passkey.notApproved": "No se aprobó el uso de la passkey.",
   "passkey.badCaller": "No se puede confirmar quién pide la passkey, así que no se entrega. {why}",
   "passkey.exists": "Ya tienes una passkey de tu bóveda para esta cuenta.",
-  "passkey.failed": "No se pudo completar: {why}"
+  "passkey.failed": "No se pudo completar: {why}",
+  "passkey.label": "Passkey",
+  "passkey.detail": "Para {site} · usada {n} veces"
  },
  "en": {
   "close": "Close",
@@ -205,6 +207,8 @@
   "passkey.notApproved": "Using the passkey was not approved.",
   "passkey.badCaller": "Who is asking for the passkey cannot be confirmed, so it is not handed over. {why}",
   "passkey.exists": "You already have a passkey from your vault for this account.",
-  "passkey.failed": "It could not be completed: {why}"
+  "passkey.failed": "It could not be completed: {why}",
+  "passkey.label": "Passkey",
+  "passkey.detail": "For {site} · used {n} times"
  }
 }

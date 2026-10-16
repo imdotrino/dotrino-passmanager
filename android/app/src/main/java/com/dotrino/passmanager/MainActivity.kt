@@ -182,7 +182,10 @@ class MainActivity : Activity() {
 
     /** What a row is called: the visible name; without one, its title or its first site. */
     fun titleOf(v: EntryView): String = v.hint.ifEmpty { v.title.ifEmpty { v.sites.firstOrNull() ?: "—" } }
-    private fun subtitleOf(v: EntryView): String = (if (v.hint.isNotEmpty() && v.title.isNotEmpty() && v.title != v.hint) v.title else v.sites.joinToString(", ")).ifEmpty { t("detail.noSites") }
+    private fun subtitleOf(v: EntryView): String =
+        // A passkey says so: next to the passwords it looks the same, and it is not.
+        (if (v.hasWebauthn) t("passkey.label") + " · " else "") +
+            (if (v.hint.isNotEmpty() && v.title.isNotEmpty() && v.title != v.hint) v.title else v.sites.joinToString(", ")).ifEmpty { t("detail.noSites") }
 
     private fun renderList() {
         val c = content ?: return

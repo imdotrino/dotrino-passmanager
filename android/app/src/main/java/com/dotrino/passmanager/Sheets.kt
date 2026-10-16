@@ -59,6 +59,16 @@ class DetailSheet(private val act: MainActivity, private val vault: PmVault, pri
         ticker.removeCallbacksAndMessages(null)
         body.removeAllViews()
         body.add(act.label(view.sites.joinToString(", ").ifEmpty { t("detail.noSites") }, 14f, act.col(R.color.m_muted)).apply { tag = "detail-sites" })
+        // THE PASSKEY, visible: which site it is for and how many times it signed. Its key is not
+        // shown (it is a key, not something to read); deleting it is the «Delete» below.
+        (view.webauthn as? kotlinx.serialization.json.JsonObject)?.let { w ->
+            fun s(k: String) = (w[k] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+            body.add(LinearLayout(act).apply {
+                orientation = LinearLayout.VERTICAL; tag = "detail-passkey"
+                add(act.label(t("passkey.label"), 12f, act.col(R.color.m_muted), bold = true))
+                add(act.label(t("passkey.detail", "site" to s("rpId"), "n" to s("signCount").ifEmpty { "0" }), 16f))
+            }, top = 14)
+        }
         for (key in view.fieldKeys + (if (view.hasNotes) listOf("notes") else emptyList())) body.add(fieldRow(key), top = 14)
         if (entry?.withheld?.isNotEmpty() == true) body.add(act.label(t("detail.withheld"), 13f, act.col(R.color.m_muted)), top = 14)
         body.add(LinearLayout(act).apply {
