@@ -111,6 +111,11 @@ class PasskeyActivity : Activity() {
 
     private suspend fun vault(): PmVault {
         if (Passmanager.source == null && !IdentityRequired.check(this)) throw PmError("the identity app is missing", "no-identity-app")
+        // THIS SCREEN IS THE APP IN FRONT, so it has network. The session it would reuse was
+        // made while the app was behind, where Android blocks the network: it may be retrying,
+        // or moved to a fallback proxy. Not online now → start a fresh one (seen 2026-10-16:
+        // the request went out that way and nobody answered for 90 s).
+        if (Passmanager.session?.isOnline != true) Passmanager.reset()
         return withContext(Dispatchers.IO) { Passmanager.boot(this@PasskeyActivity) }
     }
 
