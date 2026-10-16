@@ -256,12 +256,12 @@ class MainActivity : Activity() {
      * Runs something that talks to the vault. While it waits — a private value may need an
      * approval on another device — the bar says so; an error comes out in words.
      */
-    fun <T> ask(block: suspend (PmVault) -> T, done: (T) -> Unit) {
+    fun <T> ask(block: suspend (PmVault) -> T, failed: ((Exception) -> Unit)? = null, done: (T) -> Unit) {
         val v = vault ?: return
         busy++; ui.postDelayed({ renderStatus() }, 1200)
         scope.launch {
             try { done(withContext(Dispatchers.IO) { block(v) }) }
-            catch (e: Exception) { toast(messageOf(e)) }
+            catch (e: Exception) { toast(messageOf(e)); failed?.invoke(e) }
             finally { busy--; renderStatus() }
         }
     }

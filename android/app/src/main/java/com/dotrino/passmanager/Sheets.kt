@@ -140,7 +140,11 @@ class DetailSheet(private val act: MainActivity, private val vault: PmVault, pri
             gravity = Gravity.END
             addView(act.pill(t("cancel")) { render() }.apply { tag = "delete-cancel" })
             addView(act.pill(t("delete.yes"), filled = true) {
-                act.ask({ it.remove(view.id) }) { dialog?.dismiss(); act.toast(t("deleted")); act.reload() }
+                // Deleting a passkey asks for an approval and may wait minutes: SAID here, in the
+                // sheet, which covers the list's status line (it looked as if nothing happened).
+                body.removeAllViews()
+                body.add(act.label(t("approval.waiting"), 15f, act.col(R.color.m_muted)).apply { tag = "delete-waiting" })
+                act.ask({ it.remove(view.id) }, failed = { render() }) { dialog?.dismiss(); act.toast(t("deleted")); act.reload() }
             }.apply { tag = "delete-yes"; background = rounded(act.col(R.color.m_danger), act.px(24)) },
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = act.px(10) })
         }, top = 22)
