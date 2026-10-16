@@ -33,6 +33,8 @@ const resize = () => requestAnimationFrame(() =>
 function fail (e) {
   $('err').textContent = errorText(lang, e)
   $('err').hidden = false
+  // «Guardando…» ya no es verdad: lo que queda es el error.
+  $('why').hidden = true
   // El sitio ya siguió con el navegador: aquí solo queda cerrar.
   $('save').hidden = true
   $('no').textContent = t(lang, 'close')

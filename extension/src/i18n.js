@@ -188,6 +188,7 @@ const STRINGS = {
     pkWhy: 'Con «Ahora no», la guarda tu navegador como siempre.',
     pkSave: 'Guardar en Dotrino',
     pkSaving: 'Guardando en tu bóveda…',
+    noPasskeysDevice: 'Ningún aparato de tu cuenta tiene permiso para abrir passkeys, así que no se guardó. Dáselo a este navegador desde tu bóveda (permiso «passkeys») y vuelve a intentarlo.',
     noUser: 'sin usuario',
     fieldNew: 'nuevo',
     fieldChanged: 'cambia',
@@ -424,6 +425,7 @@ const STRINGS = {
     pkWhy: 'With «Not now», your browser saves it as usual.',
     pkSave: 'Save in Dotrino',
     pkSaving: 'Saving in your vault…',
+    noPasskeysDevice: 'No device in your account is allowed to open passkeys, so it was not saved. Allow this browser from your vault (the «passkeys» permission) and try again.',
     noUser: 'no username',
     fieldNew: 'new',
     fieldChanged: 'changes',
@@ -533,6 +535,8 @@ const ERROR_TEXT = {
   unreachable: 'noLink',
   'bad-invite': 'badInvite',
   'not-found': 'notFound',
+  // Guardar una passkey que nadie puede abrir no se hace: se dice qué permiso falta.
+  'no-passkeys-device': 'noPasskeysDevice',
 }
 
 /** El texto de un error: el suyo si el código es conocido, y si no, el mensaje tal cual. */
