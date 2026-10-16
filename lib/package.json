@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/passmanager",
-  "version": "0.18.2",
+  "version": "0.18.3",
   "description": "Modelo de bóveda, cifrado e interfaz de credenciales del gestor de contraseñas de Dotrino",
   "type": "module",
   "license": "MIT",
