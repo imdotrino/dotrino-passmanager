@@ -11,6 +11,7 @@
 
 import { createIdentityCore } from './vendor/identity/core.js'
 import { avatarDataUri } from './vendor/identity/avatar.js'
+import { browserMachine } from './vendor/identity/machine.js'
 
 /**
  * El núcleo quiere un `kv` SÍNCRONO estilo `localStorage`, y `chrome.storage.local` es
@@ -152,6 +153,9 @@ export async function identityCore () {
       // Sin sincronización con Drive: el gestor no la usa y arrastraría DOM.
       makeSync: null,
     })
+    // Dónde corre: una extensión, en este sistema y este navegador. Sin esto la bóveda solo
+    // lo sabe del día en que se emparejó; así va al día en cada pedido firmado.
+    await core.handlers.setMachine({ machine: browserMachine() })
     return core
   })()
   return booting
