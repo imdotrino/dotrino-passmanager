@@ -7,6 +7,7 @@ import com.dotrino.passmanager.core.PmError
 import com.dotrino.passmanager.core.PmIdentity
 import com.dotrino.passmanager.core.PmTransport
 import com.dotrino.passmanager.core.PmVault
+import com.dotrino.passmanager.core.Webauthn
 import com.dotrino.sdk.Canonical
 import com.dotrino.sdk.Crypto
 import com.dotrino.sdk.DeviceKeys
@@ -30,7 +31,14 @@ import org.junit.Test
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.File
+import java.math.BigInteger
+import java.security.AlgorithmParameters
+import java.security.KeyFactory
 import java.security.KeyPairGenerator
+import java.security.spec.ECParameterSpec
+import java.security.spec.ECPoint
+import java.security.spec.ECPublicKeySpec
+import java.security.spec.X509EncodedKeySpec
 import java.security.PublicKey
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
@@ -186,5 +194,75 @@ class BridgeTest {
         vault.put(Entry(id = "n3", title = "Borrar", secret = "x"))
         vault.remove("n3")
         assertTrue(vault.list().isEmpty()); assertEquals(0, (js("list") as JsonArray).size)
+    }
+
+    // ---------- passkeys: the phone and the extension use the SAME one ----------
+
+    private fun wa(fn: String, vararg args: JsonElement) = call(buildJsonObject { put("cmd", "wa"); put("fn", fn); put("args", JsonArray(args.toList())) })
+
+    private fun verifies(pub: PublicKey, authData: ByteArray, clientDataJson: ByteArray, sig: ByteArray) =
+        Signature.getInstance("SHA256withECDSA").run { initVerify(pub); update(authData + Webauthn.sha256(clientDataJson)); verify(sig) }
+
+    @Test fun aPasskeyCreatedOnThePhoneSignsInFromTheExtension() = runBlocking<Unit> {
+        val c = Webauthn.create("example.com", "user-1".toByteArray())
+        // The fixed bytes are the JS's, to the bit: the COSE key and the authenticatorData.
+        val jwk = Json.parseToJsonElement(c.passkey.privateKey) as JsonObject
+        assertEquals((wa("coseFromJwk", jwk) as JsonPrimitive).content, Webauthn.b64url(Webauthn.cose(KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(c.publicKeySpki)) as ECPublicKey)))
+        assertEquals((wa("makeAuthenticatorData", buildJsonObject { put("rpId", "example.com"); put("flags", 5); put("signCount", 7) }) as JsonPrimitive).content,
+            Webauthn.b64url(Webauthn.authenticatorData("example.com", 5, 7)))
+
+        vault.put(Entry(id = "p1", type = "webauthn", title = "Example", sites = listOf("example.com"), username = "ana", webauthn = c.passkey))
+        val found = js("findPasskey", buildJsonObject { put("rpId", "example.com") }) as JsonArray
+        assertEquals(1, found.size)
+        assertEquals(c.passkey.credentialId, ((found[0] as JsonObject)["webauthn"] as JsonObject).s("credentialId"))
+        assertEquals(0, (js("findPasskey", buildJsonObject { put("rpId", "otro.com") }) as JsonArray).size)
+
+        val open = js("get", JsonPrimitive("p1")) as JsonObject
+        val w = open["webauthn"] as JsonObject
+        assertEquals(c.passkey.privateKey, w.s("privateKey")); assertEquals(c.passkey.userHandle, w.s("userHandle")); assertEquals("ana", open.s("username"))
+
+        val r = (wa("signAssertion", buildJsonObject {
+            put("entry", w); put("origin", "https://example.com"); put("challenge", "Y2hhbGxlbmdl")
+        }) as JsonObject)["response"] as JsonObject
+        val resp = r["response"] as JsonObject
+        val pub = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(c.publicKeySpki))
+        assertTrue(verifies(pub, Webauthn.unb64url(resp.s("authenticatorData")), Webauthn.unb64url(resp.s("clientDataJSON")), Webauthn.unb64url(resp.s("signature"))))
+    }
+
+    @Test fun aPasskeyCreatedByTheExtensionSignsInFromThePhone() = runBlocking<Unit> {
+        val created = wa("createCredential", buildJsonObject {
+            put("rpId", "example.com"); put("userName", "ana"); put("origin", "https://example.com"); put("challenge", "abc")
+        }) as JsonObject
+        val entry = created["entry"] as JsonObject
+        js("put", buildJsonObject {
+            put("id", "p2"); put("type", "webauthn"); put("title", "Example"); put("sites", buildJsonArray { add(JsonPrimitive("example.com")) })
+            put("username", "ana"); put("webauthn", entry)
+        })
+
+        val views = vault.findPasskeys("example.com")
+        assertEquals(listOf("p2"), views.map { it.id })
+        assertTrue(views[0].hasWebauthn && "webauthn" in views[0].privateKeys)
+        assertTrue(vault.findPasskeys("otro.com").isEmpty())
+
+        val before = asked()
+        val pk = vault.get("p2", listOf("wa.privateKey", "wa.userHandle")).webauthn!!
+        assertEquals(before + 1, asked())   // the private key asks for an approval, as any secret
+        assertEquals(entry.s("credentialId"), pk.credentialId); assertEquals("example.com", pk.rpId)
+
+        val cd = Webauthn.clientDataJson("webauthn.get", "Y2g", "https://example.com")
+        val a = Webauthn.sign(pk, Webauthn.sha256(cd))
+        assertEquals(1, a.signCount)
+        val jwk = Json.parseToJsonElement(pk.privateKey) as JsonObject
+        val params = AlgorithmParameters.getInstance("EC").apply { init(ECGenParameterSpec("secp256r1")) }.getParameterSpec(ECParameterSpec::class.java)
+        val pub = KeyFactory.getInstance("EC").generatePublic(ECPublicKeySpec(
+            ECPoint(BigInteger(1, Webauthn.unb64url(jwk.s("x"))), BigInteger(1, Webauthn.unb64url(jwk.s("y")))), params))
+        assertTrue(verifies(pub, a.authData, cd, a.signature))
+
+        // The counter goes up in the vault, and the extension sees it.
+        vault.patch("p2", Changes(signCount = a.signCount))
+        val after = (js("findPasskey", buildJsonObject { put("rpId", "example.com") }) as JsonArray)[0] as JsonObject
+        assertEquals("1", ((after["webauthn"] as JsonObject)["signCount"] as JsonPrimitive).content)
+        // …and the key is still there to sign the next time.
+        assertEquals(pk.privateKey, vault.get("p2", listOf("wa.privateKey")).webauthn!!.privateKey)
     }
 }

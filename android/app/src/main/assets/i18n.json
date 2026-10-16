@@ -90,7 +90,18 @@
   "field.nameHint": "Cómo quieres llamarla",
   "presence.change": "Cambiar",
   "field.willRemove": "Se quitará al guardar",
-  "field.undo": "Deshacer"
+  "field.undo": "Deshacer",
+  "passkey.account": "Contraseñas de Dotrino",
+  "passkey.createHint": "La passkey se guarda en tu bóveda y la puedes usar desde tus otros aparatos.",
+  "passkey.unlock": "Abrir Contraseñas para buscar tus passkeys",
+  "passkey.saving": "Guardando la passkey de {site} en tu bóveda…",
+  "passkey.opening": "Abriendo tu passkey. Si tu bóveda pide aprobarlo, apruébalo en tu otro aparato.",
+  "passkey.noPasskeysDevice": "Ningún aparato de tu cuenta tiene permiso para usar passkeys. Dale el permiso «passkeys» a este teléfono desde tu bóveda y vuelve a intentarlo.",
+  "passkey.noPermission": "Este teléfono no tiene permiso para usar passkeys. Dale el permiso «passkeys» al aparato {id} desde tu bóveda.",
+  "passkey.notApproved": "No se aprobó el uso de la passkey.",
+  "passkey.badCaller": "No se puede confirmar quién pide la passkey, así que no se entrega. {why}",
+  "passkey.exists": "Ya tienes una passkey de tu bóveda para esta cuenta.",
+  "passkey.failed": "No se pudo completar: {why}"
  },
  "en": {
   "close": "Close",
@@ -183,6 +194,17 @@
   "field.nameHint": "What you want to call it",
   "presence.change": "Change",
   "field.willRemove": "It will be removed on saving",
-  "field.undo": "Undo"
+  "field.undo": "Undo",
+  "passkey.account": "Dotrino Passwords",
+  "passkey.createHint": "The passkey is saved in your vault and works from your other devices.",
+  "passkey.unlock": "Open Passwords to find your passkeys",
+  "passkey.saving": "Saving the passkey for {site} in your vault…",
+  "passkey.opening": "Opening your passkey. If your vault asks for approval, approve it on your other device.",
+  "passkey.noPasskeysDevice": "No device in your account is allowed to use passkeys. Give this phone the «passkeys» permission from your vault and try again.",
+  "passkey.noPermission": "This phone is not allowed to use passkeys. Give device {id} the «passkeys» permission from your vault.",
+  "passkey.notApproved": "Using the passkey was not approved.",
+  "passkey.badCaller": "Who is asking for the passkey cannot be confirmed, so it is not handed over. {why}",
+  "passkey.exists": "You already have a passkey from your vault for this account.",
+  "passkey.failed": "It could not be completed: {why}"
  }
 }

@@ -1771,9 +1771,30 @@ privado —vacío se queda como está, escribir lo reemplaza—, que es justo lo
 permite. Encima, y aparte, el teléfono puede pedir su huella antes de ver o copiar algo
 privado (`Presence` de `dotrino-native`); nace apagado y se enciende desde la propia lista.
 
-**Lo que todavía NO hacen**, dicho: rellenar en otras apps o en el navegador del teléfono
-(el servicio de autocompletar de cada sistema), passkeys, importar, y ser ellas la bóveda.
-Una entrada con passkey se ve y se edita, pero su llave se queda donde está.
+**Passkeys, en Android (2026-10-16):** la app es **proveedor de credenciales del sistema**
+(Credential Manager, Android 14+; se activa en Ajustes → Contraseñas y cuentas). Cuando un
+sitio o una app pide crear una passkey, Android ofrece «Contraseñas» junto a Google; y al
+entrar, lista las de la bóveda para ese sitio. También al escanear con la cámara el QR de
+«usar un teléfono» que enseña un navegador de escritorio: ese enlace lo hace Android, y la
+passkey la pone esta app. Es **la misma passkey que la de la extensión** (`core/Webauthn.kt`
+es el puerto de `lib/src/webauthn.js`, mismas banderas y AAGUID cero): creada en el teléfono
+entra desde el navegador, y al revés (`BridgeTest`). Lo que hace:
+
+- **Quién pide se comprueba antes de tocar la bóveda.** Un navegador, solo si está en la
+  lista de navegadores privilegiados de Google (`assets/privileged_browsers.json`, copiada en
+  la app: preguntarla en cada uso sería avisar a Google de cada inicio de sesión) y si el
+  sitio cuadra con el origen que da. Una app, solo si el `assetlinks.json` del sitio la nombra.
+- **Se guarda ANTES de contestar al sitio**, como en la extensión, y la privada va en su
+  generación aparte (§2.8): sin ningún aparato con `passkeys` en el acta no se crea.
+- **Abrir la llave es leer algo privado**: la bóveda pide aprobación si el aparato no es
+  desatendido. El contador sube en la bóveda antes de contestar.
+- **El servicio solo lista, y tiene prisa**: si la bóveda no contesta en 4 s, ofrece «Abrir
+  Contraseñas», que las busca con la pantalla delante.
+
+**Lo que todavía NO hacen**, dicho: rellenar contraseñas en otras apps o en el navegador del
+teléfono (el servicio de autocompletar de cada sistema), passkeys en **iOS** (hace falta una
+extensión `ASCredentialProviderExtension` con los grupos del equipo), importar, y ser ellas la
+bóveda.
 
 **Cómo están hechas.** El núcleo (`android/app/…/core/`, `ios/Passmanager/Core/`) es el
 puerto de `lib/src/sealed/` y `lib/src/vault/sealed.js`; identidad, transporte sellado y
@@ -1843,7 +1864,7 @@ Cobertura esperada:
 
 | | Contraseñas | Passkeys |
 |---|---|---|
-| App Android / iOS | nativo | nativo, limpio |
+| App Android / iOS | nativo | Android: proveedor de Credential Manager (HECHO 2026-10-16). iOS: pendiente |
 | Chrome / Edge | extensión | parche de `navigator.credentials` |
 | Safari | extensión | API de proveedor real (macOS 14+) |
 | Firefox | extensión | mismo parche, sin API |

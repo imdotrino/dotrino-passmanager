@@ -55,6 +55,8 @@ data class Entry(
     val updatedAt: Long = 0,
     /** What stayed behind: not asked for, or this device cannot open it (a passkey without the permission). */
     val withheld: List<String> = emptyList(),
+    /** The passkey, when the entry is one. Its private key only comes with `wa.privateKey` asked for. */
+    val webauthn: Passkey? = null,
 ) {
     companion object {
         val FIXED = listOf("name", "username", "secret", "totp", "notes")
@@ -81,6 +83,8 @@ data class Entry(
     fun privateKeys(): List<String> {
         val out = LinkedHashSet<String>()
         if (secret.isNotEmpty()) out.add("secret"); if (totp.isNotEmpty()) out.add("totp"); if (notes.isNotEmpty()) out.add("notes")
+        // `webauthn` is in the JS ALWAYS_PRIVATE: a passkey entry is private as a whole.
+        if (webauthn != null) out.add("webauthn")
         for (f in fields) if (f.private && f.value.isNotEmpty()) out.add(f.key)
         return out.toList()
     }

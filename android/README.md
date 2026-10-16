@@ -9,6 +9,8 @@ app/src/main/java/com/dotrino/passmanager/
   Passmanager.kt  el arranque: perfil del teléfono → bóveda
   MainActivity.kt la lista, la búsqueda y copiar
   Sheets.kt       el detalle y el editor
+  PasskeyService.kt / PasskeyActivity.kt / Passkeys.kt
+                  proveedor de passkeys del sistema (Credential Manager, Android 14+)
 app/src/debug/    SOLO depuración: arrancar contra la bóveda de prueba, con llaves en software
 ```
 
@@ -34,3 +36,19 @@ adb shell am start -n com.dotrino.passmanager/.MainActivity --es e2e "$(base64 -
 
 La pantalla lleva `FLAG_SECURE`: las capturas salen en negro. Se mira con
 `adb shell uiautomator dump`.
+
+## Passkeys
+
+La app es proveedor de credenciales del sistema (Android 14+): se activa en **Ajustes →
+Contraseñas y cuentas**. Diseño en [`../docs/DISENO.md`](../docs/DISENO.md) §6.3.
+
+Probado en el emulador contra webauthn.io, crear y entrar (2026-10-16). Para repetirlo, con la
+bóveda de prueba de arriba en marcha:
+
+```sh
+G=com.google.android.gms/com.google.android.gms.auth.api.credentials.credman.service.PasswordAndPasskeyService
+adb shell settings put secure credential_service "$G:com.dotrino.passmanager/com.dotrino.passmanager.PasskeyService"
+adb shell locksettings set-pin 1234   # sin bloqueo de pantalla, Android no deja usar passkeys
+```
+
+El QR de «usar un teléfono» (híbrido) necesita Bluetooth de verdad: no se prueba en el emulador.

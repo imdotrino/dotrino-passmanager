@@ -1,7 +1,7 @@
 // Contraseñas para Android: la versión NATIVA del gestor de contraseñas de Dotrino
 // (CONVENCIONES §16). Es un aparato del acta con el permiso `passwords` que habla `pm2.*` con la
 // bóveda: busca, copia y edita. La extensión va delante; lo que esta todavía no hace (rellenar
-// en otras apps, passkeys) está dicho en docs/DISENO.md §6.3.
+// en otras apps) está dicho en docs/DISENO.md §6.3.
 import java.io.File
 import java.util.Base64
 
@@ -41,7 +41,7 @@ android {
         applicationId = "com.dotrino.passmanager"
         minSdk = 31
         targetSdk = 36
-        versionCode = 2
+        versionCode = 3
         versionName = "0.1.0"
     }
 
@@ -76,6 +76,8 @@ android {
 
 dependencies {
     implementation("com.dotrino:dotrino-native")   // includeBuild de ../native/android
+    // El proveedor de passkeys del sistema (Credential Manager). Sin play-services: el proveedor no lo necesita.
+    implementation("androidx.credentials:credentials:1.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }

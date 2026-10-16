@@ -39,6 +39,9 @@ object PmKeys {
     /** The fingerprint of a free field's NAME: the vault matches keys without reading «cédula». */
     fun fieldIndex(kidx: ByteArray, key: String) = hmac16(kidx, "field $key")
 
+    /** A passkey's fingerprint: by the site that asks for it (`rp`) and by its credential id (`cred`). */
+    fun passkeyIndex(kidx: ByteArray, kind: String, value: String) = hmac16(kidx, "wa.$kind $value")
+
     /** A value's digest. The entry id and the field name go INSIDE: the same value twice gives two digests. */
     fun valueDigest(kcmp: ByteArray, id: String, field: String, value: String) = hmac16(kcmp, "$id $field $value")
 }

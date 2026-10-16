@@ -43,6 +43,8 @@ data class Changes(
      * not say which of the two the current one came from.
      */
     val hint: String? = null,
+    /** The passkey's new counter, after signing with it: it lives in the view (`webauthn.signCount`). */
+    val signCount: Long? = null,
 ) {
     internal fun fixed(k: String): String? = when (k) {
         "name" -> name; "username" -> username; "secret" -> secret; "totp" -> totp; "notes" -> notes; else -> null
@@ -65,6 +67,8 @@ class PmVault(
 ) {
     companion object {
         const val RECOVERY = "#recovery"
+        /** The passkey's private key: the one field wrapped to OTHER recipients (`sealed-passwords.md` §2.8). */
+        const val PASSKEY_FIELD = "wa.privateKey"
         val OPS = listOf("pm2.recipients", "pm2.profile", "pm2.views", "pm2.find", "pm2.passkey", "pm2.get", "pm2.put", "pm2.patch", "pm2.remove")
         private val json = Json { ignoreUnknownKeys = true }
         private fun isFixed(k: String) = k in Entry.FIXED || k.startsWith("wa.")
@@ -140,6 +144,15 @@ class PmVault(
     suspend fun sites(): List<Pair<String, Int>> =
         list().flatMap { it.sites }.groupingBy { it }.eachCount().toList().sortedBy { it.first }
 
+    /** The passkeys this device can see for [rpId]: views, never a key. Matched in the vault by fingerprint. */
+    suspend fun findPasskeys(rpId: String): List<View> {
+        val rp = PmKeys.passkeyIndex(keys().kidx, "rp", rpId)
+        return (request("pm2.passkey", buildJsonObject { put("rp", rp) }) as? JsonArray).orEmpty()
+            .mapNotNull { (it as? JsonObject)?.let { v -> openView(v) } }
+            // The fingerprint is a pre-filter; the site in the opened view decides.
+            .filter { (it.webauthn as? JsonObject)?.str("rpId") == rpId }
+    }
+
     /**
      * ONE entry, and only the fields asked for (`keys` = the interface's names: `username`,
      * `secret`, a free field's key). With a private one among them the vault asks for an
@@ -165,6 +178,7 @@ class PmVault(
             val value = open(env as? JsonObject ?: continue)
             when {
                 k in Entry.FIXED -> fixed[k] = value
+                k == "wa.userHandle" || k == PASSKEY_FIELD -> fixed[k] = value
                 // The field comes whole: its label, its kind, its value and its mark.
                 k.startsWith("f:") -> (try { json.parseToJsonElement(value) as? JsonObject } catch (_: Exception) { null })?.let(Field::of)?.let(free::add)
             }
@@ -174,17 +188,31 @@ class PmVault(
             name = fixed["name"] ?: "", username = fixed["username"] ?: "", secret = fixed["secret"] ?: "",
             totp = fixed["totp"] ?: "", notes = fixed["notes"] ?: "", fields = free,
             updatedAt = updatedAt, withheld = strings(got["withheld"]),
+            webauthn = (view.webauthn as? JsonObject)?.let { w ->
+                Passkey(
+                    credentialId = w.str("credentialId") ?: throw PmError("the passkey came without its credential id", "bad-entry"),
+                    rpId = w.str("rpId") ?: throw PmError("the passkey came without its site", "bad-entry"),
+                    userHandle = fixed["wa.userHandle"] ?: "", privateKey = fixed[PASSKEY_FIELD] ?: "",
+                    signCount = (w["signCount"] as? JsonPrimitive)?.longOrNull ?: 0,
+                )
+            },
         )
     }
 
     // `recoveryPub: null` is «the account has no recovery copy yet»: sealed only to the
     // devices. A MISSING key means nobody asked the vault, and that is an error.
-    private suspend fun wrapAll(cek: String): JsonObject {
+    private suspend fun wrapAll(cek: String, kind: String = "main"): JsonObject {
         val r = recipients()
         if (!r.containsKey("recoveryPub")) throw PmError("ask the vault for the recipients first", "no-recipients")
+        val members = (r[kind] as? JsonArray).orEmpty()
+        // Nobody to wrap a passkey to is not «zero recipients», it is an error: saved like that,
+        // no device could use it. Same code the vault would answer.
+        if (kind == "passkeys" && members.isEmpty()) {
+            throw PmError("no device in the account record can open passkeys: grant `passkeys` to one before saving it", "no-passkeys-device")
+        }
         val wraps = LinkedHashMap<String, JsonElement>()
         r.str("recoveryPub")?.let { wraps[RECOVERY] = Crypto.wrapForMember(cek, it) }
-        for (m in (r["main"] as? JsonArray).orEmpty()) {
+        for (m in members) {
             val o = m as? JsonObject ?: continue
             wraps[o.str("pub") ?: continue] = Crypto.wrapForMember(cek, o.str("encPub") ?: throw PmError("a device in the record has no encryption key", "no-encpub"))
         }
@@ -209,12 +237,22 @@ class PmVault(
         for (f in Entry.FIXED) e.let { it.copyFixed(f) }.takeIf { it.isNotEmpty() }?.let { fields[f] = seal(cek, it) }
         // The private mark belongs to the ENVELOPE, with its value: who opens it alone must know.
         for (f in e.fields) if (f.value.isNotEmpty()) fields["f:" + PmKeys.fieldIndex(k.kidx, f.key)] = seal(cek, f.toJson().toString())
+        // The passkey's private key goes with ITS key and its recipients (only devices with
+        // `passkeys`); the user handle, with everything else.
+        val wa = e.webauthn
+        val cekPk = if (wa != null && wa.privateKey.isNotEmpty()) Crypto.makeContentKey() else null
+        if (wa != null) {
+            if (wa.userHandle.isNotEmpty()) fields["wa.userHandle"] = seal(cek, wa.userHandle)
+            if (cekPk != null) fields[PASSKEY_FIELD] = seal(cekPk, wa.privateKey)
+        }
 
         val view = View(
             id = e.id, type = e.type, title = e.title, sites = e.sites, hint = e.who(),
             fieldKeys = e.fieldValues().map { it.first }, privateKeys = e.privateKeys(),
             hasSecret = e.secret.isNotEmpty(), hasTotp = e.totp.isNotEmpty(), hasNotes = e.notes.isNotEmpty(),
-            hasFields = e.fields.isNotEmpty(), hasWebauthn = false, webauthn = null, updatedAt = t, digests = emptyMap(),
+            hasFields = e.fields.isNotEmpty(), hasWebauthn = wa != null,
+            webauthn = wa?.let { buildJsonObject { put("rpId", it.rpId); put("credentialId", it.credentialId); put("signCount", it.signCount) } },
+            updatedAt = t, digests = emptyMap(),
         )
         val digests = LinkedHashMap<String, JsonElement>()
         for ((key, value) in e.digestValues()) digests[sealedKey(key)] = JsonPrimitive(PmKeys.valueDigest(k.kcmp, e.id, key, value))
@@ -222,19 +260,25 @@ class PmVault(
         val idx = e.sites.map { PmKeys.siteIndex(k.kidx, it) }
         val sealedView = seal(cek, view.toJson().toString())
         val priv = e.privateKeys().map { sealedKey(it) }
+        val waIdx = wa?.let { buildJsonObject {
+            put("rp", PmKeys.passkeyIndex(k.kidx, "rp", it.rpId)); put("cred", PmKeys.passkeyIndex(k.kidx, "cred", it.credentialId))
+        } }
         val body = buildJsonObject {
-            put("op", "pm.entry"); put("id", e.id); put("idx", arr(idx.sorted())); put("wa", JsonNull)
+            put("op", "pm.entry"); put("id", e.id); put("idx", arr(idx.sorted())); put("wa", waIdx ?: JsonNull)
             put("view", ref(sealedView))
             put("fields", arr(fields.keys.sorted().map { it + ":" + ref(fields.getValue(it) as JsonObject) }))
             put("digests", JsonObject(digests)); put("ts", t)
         }
         val entry = buildJsonObject {
             put("id", e.id); put("createdAt", if (e.createdAt > 0) e.createdAt else t); put("updatedAt", t)
-            put("idx", arr(idx)); put("wa", JsonNull); put("view", sealedView)
+            put("idx", arr(idx)); put("wa", waIdx ?: JsonNull); put("view", sealedView)
             put("fields", JsonObject(fields)); put("digests", JsonObject(digests)); put("priv", arr(priv))
             put("author", author(body, t))
         }
-        request("pm2.put", buildJsonObject { put("entry", entry); put("main", buildJsonObject { put("wraps", wrapAll(cek)) }) })
+        request("pm2.put", buildJsonObject {
+            put("entry", entry); put("main", buildJsonObject { put("wraps", wrapAll(cek)) })
+            if (cekPk != null) put("passkeys", buildJsonObject { put("wraps", wrapAll(cekPk, "passkeys")) })
+        })
         return view.copy(digests = digests.mapValues { (it.value as JsonPrimitive).content })
     }
 
@@ -283,6 +327,10 @@ class PmVault(
             fieldKeys = fieldKeys, privateKeys = privateKeys.toList(),
             hasSecret = hasSecret, hasTotp = hasTotp, hasNotes = hasNotes,
             hasFields = fieldKeys.any { it !in Entry.FIXED }, updatedAt = t,
+            webauthn = changes.signCount?.let { n ->
+                val w = cur.webauthn as? JsonObject ?: throw PmError("that entry has no passkey to count signatures of", "bad-entry")
+                JsonObject(w + ("signCount" to JsonPrimitive(n)))
+            } ?: cur.webauthn,
         )
 
         val fields = LinkedHashMap<String, JsonElement>()
