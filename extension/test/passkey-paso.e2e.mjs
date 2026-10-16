@@ -95,6 +95,7 @@ try {
   ok(await delNavegador() === 1, 'el autenticador del navegador no cambia')
   ok(!page.frames().some(f => f.url().includes('/src/passkey-prompt.html')), 'el aviso se cierra solo')
 
+
   // 3. Un sitio no puede pedir la passkey de otro: localhost diciendo «soy example.com».
   const ajeno = await page.evaluate(() => new Promise((resolve) => {
     addEventListener('message', (e) => { if (e.data?.channel === 'dotrino-passmanager:webauthn:res' && e.data.id === 'x1') resolve(e.data) })

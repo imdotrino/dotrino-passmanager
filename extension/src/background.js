@@ -163,7 +163,9 @@ const RECOVERY_OF = (id) => `passmanager/recovery/${id}`
  * una bóveda que ni ella puede abrir (`not-yours` al pedir la llave del perfil).
  */
 async function ownRecipientsOf (kind) {
-  const cap = kind === 'passkeys' ? 'passkeys' : 'passwords'
+  // Las dos generaciones (la normal y la de las passkeys) van a los mismos: `passwords`
+  // cubre también las passkeys desde 2026-10-16.
+  const cap = 'passwords'
   const { members } = await (await identityCore()).handlers.profileMembers({})
   const lista = (members || [])
     .filter((m) => m.encPub && ((m.caps || []).includes(cap) || m.isMe))
@@ -953,9 +955,10 @@ async function webauthnGet (p, sender) {
       challenge: p.challenge,
     })
     // El contador tiene que subir en la bóveda: si se queda quieto, el servidor
-    // sospecha que la credencial está clonada.
+    // sospecha que la credencial está clonada. Va por `patch` y no reescribiendo la
+    // entrada: reescribirla es reemplazar la passkey, y eso pide aprobación.
     forgetFinds()
-    await v.put({ ...entrada, webauthn: { ...entrada.webauthn, signCount } })
+    await v.patch(meta.id, { signCount })
     return response
   }
   throw new VaultError(CODES.NOT_FOUND, 'ninguna passkey sirve para lo que pide el sitio')
