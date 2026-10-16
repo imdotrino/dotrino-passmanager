@@ -96,6 +96,34 @@ try {
   ok(!page.frames().some(f => f.url().includes('/src/passkey-prompt.html')), 'el aviso se cierra solo')
 
 
+  // 3. ENTRAR con la passkey de Dotrino se ENSEÑA: sale el aviso de entrada (puede haber
+  // que aprobar en el teléfono) con «Usar el navegador». Antes se esperaba sin decir nada y
+  // el botón del sitio «no hacía nada».
+  const entrando = page.evaluate(async () => {
+    try {
+      const c = await navigator.credentials.get({ publicKey: {
+        rpId: 'localhost', challenge: crypto.getRandomValues(new Uint8Array(32)), userVerification: 'preferred',
+      } })
+      return c ? { id: c.id } : null
+    } catch (e) { return { error: String(e) } }
+  })
+  let marco = null
+  for (let i = 0; i < 100 && !marco; i++) {
+    marco = page.frames().find(f => f.url().includes('/src/passkey-prompt.html'))
+    if (!marco) await page.waitForTimeout(100)
+  }
+  ok(!!marco, 'entrar enseña el aviso de Dotrino')
+  if (marco) {
+    await marco.waitForSelector('[data-testid=passkey-prompt-dismiss]', { timeout: 10000 })
+    const titulo = await marco.textContent('#title')
+    ok(/Entrando|Signing in/.test(titulo), 'y dice que está entrando: ' + titulo)
+    // Puede que la bóveda ya haya contestado (aquí nadie aprueba): el botón sigue sirviendo
+    // para cerrar. Se pulsa si está.
+    await marco.click('[data-testid=passkey-prompt-dismiss]').catch(() => {})
+  }
+  const resultado = await entrando
+  ok(!!resultado?.id, 'y la página no se queda colgada: entra el navegador (' + JSON.stringify(resultado) + ')')
+
   // 3. Un sitio no puede pedir la passkey de otro: localhost diciendo «soy example.com».
   const ajeno = await page.evaluate(() => new Promise((resolve) => {
     addEventListener('message', (e) => { if (e.data?.channel === 'dotrino-passmanager:webauthn:res' && e.data.id === 'x1') resolve(e.data) })

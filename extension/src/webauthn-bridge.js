@@ -17,7 +17,7 @@ window.addEventListener('message', (e) => {
   chrome.runtime.sendMessage({ op: e.data.op, payload: e.data.payload }, (r) => {
     const fallo = chrome.runtime.lastError || r?.error
     // Crear terminó: el aviso sobra, salvo si se queda enseñando por qué falló el guardado.
-    if (e.data.op === 'webauthn-create' && (!fallo || r?.error?.code === 'use-browser')) { avisoPasskey?.host.remove(); avisoPasskey = null }
+    if ((e.data.op === 'webauthn-create' || e.data.op === 'webauthn-get') && (!fallo || r?.error?.code === 'use-browser')) { avisoPasskey?.host.remove(); avisoPasskey = null }
     window.postMessage({
       channel: RESPONDE,
       id: e.data.id,

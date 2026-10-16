@@ -61,7 +61,18 @@ $('save').onclick = async () => {
 try {
   const o = await ask('passkey-offer', { req })
   $('who').textContent = t(lang, 'pkFor', o.rpName && o.rpName !== o.rpId ? `${o.rpName} (${o.rpId})` : o.rpId, o.userName)
-  $('save').disabled = false
-  $('save').focus()
+  if (o.mode === 'get') {
+    // ENTRAR: no hay nada que elegir, solo esperar —quizá una aprobación en el teléfono— y
+    // poder irse al navegador. Lo que no se hace es esperar sin decirlo.
+    $('title').textContent = t(lang, 'pkGetTitle')
+    $('why').textContent = t(lang, 'pkGetWhy')
+    $('save').hidden = true
+    $('no').textContent = t(lang, 'pkUseBrowser')
+    resize()
+    try { await ask('passkey-wait', { req }); close() } catch (e) { fail(e) }
+  } else {
+    $('save').disabled = false
+    $('save').focus()
+  }
 } catch (e) { fail(e) }
 resize()

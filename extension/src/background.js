@@ -875,7 +875,7 @@ async function webauthnCreate (p, sender) {
   let decide, finish
   const choice = new Promise(r => { decide = r })
   const done = new Promise(r => { finish = r })
-  offers.set(req, { rpId, rpName: p.rpName || '', userName: p.userName || '', decide, done })
+  offers.set(req, { mode: 'create', rpId, rpName: p.rpName || '', userName: p.userName || '', decide, done })
   let timer
   try {
     // El aviso va al marco de arriba: dentro de un iframe pequeño no se vería.
@@ -897,7 +897,16 @@ async function webauthnCreate (p, sender) {
 function passkeyOffer ({ req } = {}) {
   const o = offers.get(req)
   if (!o) throw Object.assign(new Error('that passkey request is gone'), { code: CODES.NOT_FOUND })
-  return { rpId: o.rpId, rpName: o.rpName, userName: o.userName }
+  return { mode: o.mode, rpId: o.rpId, rpName: o.rpName, userName: o.userName }
+}
+
+/** El aviso de ENTRAR espera aquí a que termine, para cerrarse o decir por qué falló. */
+async function passkeyWait ({ req } = {}) {
+  const o = offers.get(req)
+  if (!o) return { ok: true }   // ya terminó y se cerró
+  const r = await o.done
+  if (r.error) throw r.error
+  return { ok: true }
 }
 
 /** La respuesta del aviso. Con «Dotrino» espera a que se guarde, para enseñar el error si lo hay. */
@@ -934,10 +943,37 @@ async function createPasskey (p) {
   return response
 }
 
+/**
+ * ENTRAR CON UNA PASSKEY DE DOTRINO, Y DECIRLO. Abrir la llave es leer algo privado: la
+ * bóveda puede pedir aprobación en el teléfono y tardar lo que tarde la persona. Antes se
+ * esperaba sin enseñar nada y el botón del sitio «no hacía nada» (dueño, 2026-10-16). Ahora
+ * sale el aviso de la extensión mientras tanto, con «Usar el navegador» para salir.
+ */
 async function webauthnGet (p, sender) {
   // El sitio y el origen, del remitente: ver `passkeyCaller`.
   const { rpId, origin } = passkeyCaller(p.rpId, sender)
   p = { ...p, rpId, origin }
+  if (!sender?.tab?.id) throw Object.assign(new Error('passkeys: no tab to ask in'), { code: CODES.DENIED })
+  const req = crypto.randomUUID()
+  let decide, finish
+  const choice = new Promise(r => { decide = r })
+  const done = new Promise(r => { finish = r })
+  offers.set(req, { mode: 'get', rpId, rpName: '', userName: '', decide, done })
+  try {
+    await chrome.tabs.sendMessage(sender.tab.id, { op: 'dotrino-passkey-prompt', req }, { frameId: 0 })
+    const work = signPasskey(p).then((response) => ({ response }), (error) => ({ error }))
+    const r = await Promise.race([work, choice.then(() => ({ browser: true }))])
+    if (r.browser) throw Object.assign(new Error('the person chose the browser'), { code: 'use-browser' })
+    if (r.error) { finish({ error: r.error }); throw r.error }
+    finish({ ok: true })
+    return r.response
+  } finally {
+    // Un rato más, por si el aviso pregunta cómo acabó después de que acabara.
+    setTimeout(() => offers.delete(req), 30_000)
+  }
+}
+
+async function signPasskey (p) {
   const v = await connect()
   const candidatas = await v.find(`https://${p.rpId}/`)
 
@@ -1925,6 +1961,7 @@ const OPS = {
   // Del aviso de la extensión (no de la página): qué se ofrece y qué eligió la persona.
   'passkey-offer': passkeyOffer,
   'passkey-choose': passkeyChoose,
+  'passkey-wait': passkeyWait,
   link: p => link(p),
   unlink,
   profiles: listProfiles,

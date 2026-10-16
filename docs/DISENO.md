@@ -1855,6 +1855,11 @@ Antes se decidía en silencio: primero todo a Dotrino (y el gestor de Google no 
 luego solo si el sitio ya estaba en Dotrino (y no había forma de elegir Dotrino en un sitio
 nuevo). Entrar no pregunta: si hay passkey del sitio en Dotrino, se usa; si no, el navegador.
 
+**Entrar SE ENSEÑA** (dueño, 2026-10-16). Abrir la llave de una passkey es leer algo privado
+y la bóveda puede pedir aprobación en el teléfono: mientras tanto sale el aviso «Entrando con
+tu passkey de Dotrino», con «Usar el navegador» para salir. Antes se esperaba sin enseñar nada
+y el botón del sitio «no hacía nada».
+
 **El sitio que pide lo dice el REMITENTE, no el mensaje.** `rpId` y origen salen de
 `sender.origin` y el `rpId` tiene que ser ese host o un dominio padre (`passkeyCaller`).
 Hasta la 0.50.0 se tomaban del mensaje de la página, y un sitio cualquiera podía pedir la
