@@ -205,7 +205,17 @@ Hasta convertir, la mesa **no entrega** y lo dice con un código que se pueda bu
 (`passwords-not-sealed: open the vault to convert`). Nada de servir con la llave vieja «mientras
 tanto»: eso es el agujero con otro nombre.
 
-### 2.8. Las passkeys, detrás de su propio permiso
+### 2.8. Las passkeys, detrás de su propio permiso — FUSIONADO en `passwords` (2026-10-16)
+
+> **Derogado por el dueño el 2026-10-16:** *«fusiona contraseñas y passkey en solo contraseñas
+> para los permisos, realmente deberían ser uno solo»*. El permiso `passkeys` ya no existe
+> (`@dotrino/identity` ≥ 0.118.0); los aparatos con `passwords` abren también las passkeys. Lo
+> que distingue a una passkey es la **política**, como en `dotrino-env`: **añadirla es directo**,
+> **reemplazarla o borrarla pide aprobación** (`SealedResponder.replacesPasskey`), y subir su
+> contador no es reemplazarla. El formato no cambia: la privada sigue en su **generación aparte**
+> (`kind: 'passkeys'`), que ahora se envuelve a los mismos aparatos que la normal; un acta vieja
+> que todavía nombre `passkeys` se lee igual (el permiso desconocido se ignora). Lo de abajo es
+> la historia de cómo era.
 
 Una passkey es una **llave privada** que firma el reto de un sitio para entrar sin contraseña.
 Se guarda en una entrada como cualquier otro campo, pero no se parece a una contraseña: si
@@ -295,9 +305,8 @@ Cuatro cosas que el diseño no traía y hubo que resolver escribiendo el código
   es a propósito: son un vocabulario cerrado, idéntico en todas las entradas de todo el
   mundo, así que no dicen nada de nadie — y son los que dejan a la bóveda aplicar su propia
   regla (*una contraseña es privada siempre*) sin fiarse de una lista que escribe el aparato.
-- **Una passkey que ningún aparato podría abrir NO se guarda.** Si no hay nadie con
-  `passkeys`, quedaría viva solo para la frase del perfil: no se pierde, pero no sirve, y eso
-  se descubre el día que hace falta. Se para con `no-passkeys-device`.
+- **Una passkey que NADIE podría abrir nunca NO se guarda**: sin ningún aparato con
+  `passwords` y sin copia de recuperación (`no-passkeys-device`). Con la copia basta.
 - **La bóveda de la extensión es la excepción a «la bóveda nunca está entre los
   destinatarios»**, y conviene decir por qué no es un descuido: esa regla existe porque hay
   alguien MÁS a quien entregarle lo suyo. En la extensión ese alguien es ella misma. Lo que

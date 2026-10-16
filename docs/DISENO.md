@@ -1785,7 +1785,8 @@ entra desde el navegador, y al revés (`BridgeTest`). Lo que hace:
   la app: preguntarla en cada uso sería avisar a Google de cada inicio de sesión) y si el
   sitio cuadra con el origen que da. Una app, solo si el `assetlinks.json` del sitio la nombra.
 - **Se guarda ANTES de contestar al sitio**, como en la extensión, y la privada va en su
-  generación aparte (§2.8): sin ningún aparato con `passkeys` en el acta no se crea.
+  generación aparte (§2.8), para los mismos aparatos con `passwords` (el permiso `passkeys` se
+  fusionó en ese el 2026-10-16). Añadirla es directo; reemplazarla o borrarla pide aprobación.
 - **Abrir la llave es leer algo privado**: la bóveda pide aprobación si el aparato no es
   desatendido. El contador sube en la bóveda antes de contestar.
 - **El servicio solo lista, y tiene prisa**: si la bóveda no contesta en 4 s, ofrece «Abrir
