@@ -417,6 +417,32 @@ async function openAskWindow () {
 
 chrome.windows.onRemoved.addListener(id => { if (id === askWindow) askWindow = null })
 
+/**
+ * LA BÓVEDA ENLAZADA TARDA: casi siempre es que pidió tu aprobación en el teléfono. La
+ * pregunta sale allí, no aquí, así que lo único que se puede hacer desde la extensión es
+ * DECIRLO: cada pantalla abierta enseña qué hacer mientras quede alguna petición lenta.
+ * Una respuesta normal llega antes del umbral y no enseña nada.
+ */
+const REMOTE_WAIT_MS = 1500
+let remoteSlow = 0
+
+function tellRemoteWait (h) {
+  const m = { t: 'remote-wait', on: remoteSlow > 0 }
+  for (const x of h ? [h] : askHosts) { try { x.port.postMessage(m) } catch (_) {} }
+}
+
+function watchSlowRequests (tr) {
+  const request = tr.request.bind(tr)
+  tr.request = (op, payload) => {
+    let slow = false
+    const timer = setTimeout(() => { slow = true; remoteSlow++; tellRemoteWait() }, REMOTE_WAIT_MS)
+    const end = () => { clearTimeout(timer); if (slow) { remoteSlow--; tellRemoteWait() } }
+    const p = request(op, payload)
+    p.then(end, end)
+    return p
+  }
+}
+
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== APPROVAL_PORT) return
   const h = { port, visible: true, standalone: false }
@@ -426,6 +452,7 @@ chrome.runtime.onConnect.addListener(port => {
     if (m?.t === 'hello' || m?.t === 'visible') {
       h.visible = m.visible !== false
       if (m.t === 'hello') h.standalone = !!m.standalone
+      if (m.t === 'hello' && remoteSlow > 0) tellRemoteWait(h)
       // Solo recoge lo que NO tiene dónde dibujarse: es cómo llega la pregunta a la
       // ventana recién abierta. Lo que ya está en pantalla se queda donde está — moverlo
       // dejaría la pregunta pintada en un sitio y contestándose en otro.
@@ -729,6 +756,7 @@ async function connect () {
     peerPubkey: v.master,
     peerEncPub,
   })
+  watchSlowRequests(transport)
   // LA BÓVEDA YA NO ABRE NADA: guarda sobres dirigidos a este aparato, y abrirlos es cosa
   // de aquí (`docs/sealed-passwords.md`). Por eso `SealedVault` y no `RemoteVault` — cumple
   // el mismo contrato (`find`, `get`, `put`, `patch`, `search`, `sites`), así que nada de

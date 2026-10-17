@@ -45,6 +45,15 @@ const CSS = `
 }
 .pm-ask button.pm-yes { background: #00658c; border-color: #00658c; color: #fff; font-weight: 600; }
 .pm-ask button:focus-visible { outline: 2px solid #4cc2ff; outline-offset: 1px; }
+.pm-wait {
+  position: fixed; left: 8px; right: 8px; top: 8px; z-index: 2147483646;
+  background: #00658c; color: #fff; border-radius: 10px; padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.pm-wait b { display: block; font-size: .9rem; margin-bottom: 4px; }
+.pm-wait p { margin: 0; font-size: .82rem; }
+.pm-wait small { display: block; margin-top: 6px; font-size: .72rem; opacity: .8; }
 `
 
 /**
@@ -77,10 +86,12 @@ export function hostApprovals ({ resize, standalone, onAnswer } = {}) {
       if (m?.t === 'ask') draw(m.rid, m.q || {})
       // La misma pregunta contestada en otra pantalla: esta se quita sin decir nada.
       if (m?.t === 'done' && abierta?.rid === m.rid) drop()
+      // La bóveda ENLAZADA tarda en contestar: se dice qué hacer, mientras dure.
+      if (m?.t === 'remote-wait') showWait(!!m.on)
     })
     // Si el worker se duerme y el puerto cae, se vuelve a enchufar: una pantalla abierta
     // que ya no puede recibir la pregunta deja la bóveda esperando a nadie.
-    port.onDisconnect.addListener(() => { port = null; drop(); setTimeout(connect, 400) })
+    port.onDisconnect.addListener(() => { port = null; drop(); showWait(false); setTimeout(connect, 400) })
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -93,6 +104,39 @@ export function hostApprovals ({ resize, standalone, onAnswer } = {}) {
     abierta?.back?.remove()
     abierta = null
     if (document.body) document.body.style.minHeight = ''
+    resize?.()
+  }
+
+  /**
+   * EL AVISO DE ESPERA de la bóveda enlazada. Allí la pregunta sale en el teléfono, no aquí,
+   * y lo único que se veía era «Esperando a tu bóveda…» —o nada, al rellenar—: el usuario
+   * no sabía que tenía que aprobar ni dónde. No bloquea: solo dice qué hacer.
+   */
+  let espera = null
+  function showWait (on) {
+    if (!on) {
+      if (!espera) return
+      espera.remove(); espera = null
+      if (document.body && !abierta) document.body.style.minHeight = ''
+      resize?.()
+      return
+    }
+    if (espera || !document.body) return
+    espera = document.createElement('div')
+    espera.className = 'pm-wait'
+    espera.setAttribute('role', 'status')
+    espera.setAttribute('aria-live', 'polite')
+    espera.setAttribute('data-testid', 'approval-wait')
+    const h = document.createElement('b')
+    h.textContent = t(lang, 'waitApprovalTitle')
+    const p = document.createElement('p')
+    p.textContent = t(lang, 'waitApprovalBody')
+    const nota = document.createElement('small')
+    nota.textContent = t(lang, 'waitApprovalNote')
+    espera.append(h, p, nota)
+    document.body.appendChild(espera)
+    // Un iframe pequeño (el modal de un campo) recorta el aviso: se pide sitio y se mide.
+    if (!abierta) document.body.style.minHeight = '160px'
     resize?.()
   }
 
