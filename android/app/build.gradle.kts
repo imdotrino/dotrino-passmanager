@@ -41,7 +41,7 @@ android {
         applicationId = "com.dotrino.passmanager"
         minSdk = 31
         targetSdk = 36
-        versionCode = 11
+        versionCode = 12
         versionName = "0.1.0"
     }
 
@@ -60,7 +60,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8: quita lo que no se usa y renombra (Play mide la «ofuscación»). Las reglas de la
+            // librería vienen con dotrino-native (consumer-rules.pro).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             if (uploadKey != null) signingConfig = signingConfigs.getByName("release")
         }
     }
