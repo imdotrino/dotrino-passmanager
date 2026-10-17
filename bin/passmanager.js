@@ -49,8 +49,17 @@ const PASSWORDS_CAP = 'passwords'
 
 // --- almacén en disco --------------------------------------------------------
 
+// Solo «no existe todavía» es una bóveda vacía. Un archivo que no se lee o no se parsea
+// se para: devolver {} haría que el siguiente set() lo sobrescribiera con casi nada.
 async function loadAll () {
-  try { return JSON.parse(await readFile(FILE, 'utf8')) } catch { return {} }
+  let raw
+  try { raw = await readFile(FILE, 'utf8') } catch (e) {
+    if (e?.code === 'ENOENT') return {}
+    throw e
+  }
+  try { return JSON.parse(raw) } catch (e) {
+    throw Object.assign(new Error(`passmanager: ${FILE} is not valid JSON (${e.message})`), { code: 'store-corrupt' })
+  }
 }
 
 let cache = null
