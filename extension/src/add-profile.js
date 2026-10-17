@@ -10,13 +10,8 @@
 // pantalla sirve en una ventana de 400px y en una pestaña entera.
 
 import { t } from './i18n.js'
+import { el } from './page.js'
 
-function el (tag, props = {}, children = []) {
-  const n = Object.assign(document.createElement(tag), props)
-  for (const [k, v] of Object.entries(props)) if (k.includes('-')) { delete n[k]; n.setAttribute(k, v) }
-  for (const c of [].concat(children)) if (c) n.append(c)
-  return n
-}
 
 /**
  * CONECTAR OTRA BÓVEDA. No es la puerta de entrada de nada: la extensión ya tiene la

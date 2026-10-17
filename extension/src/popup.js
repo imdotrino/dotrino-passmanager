@@ -16,6 +16,7 @@ import { renderAdd, renderLink } from './add-profile.js'
 // se copia o se rellena desde aquí): la pregunta sale AQUÍ, no en una ventana suelta, que
 // cerraría el popup y con él lo que estabas haciendo.
 import { hostApprovals } from './approval.js'
+import { askWorker as ask, el, makeToast } from './page.js'
 
 hostApprovals()
 
@@ -27,24 +28,8 @@ let lang = pickLang()
 const view = document.getElementById('view')
 const toastEl = document.getElementById('toast')
 
-function ask (op, payload) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ op, payload }, r => {
-      if (chrome.runtime.lastError) return reject(Object.assign(new Error(chrome.runtime.lastError.message), { code: 'no-worker' }))
-      if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-      resolve(r?.result)
-    })
-  })
-}
 
-let toastTimer
-function toast (text, kind) {
-  toastEl.textContent = text
-  toastEl.dataset.kind = kind || 'ok'
-  toastEl.hidden = false
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toastEl.hidden = true }, 2600)
-}
+const toast = makeToast(toastEl)
 
 /** Los errores se comparan por código: el texto está traducido (`errorText`). */
 const humanError = (e) => errorText(lang, e)
@@ -56,15 +41,6 @@ const humanError = (e) => errorText(lang, e)
  * enlazar llevaban así desde el principio y no se notó porque nunca hubo una prueba que
  * llegara hasta ahí (2026-08-29).
  */
-function el (tag, props = {}, children = []) {
-  const n = document.createElement(tag)
-  for (const [k, v] of Object.entries(props)) {
-    if (k.startsWith('data-') || k === 'aria-label') n.setAttribute(k, v)
-    else n[k] = v
-  }
-  for (const c of [].concat(children)) if (c) n.append(c)
-  return n
-}
 
 async function currentUrl () {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })

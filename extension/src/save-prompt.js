@@ -15,6 +15,7 @@
 import { t, pickLang, kindLabel, errorText } from './i18n.js'
 import { hostApprovals } from './approval.js'
 import { mountAccountSwitch } from './account-switch.js'
+import { askWorker as ask } from './page.js'
 
 const lang = pickLang()
 
@@ -32,13 +33,6 @@ document.documentElement.lang = lang
 $('save').textContent = t(lang, 'save')
 $('no').textContent = t(lang, 'notNow')
 
-const ask = (op, payload) => new Promise((resolve, reject) => {
-  chrome.runtime.sendMessage({ op, payload }, (r) => {
-    if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
-    if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-    resolve(r?.result)
-  })
-})
 
 const post = (msg) => { try { window.parent.postMessage({ _dotrino: msg.op, ...msg }, '*') } catch (_) {} }
 

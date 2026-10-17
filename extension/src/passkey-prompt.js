@@ -6,6 +6,7 @@
 // al navegador como siempre (dueño, 2026-10-16).
 
 import { t, pickLang, errorText } from './i18n.js'
+import { askWorker as ask } from './page.js'
 
 const lang = pickLang()
 const $ = (id) => document.getElementById(id)
@@ -17,13 +18,6 @@ $('why').textContent = t(lang, 'pkWhy')
 $('save').textContent = t(lang, 'pkSave')
 $('no').textContent = t(lang, 'notNow')
 
-const ask = (op, payload) => new Promise((resolve, reject) => {
-  chrome.runtime.sendMessage({ op, payload }, (r) => {
-    if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
-    if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-    resolve(r?.result)
-  })
-})
 
 const post = (msg) => { try { window.parent.postMessage(msg, '*') } catch (_) {} }
 const close = () => post({ _dotrino: 'close-passkey-prompt' })

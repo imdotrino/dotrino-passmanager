@@ -17,12 +17,8 @@
 import { t, fieldLabel } from './i18n.js'
 import { siteLabel, siteTitle } from './sites.js'
 import { entryFieldValues } from './vendor/passmanager/fields.js'
+import { el } from './page.js'
 
-function el (tag, props = {}, children = []) {
-  const n = Object.assign(document.createElement(tag), props)
-  for (const c of [].concat(children)) if (c) n.append(c)
-  return n
-}
 
 /**
  * EL AVISO DE LA CONTRASEÑA DE RECUPERACIÓN, el mismo en el popup y en el gestor. Es un

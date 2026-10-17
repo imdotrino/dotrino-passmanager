@@ -23,6 +23,7 @@ import { client as opaque, server as opaqueServer } from './opaque-bridge.js'
 import { makeDeviceKey, makeDeviceEncKey } from './vendor/identity/capabilities.js'
 import { identitySealing } from './vendor/passmanager/transport/sealed.js'
 import { isRequest } from './vendor/passmanager/transport/protocol.js'
+import { askWorker as alWorker } from './page.js'
 
 const LEGACY_KEY = (pid) => `logins/${pid}`
 
@@ -34,15 +35,6 @@ const LEGACY_KEY = (pid) => `logins/${pid}`
 const PROXY_URL = 'wss://proxy.dotrino.com'
 
 /** Lo que hace falta de la identidad, preguntándoselo al worker. Una llamada, una respuesta. */
-function alWorker (op, payload = {}) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ op, payload }, (r) => {
-      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
-      if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-      resolve(r?.result)
-    })
-  })
-}
 
 /**
  * EL NÚCLEO DE IDENTIDAD VISTO DESDE AQUÍ. Tiene la forma del de verdad (`handlers`, `me`,

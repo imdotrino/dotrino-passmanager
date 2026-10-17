@@ -16,6 +16,7 @@ import { pickLang, t, errorText } from './i18n.js'
 import { wireTopbar } from './profile-card.js'
 import { hostApprovals } from './approval.js'
 import * as logins from './logins.js'
+import { askWorker as ask } from './page.js'
 
 hostApprovals()
 
@@ -28,13 +29,6 @@ const el = (tag, props = {}, children = []) => {
   return n
 }
 
-const ask = (op, payload) => new Promise((resolve, reject) => {
-  chrome.runtime.sendMessage({ op, payload }, (r) => {
-    if (chrome.runtime.lastError) return reject(new Error('unreachable'))
-    if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-    resolve(r?.result)
-  })
-})
 
 /** Qué pasa con las contraseñas: a cuántos aparatos se les atienden, o por qué no. */
 function pintaClaves (nodo, pw) {

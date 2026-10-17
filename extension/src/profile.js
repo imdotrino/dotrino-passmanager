@@ -9,6 +9,7 @@ import { profileCard, wireTopbar } from './profile-card.js'
 import { pickLang, t, errorText } from './i18n.js'
 import { renderAdd, renderLink } from './add-profile.js'
 import { hostApprovals } from './approval.js'
+import { askWorker as ask } from './page.js'
 
 // La bóveda puede preguntar mientras esta pestaña está delante: la pregunta sale aquí,
 // como en el resto de pantallas de la extensión.
@@ -17,15 +18,6 @@ hostApprovals()
 const lang = pickLang()
 document.documentElement.lang = lang
 
-function ask (op, payload) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ op, payload }, (r) => {
-      if (chrome.runtime.lastError) return reject(Object.assign(new Error(chrome.runtime.lastError.message), { code: 'no-worker' }))
-      if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-      resolve(r?.result)
-    })
-  })
-}
 
 const view = document.getElementById('view')
 

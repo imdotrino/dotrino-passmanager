@@ -9,12 +9,8 @@
 // en el popup. La pieza lo admite (`onAdd`), y quien no lo pase no enseña el `+`.
 
 import { t } from './i18n.js'
+import { el } from './page.js'
 
-function el (tag, props = {}, children = []) {
-  const n = Object.assign(document.createElement(tag), props)
-  for (const c of [].concat(children)) if (c) n.append(c)
-  return n
-}
 
 /**
  * @param {object} ctx   `{ lang, ask, toast, humanError, onChanged }`

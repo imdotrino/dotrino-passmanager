@@ -20,6 +20,7 @@
 import { t, pickLang, kindLabel, errorText } from './i18n.js'
 import { hostApprovals } from './approval.js'
 import { mountAccountSwitch } from './account-switch.js'
+import { askWorker as ask } from './page.js'
 // El generador de la librería, el MISMO que usa la CLI: aleatoriedad de
 // `crypto.getRandomValues` y elección sin sesgo. Escribir otro aquí sería tener dos ideas
 // distintas de qué es una contraseña generada (CLAUDE.md, «si falta una característica»).
@@ -37,13 +38,6 @@ const close = () => post({ op: 'close-field-modal' })
 const resize = () => requestAnimationFrame(() =>
   post({ op: 'size-field-modal', h: Math.ceil(document.documentElement.getBoundingClientRect().height) + 2 }))
 
-const ask = (op, payload) => new Promise((resolve, reject) => {
-  chrome.runtime.sendMessage({ op, payload }, (r) => {
-    if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
-    if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-    resolve(r?.result)
-  })
-})
 
 // Rellenar un campo saca algo de la bóveda, y la bóveda pregunta antes (§3.3.1). Se
 // dibuja DENTRO de este iframe a propósito: una ventana aparte quitaría el foco, el modal

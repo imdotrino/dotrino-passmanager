@@ -33,6 +33,7 @@ import { hostApprovals } from './approval.js'
 // OPAQUE vive en una página sandbox —que un worker no puede embeber— y el socket aguanta lo
 // que aguante esta pestaña, que es mucho más que los 30 s de un worker.
 import * as logins from './logins.js'
+import { askWorker as ask, el, makeToast } from './page.js'
 
 hostApprovals()
 
@@ -45,33 +46,12 @@ const toastEl = document.getElementById('toast')
 const BUILTIN = ['username', 'secret', 'totp', 'notes']
 const SIEMPRE_PRIVADOS = ['secret', 'totp', 'notes']
 
-function ask (op, payload) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ op, payload }, r => {
-      if (chrome.runtime.lastError) return reject(Object.assign(new Error(chrome.runtime.lastError.message), { code: 'no-worker' }))
-      if (r?.error) return reject(Object.assign(new Error(r.error.message || r.error.code), { code: r.error.code }))
-      resolve(r?.result)
-    })
-  })
-}
 
-let toastTimer
-function toast (text, kind) {
-  toastEl.textContent = text
-  toastEl.dataset.kind = kind || 'ok'
-  toastEl.hidden = false
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toastEl.hidden = true }, 2600)
-}
+const toast = makeToast(toastEl)
 
 /** Los errores se comparan por código: el texto está traducido (`errorText`). */
 const humanError = (e) => errorText(lang, e)
 
-function el (tag, props = {}, children = []) {
-  const n = Object.assign(document.createElement(tag), props)
-  for (const c of [].concat(children)) if (c) n.append(c)
-  return n
-}
 
 const hostOf = (u) => { try { return new URL(u).hostname } catch { return '' } }
 
