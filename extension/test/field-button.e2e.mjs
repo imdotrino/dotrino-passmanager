@@ -10,7 +10,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 // `PLAYWRIGHT` puede apuntar a un archivo (el paquete de otro repo), y por ahí Playwright
 // llega como CommonJS: `chromium` viene colgado del `default`, no como export con nombre.
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
@@ -25,7 +25,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   viewport: { width: 720, height: 700 },
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
 const id = new URL(sw.url()).host
@@ -35,10 +35,10 @@ const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =
   chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
 
 // Lo primero, como un usuario: esta bóveda no atiende hasta convertirse (§2.7).
-await convertirBoveda(pedir)
+await convertVault(pedir)
 
 const page = await ctx.newPage()
-page.on('pageerror', (e) => console.log('   [error de página]', e.message))
+page.on('pageerror', (e) => console.log('   [page error]', e.message))
 
 /** Lo que el gestor ofrece en unos campos, preguntado como lo hace la página. */
 const que = async (campos) => (await pedir('offers', { url: page.url(), fields: campos }))?.result || []
@@ -202,7 +202,7 @@ try {
     'and the others are not')
   await m.locator('[data-testid=field-modal-fill-all]').click()
   // Son datos PÚBLICOS: no se pide permiso para escribir tu nombre en el formulario donde
-  // lo acabas de teclear (dueño, 2026-08-29). Lo privado sí — ver `reemplazos.e2e.mjs`.
+  // lo acabas de teclear (dueño, 2026-08-29). Lo privado sí — ver `replacements.e2e.mjs`.
   ok(!(await autorizar(m, 2000)), 'rellenar datos públicos no pide autorización')
   await page.waitForTimeout(1200)
   ok(!page.frames().some((x) => x.url().includes('field-modal.html')), '"fill all" closes the modal')
@@ -261,7 +261,7 @@ try {
     await m2.locator('[data-testid=field-modal-private-city]').check()
     await m2.locator('[data-testid=field-modal-save-city]').click()
     // Guardar NO pide autorización: la bóveda fusiona sobre lo suyo (`patch`) y no sale
-    // ni un valor. Lo comprueba de cerca `reemplazos.e2e.mjs`.
+    // ni un valor. Lo comprueba de cerca `replacements.e2e.mjs`.
     await page.waitForTimeout(1500)
   }
   console.log('\ny cuando ya existe, el botón dice reemplazar')
@@ -565,5 +565,5 @@ try {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })
 }
-console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
+console.log(fallos.length ? `\n${fallos.length} FAILURE(S)` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

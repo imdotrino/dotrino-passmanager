@@ -877,7 +877,7 @@ sitio— son **dos entradas**. Es el caso normal, no el raro: dos cuentas del mi
 el mismo sitio, una de trabajo y otra personal; dos fichas de datos con el mismo nombre.
 Nada las junta, y tocar una no toca la otra.
 
-Lo que sale de ahí, y está probado (`lib/test/parche.test.js`, sección «identidad»):
+Lo que sale de ahí, y está probado (`lib/test/patch.test.js`, sección «identidad»):
 
 - **el `id` es un UUID y no se enseña nunca.** Lo que se enseña es el nombre visible, que
   se calcula del contenido (§5) y por tanto puede repetirse. Que dos filas se lean igual no
@@ -1864,7 +1864,7 @@ y el botón del sitio «no hacía nada».
 `sender.origin` y el `rpId` tiene que ser ese host o un dominio padre (`passkeyCaller`).
 Hasta la 0.50.0 se tomaban del mensaje de la página, y un sitio cualquiera podía pedir la
 firma de la passkey de otro diciendo que era él (arreglado en la 0.51.0; lo cubre
-`test/passkey-paso.e2e.mjs`).
+`test/passkey-step.e2e.mjs`).
 
 Y la regla que lo hace seguro de usar: **si el gestor no puede, manda el navegador.**
 Cualquier fallo —sin bóveda, sin passkey, sin respuesta— cae al `navigator.credentials`

@@ -142,4 +142,4 @@ await pop.screenshot({ path: `${OUT}/4-popup-crudo.png` })
 
 await ctx.close()
 await rm(perfil, { recursive: true, force: true })
-console.log('capturas listas')
+console.log('screenshots ready')

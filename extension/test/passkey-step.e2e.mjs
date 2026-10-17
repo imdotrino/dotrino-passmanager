@@ -7,13 +7,13 @@
 // mira quién se queda con la llave en cada salida. Y una más: un sitio no puede pedir una
 // passkey de OTRO sitio diciendo que es él (el origen sale del remitente, no del mensaje).
 //
-//   node test/passkey-paso.e2e.mjs
+//   node test/passkey-step.e2e.mjs
 import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
 
@@ -30,7 +30,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   args: ['--headless=new', `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, '--no-sandbox'],
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 try {
   const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
@@ -39,7 +39,7 @@ try {
   await ext.goto(`chrome-extension://${id}/src/popup.html`)
   const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
-  await convertirBoveda(pedir)
+  await convertVault(pedir)
 
   const page = await ctx.newPage()
   await page.goto(SITE)
@@ -137,5 +137,5 @@ try {
   await rm(perfil, { recursive: true, force: true })
 }
 
-if (fallos.length) { console.log(`\n${fallos.length} fallo(s)`); process.exit(1) }
-console.log('\ntodo bien')
+if (fallos.length) { console.log(`\n${fallos.length} failure(s)`); process.exit(1) }
+console.log('\nall good')

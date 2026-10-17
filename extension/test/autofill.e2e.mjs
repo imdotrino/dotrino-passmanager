@@ -7,12 +7,12 @@
 // casilla es lo mismo que si lo hubiera tecleado el usuario.
 //
 //   python3 -m http.server 8099 --directory web/test &
-//   node extension/test/autollenado.e2e.mjs
+//   node extension/test/autofill.e2e.mjs
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
@@ -27,7 +27,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
 })
 
 const fallos = []
-const ok = (cond, msg) => { console.log((cond ? '  ok   ' : '  FALLA ') + msg); if (!cond) fallos.push(msg) }
+const ok = (cond, msg) => { console.log((cond ? '  ok   ' : '  FAIL  ') + msg); if (!cond) fallos.push(msg) }
 
 try {
   let sw = ctx.serviceWorkers()[0]
@@ -37,7 +37,7 @@ try {
   await ext.goto(`chrome-extension://${id}/src/popup.html`)
   const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
-  await convertirBoveda(pedir)
+  await convertVault(pedir)
 
   const page = await ctx.newPage()
 
@@ -72,5 +72,5 @@ try {
   await rm(perfil, { recursive: true, force: true })
 }
 
-console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
+console.log(fallos.length ? `\n${fallos.length} FAILURE(S)` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

@@ -16,7 +16,7 @@
  * producción se le pasa uno local:
  *
  *   PORT=4099 node server.js                     # en dotrino-proxy
- *   DOTRINO_PROXY=ws://localhost:4099 node --test test/emparejar.e2e.test.mjs
+ *   DOTRINO_PROXY=ws://localhost:4099 node --test test/pair.e2e.test.mjs
  *
  * Sin `DOTRINO_PROXY` se salta: una suite no abre conexiones a producción por su cuenta.
  */
@@ -74,7 +74,7 @@ async function nucleo () {
 /** El adaptador de sellado del gestor, sobre una identidad del ecosistema. */
 const sellado = (h) => ({
   async seal (msg, peerEncPub) {
-    if (!peerEncPub) throw Object.assign(new Error('sin llave'), { code: 'unsealed' })
+    if (!peerEncPub) throw Object.assign(new Error('no encryption key'), { code: 'unsealed' })
     return {
       app: 'passmanager',
       sealed: await h.encrypt({ recipients: [{ encryptionPubkey: peerEncPub }], plaintext: JSON.stringify(msg) }),

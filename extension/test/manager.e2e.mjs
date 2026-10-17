@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
 
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 
 const EXT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SITE = process.env.SITE || 'http://localhost:8099'
@@ -32,7 +32,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   viewport: { width: 900, height: 820 },
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
 const extId = new URL(sw.url()).host
@@ -55,10 +55,10 @@ const pedir = async (op, payload) => (await popup()).evaluate(([op, payload]) =>
  * servir con la llave vieja mientras tanto sería el mismo agujero con otro nombre. Así que
  * aquí se hace lo que hace la pantalla: elegir la contraseña una vez.
  */
-await convertirBoveda(pedir, ok)
+await convertVault(pedir, ok)
 
 const page = await ctx.newPage()
-page.on('pageerror', (e) => console.log('   [error de página]', e.message))
+page.on('pageerror', (e) => console.log('   [page error]', e.message))
 
 const URLSITIO = `${SITE}/profile.html`
 
@@ -101,7 +101,7 @@ const campo = (open, label) => campos(open).find((f) => f.label === label)
 
 let gestor = null
 async function abrirGestor (id) {
-  if (!gestor) { gestor = await ctx.newPage(); gestor.on('pageerror', (e) => console.log('   [error del gestor]', e.message)) }
+  if (!gestor) { gestor = await ctx.newPage(); gestor.on('pageerror', (e) => console.log('   [manager error]', e.message)) }
   const p = new URLSearchParams({ site: URLSITIO, ...(id ? { id } : {}) })
   await gestor.goto(`chrome-extension://${extId}/src/manager.html#${p}`)
   // Ir a la MISMA dirección no dispara `hashchange` ni recarga: sin esto, la pantalla
@@ -362,5 +362,5 @@ try {
   await rm(perfil, { recursive: true, force: true })
 }
 
-console.log(fallos.length ? `\nFALLAN ${fallos.length}:\n - ` + fallos.join('\n - ') : '\nTODO BIEN')
+console.log(fallos.length ? `\nFAILING ${fallos.length}:\n - ` + fallos.join('\n - ') : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

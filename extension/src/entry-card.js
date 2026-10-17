@@ -166,7 +166,7 @@ async function paintFields (ctx, e, panel) {
         const abierta = await ask('get', { id: e.id, keys: [k] })
         const uno = entryFieldValues(abierta).find(f => f.key === k)
         const texto = k === 'notes' ? abierta.notes : uno?.value
-        if (!texto) throw Object.assign(new Error('vacío'), { code: 'not-found' })
+        if (!texto) throw Object.assign(new Error('empty'), { code: 'not-found' })
         await navigator.clipboard.writeText(String(texto))
         toast(t(lang, 'copied'))
       } catch (err) { toast(humanError(err), 'error') } finally { copiar.disabled = false }

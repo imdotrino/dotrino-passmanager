@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
-import { CLAVE_BOVEDA } from './_boveda.mjs'
+import { VAULT_PASSWORD } from './_vault.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const EXT = join(here, '..')
@@ -35,7 +35,7 @@ const puerto = await proxy.start(0)
 const PROXY_URL = `ws://127.0.0.1:${puerto}`
 
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
@@ -51,11 +51,11 @@ async function navegador (nombre) {
   const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
   const id = new URL(sw.url()).host
   const page = await ctx.newPage()
-  page.on('pageerror', (e) => console.log(`   [${nombre}: error de página]`, e.message))
+  page.on('pageerror', (e) => console.log(`   [${nombre}: page error]`, e.message))
   // `PM_LOG=1` enseña la consola de la página y del worker: sin ella, un pedido que no llega
   // solo se ve como «nadie respondió».
   if (process.env.PM_LOG) {
-    page.on('console', (m) => console.log(`   [${nombre}: página]`, m.text()))
+    page.on('console', (m) => console.log(`   [${nombre}: page]`, m.text()))
     sw.on('console', (m) => console.log(`   [${nombre}: worker]`, m.text()))
   }
   await page.goto(`chrome-extension://${id}/src/manager.html#view=logins`)
@@ -78,7 +78,7 @@ const B = await navegador('B')
 
 try {
   console.log('\nA: su bóveda propia, con algo dentro')
-  const conv = await A.pedir('sealed-convert', { password: CLAVE_BOVEDA })
+  const conv = await A.pedir('sealed-convert', { password: VAULT_PASSWORD })
   ok(!conv?.error, 'A convierte su bóveda' + (conv?.error ? ` — ${conv.error.code}: ${conv.error.message}` : ''))
   const puesta = await A.pedir('put', { entry: {
     type: 'login', title: 'El banco', sites: ['banco.example'], username: 'ana@banco.example', secret: 'la-de-verdad',
@@ -139,5 +139,5 @@ try {
   try { await proxy.stop?.() } catch (_) {}
 }
 
-console.log(fallos.length ? `\nFALLARON ${fallos.length}` : '\nTODO BIEN')
+console.log(fallos.length ? `\nFAILED ${fallos.length}` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

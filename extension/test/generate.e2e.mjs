@@ -13,7 +13,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 // `PLAYWRIGHT` puede apuntar a un archivo (el paquete de otro repo), y por ahí Playwright
 // llega como CommonJS: `chromium` viene colgado del `default`, no como export con nombre.
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
@@ -28,7 +28,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   viewport: { width: 720, height: 700 },
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
 const id = new URL(sw.url()).host
@@ -38,10 +38,10 @@ const pedir = (op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =
   chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
 
 // Lo primero, como un usuario: esta bóveda no atiende hasta convertirse (§2.7).
-await convertirBoveda(pedir)
+await convertVault(pedir)
 
 const page = await ctx.newPage()
-page.on('pageerror', (e) => console.log('   [error de página]', e.message))
+page.on('pageerror', (e) => console.log('   [page error]', e.message))
 
 const que = async (campos) => (await pedir('offers', { url: page.url(), fields: campos }))?.result || []
 
@@ -214,5 +214,5 @@ try {
   await ctx.close()
   await rm(perfil, { recursive: true, force: true })
 }
-console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
+console.log(fallos.length ? `\n${fallos.length} FAILURE(S)` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

@@ -7,14 +7,14 @@
 // Desde la 0.16.0 todo mandaba a `#view=convert` —el gestor al abrirse, el botón «Ponerla
 // ahora» del popup y del modal de la página— y la pantalla no existía: caía en la lista y no
 // había forma de convertir. Las demás pruebas no lo veían porque convierten llamando a
-// `sealed-convert` directamente (`_boveda.mjs`). Esta no: usa la pantalla.
+// `sealed-convert` directamente (`_vault.mjs`). Esta no: usa la pantalla.
 //
 //   npm run test:convertir
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CLAVE_BOVEDA } from './_boveda.mjs'
+import { VAULT_PASSWORD } from './_vault.mjs'
 
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
@@ -27,13 +27,13 @@ const ctx = await chromium.launchPersistentContext(dir, {
   viewport: { width: 900, height: 820 },
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 try {
   const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
   const id = new URL(sw.url()).host
   const page = await ctx.newPage()
-  page.on('pageerror', (e) => console.log('   [error de página]', e.message))
+  page.on('pageerror', (e) => console.log('   [page error]', e.message))
   const pedir = (op, payload) => page.evaluate(([op, payload]) => new Promise((r) =>
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
 
@@ -69,12 +69,12 @@ try {
   await page.locator('[data-testid=convert-go]').click()
   ok(/12/.test(await msg.textContent()), `una contraseña corta se para: «${await msg.textContent()}»`)
 
-  await campo.fill(CLAVE_BOVEDA)
-  await page.locator('[data-testid=convert-pw2]').fill(CLAVE_BOVEDA + ' otra')
+  await campo.fill(VAULT_PASSWORD)
+  await page.locator('[data-testid=convert-pw2]').fill(VAULT_PASSWORD + ' otra')
   await page.locator('[data-testid=convert-go]').click()
   ok((await pedir('sealed-needs'))?.result?.needs === true, 'si no coinciden, no la pone')
 
-  await page.locator('[data-testid=convert-pw2]').fill(CLAVE_BOVEDA)
+  await page.locator('[data-testid=convert-pw2]').fill(VAULT_PASSWORD)
   await page.locator('[data-testid=convert-go]').click()
   await page.waitForFunction(() => location.hash === '', null, { timeout: 15000 }).catch(() => {})
   ok((await pedir('sealed-needs'))?.result?.needs === false, 'con las dos iguales, la copia queda puesta')
@@ -94,5 +94,5 @@ try {
   await rm(dir, { recursive: true, force: true })
 }
 
-console.log(fallos.length ? `\nFALLARON ${fallos.length}` : '\nTODO BIEN')
+console.log(fallos.length ? `\nFAILED ${fallos.length}` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

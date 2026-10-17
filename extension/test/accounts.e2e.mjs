@@ -5,14 +5,14 @@
 // en la bóveda del segundo y NO en la del primero.
 //
 //   python3 -m http.server 8099 --directory web/test &
-//   node extension/test/cuentas.e2e.mjs
+//   node extension/test/accounts.e2e.mjs
 //
 // `PLAYWRIGHT` apunta al paquete si no está instalado aquí (p. ej. el de dotrino-test).
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
@@ -27,7 +27,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
 })
 
 const fallos = []
-const ok = (cond, msg) => { console.log((cond ? '  ok   ' : '  FALLA ') + msg); if (!cond) fallos.push(msg) }
+const ok = (cond, msg) => { console.log((cond ? '  ok   ' : '  FAIL  ') + msg); if (!cond) fallos.push(msg) }
 
 try {
   let sw = ctx.serviceWorkers()[0]
@@ -41,10 +41,10 @@ try {
 
   // Dos cuentas, las dos convertidas. `profile-add` deja activa la nueva, así que se
   // vuelve a la primera antes de entrar en el sitio.
-  await convertirBoveda(pedir)
+  await convertVault(pedir)
   const primera = (await pedir('status')).result.active
   await pedir('profile-add', { label: 'Trabajo' })
-  await convertirBoveda(pedir)
+  await convertVault(pedir)
   const segunda = (await pedir('status')).result.active
   ok(primera !== segunda, 'hay dos cuentas')
   await pedir('profile-use', { id: primera })
@@ -62,7 +62,7 @@ try {
     if (!frame) await page.waitForTimeout(250)
   }
   ok(!!frame, 'sale el aviso')
-  if (!frame) throw new Error('no salió el aviso')
+  if (!frame) throw new Error('the save prompt never showed up')
   await frame.locator('[data-testid=save-prompt-field]').first().waitFor({ timeout: 8000 })
 
   const sel = frame.locator('[data-testid=save-prompt-account]')
@@ -107,5 +107,5 @@ try {
   await rm(perfil, { recursive: true, force: true })
 }
 
-console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
+console.log(fallos.length ? `\n${fallos.length} FAILURE(S)` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

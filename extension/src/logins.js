@@ -136,7 +136,7 @@ export async function listLogins () {
  */
 export async function addLogin ({ user, password, label = '', caps = ['sign', 'read', 'store'] } = {}) {
   if (typeof password !== 'string' || password.length < 12) {
-    throw Object.assign(new Error('la contraseña tiene que tener al menos 12 caracteres'), { code: 'weak-password' })
+    throw Object.assign(new Error('the password must be at least 12 characters long'), { code: 'weak-password' })
   }
   const v = await boveda()
   const nombre = String(label || 'equipo prestado')
@@ -157,14 +157,14 @@ export async function addLogin ({ user, password, label = '', caps = ['sign', 'r
 /** Cambiar la contraseña es abrir y volver a cerrar: hace falta la vieja. */
 export async function passwdLogin ({ user, oldPassword, newPassword } = {}) {
   if (typeof newPassword !== 'string' || newPassword.length < 12) {
-    throw Object.assign(new Error('la contraseña tiene que tener al menos 12 caracteres'), { code: 'weak-password' })
+    throw Object.assign(new Error('the password must be at least 12 characters long'), { code: 'weak-password' })
   }
   const v = await boveda()
   const start = await opaque.loginStart({ password: oldPassword })
   const begun = await v.loginBegin({ user, request: start.request })
   let fin
   try { fin = await opaque.loginFinish({ state: start.state, response: begun.response, password: oldPassword }) }
-  catch (_) { throw Object.assign(new Error('contraseña incorrecta'), { code: 'login-failed' }) }
+  catch (_) { throw Object.assign(new Error('wrong password'), { code: 'login-failed' }) }
   const entrada = await v.loginEnd({ lid: begun.lid, finalization: fin.finalization, label: 'gestor' })
   const keys = await openDeviceKeys(fin.exportKey, entrada.blob)
 
@@ -321,7 +321,7 @@ export const serving = () => !!atendiendo
  */
 export async function enterWithPassword ({ address, password, remember = false, label = '', proxyUrl = null } = {}) {
   if (typeof password !== 'string' || !password) {
-    throw Object.assign(new Error('hace falta la contraseña'), { code: 'no-password' })
+    throw Object.assign(new Error('password required'), { code: 'no-password' })
   }
   const url = proxyUrl || PROXY_URL
   const client = new WebSocketProxyClient({ url, enableWebRTC: false, autoReconnect: false })

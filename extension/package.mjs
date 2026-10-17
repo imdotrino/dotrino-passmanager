@@ -27,7 +27,7 @@ execFileSync('zip', [
 
 // La versión va en el nombre del archivo (CONVENCIONES §11.5): así se sabe qué es cada
 // zip en el disco sin abrirlo.
-console.log('listo:', zip)
+console.log('ready:', zip)
 
 // Y se copia a la web, que es de donde se instala mientras no esté en la tienda. Si se
 // quedara aquí, `npm run package` diría «listo» y la descarga seguiría sirviendo la
@@ -36,7 +36,7 @@ const appDir = join(here, '../web/app')
 const enLaWeb = join(appDir, `dotrino-passmanager-${manifest.version}.zip`)
 await mkdir(appDir, { recursive: true })
 await cp(zip, enLaWeb)
-console.log('y en la web:', enLaWeb)
+console.log('and on the web:', enLaWeb)
 
 // EL ENLACE DE DESCARGA, apuntado a este zip — y los anteriores, fuera.
 //
@@ -51,13 +51,13 @@ const puesto = html.replace(
   /\.\/app\/dotrino-passmanager-\d+\.\d+\.\d+\.zip/g,
   `./app/dotrino-passmanager-${manifest.version}.zip`)
 if (!puesto.includes(`dotrino-passmanager-${manifest.version}.zip`)) {
-  throw new Error('la landing no tiene el enlace de descarga donde se esperaba')
+  throw new Error('the landing page has no download link where expected')
 }
-if (puesto !== html) { await writeFile(landing, puesto); console.log('y la landing apunta a él') }
+if (puesto !== html) { await writeFile(landing, puesto); console.log('and the landing page points to it') }
 
 for (const f of await readdir(appDir)) {
   if (/^dotrino-passmanager-\d+\.\d+\.\d+\.zip$/.test(f) && f !== `dotrino-passmanager-${manifest.version}.zip`) {
-    await rm(join(appDir, f)); console.log('fuera el viejo:', f)
+    await rm(join(appDir, f)); console.log('removed old:', f)
   }
 }
 
@@ -69,7 +69,7 @@ for (const f of await readdir(appDir)) {
 const updates = await readFile(join(appDir, 'updates.xml'), 'utf8').catch(() => '')
 const anunciada = updates.match(/<updatecheck[^>]*\sversion='([^']+)'/)?.[1]
 if (anunciada && anunciada !== manifest.version) {
-  console.error('\nEl canal propio se queda en %s y esto es %s.', anunciada, manifest.version)
-  console.error('Arma antes el .crx:  npm run crx   (o las dos cosas, en ese orden:  npm run release)')
+  console.error('\nThe self-hosted channel stays at %s and this is %s.', anunciada, manifest.version)
+  console.error('Build the .crx first:  npm run crx   (or both, in that order:  npm run release)')
   process.exit(1)
 }

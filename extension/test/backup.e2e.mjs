@@ -9,7 +9,7 @@
 //   · un choque sin decidir no escribe nada, y «reemplazar» lo pisa;
 //   · las contraseñas de un respaldo NO entran aquí (viven en el worker) y se dice cuántas.
 //
-//   node extension/test/respaldo.e2e.mjs
+//   node extension/test/backup.e2e.mjs
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -36,7 +36,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   viewport: { width: 900, height: 820 },
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 const PWD = 'contraseña del respaldo de prueba'
 
 try {
@@ -98,5 +98,5 @@ try {
   await rm(perfil, { recursive: true, force: true })
   try { await proxy.stop() } catch (_) {}
 }
-console.log(fallos.length ? `\nFALLARON ${fallos.length}` : '\nTODO BIEN')
+console.log(fallos.length ? `\nFAILED ${fallos.length}` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

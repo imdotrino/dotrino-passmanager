@@ -302,12 +302,15 @@ async function findOne (vault, ref) {
   const hits = all.filter(e =>
     e.title.toLowerCase().includes(q) || (e.sites || []).some(s => s.includes(q)))
 
-  if (!hits.length) throw new Error(`no encuentro «${ref}»`)
+  if (!hits.length) {
+    console.error(`No encuentro «${ref}».`)
+    throw Object.assign(new Error(`entry not found: «${ref}»`), { code: 'already-shown' })
+  }
   if (hits.length > 1) {
     // Elegir una al azar cuando el usuario fue ambiguo sería la peor forma de acertar.
     console.error('Hay varias que coinciden. Precisa el título o usa el id:')
     for (const h of hits) console.error('  %s  %s', h.id, h.title)
-    throw new Error('ambiguo')
+    throw Object.assign(new Error('ambiguous entry reference'), { code: 'already-shown' })
   }
   return hits[0]
 }
@@ -601,6 +604,7 @@ ORDENES[orden](...args)
   })
   .catch(e => {
     closeReader()
-    if (e?.message !== 'ambiguo') console.error(e?.message || e)
+    // Lo que ya se le enseñó al usuario (en su idioma) no se repite.
+    if (e?.code !== 'already-shown') console.error(e?.message || e)
     process.exit(1)
   })

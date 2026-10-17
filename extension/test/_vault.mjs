@@ -9,16 +9,16 @@
 // esto cambie.
 
 /** La contraseña de las pruebas. Doce o más, como exige la copia de recuperación. */
-export const CLAVE_BOVEDA = 'una contraseña larga de verdad'
+export const VAULT_PASSWORD = 'una contraseña larga de verdad'
 
 /**
  * @param {(op:string, payload?:object) => Promise<any>} pedir  el puente al service worker
  * @param {(cond:boolean, msg:string) => void} [ok]  para que el fallo salga en la lista
  */
-export async function convertirBoveda (pedir, ok = null) {
-  const r = await pedir('sealed-convert', { password: CLAVE_BOVEDA })
+export async function convertVault (pedir, ok = null) {
+  const r = await pedir('sealed-convert', { password: VAULT_PASSWORD })
   const bien = !r?.error
   if (ok) ok(bien, 'la bóveda se convierte al formato sellado' + (bien ? '' : ` — ${r.error.code}: ${r.error.message}`))
-  else if (!bien) throw Object.assign(new Error(r.error.message || 'no se pudo convertir'), { code: r.error.code })
+  else if (!bien) throw Object.assign(new Error(r.error.message || 'could not convert'), { code: r.error.code })
   return r?.result
 }

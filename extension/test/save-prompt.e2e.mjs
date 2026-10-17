@@ -14,7 +14,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 
 // `PLAYWRIGHT` puede apuntar a un archivo (el paquete de otro repo), y por ahí Playwright
 // llega como CommonJS: `chromium` viene colgado del `default`, no como export con nombre.
@@ -36,17 +36,17 @@ const ctx = await chromium.launchPersistentContext(perfil, {
 })
 
 const fallos = []
-const ok = (cond, msg) => { console.log((cond ? '  ok   ' : '  FALLA ') + msg); if (!cond) fallos.push(msg) }
+const ok = (cond, msg) => { console.log((cond ? '  ok   ' : '  FAIL  ') + msg); if (!cond) fallos.push(msg) }
 
 try {
   // El service worker de la extensión: hay que esperarlo antes de nada.
   let sw = ctx.serviceWorkers()[0]
   if (!sw) sw = await ctx.waitForEvent('serviceworker', { timeout: 15000 })
   const id = new URL(sw.url()).host
-  console.log('extensión cargada:', id)
+  console.log('extension loaded:', id)
 
   const page = await ctx.newPage()
-  page.on('console', (m) => { if (m.type() === 'error') console.log('   [consola]', m.text()) })
+  page.on('console', (m) => { if (m.type() === 'error') console.log('   [console]', m.text()) })
 
   // Para preguntarle a la bóveda hace falta una PÁGINA de la extensión: un mensaje que
   // el propio service worker se manda a sí mismo no llega a su listener.
@@ -56,7 +56,7 @@ try {
     chrome.runtime.sendMessage({ op, payload }, r)), [op, payload])
 
   // Lo primero, como un usuario: esta bóveda no atiende hasta convertirse (§2.7).
-  await convertirBoveda(pedir)
+  await convertVault(pedir)
 
   /**
    * ABRIR una entrada diciendo que sí. La bóveda pide autorización antes de soltar nada
@@ -80,7 +80,7 @@ try {
   await page.fill('input[name=user]', 'seyacat@dotrino.com')
   await page.fill('input[name=password]', 'hunter2-de-prueba')
   await Promise.all([page.waitForURL(/inside\.html/), page.click('button[type=submit]')])
-  console.log('navegó a:', new URL(page.url()).pathname)
+  console.log('navigated to:', new URL(page.url()).pathname)
 
   // --- 2. el aviso sale SOLO, en la página siguiente ---
   //
@@ -97,7 +97,7 @@ try {
   }
   const frame = await buscarFrame()
   ok(!!frame, 'el aviso aparece solo en la página siguiente')
-  if (!frame) throw new Error('no salió el aviso')
+  if (!frame) throw new Error('the save prompt never showed up')
   const guardar = frame.locator('[data-testid=save-prompt-save]')
   // A que esté PINTADO: el botón existe en el HTML antes de que el aviso sepa qué va a
   // escribir. Se espera a la primera fila de campo, que solo aparece ya cargado.
@@ -257,5 +257,5 @@ try {
   await rm(perfil, { recursive: true, force: true })
 }
 
-console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
+console.log(fallos.length ? `\n${fallos.length} FAILURE(S)` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

@@ -49,7 +49,7 @@ const { createLoginDesk, sealDeviceKeys, accountCode } = await import(V('lib/src
 const { WebSocketProxyClient } = await import(N('@dotrino/proxy-client/src/index.js'))
 
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 /** La bóveda: identidad con acta de verdad, porque quien entra la verifica entera. */
 async function laBoveda () {
@@ -104,7 +104,7 @@ await vault.loginRegisterFinish({
   label: 'equipo prestado', blob: await sealDeviceKeys(fin.exportKey, { sign: device.privateJwk, enc: enc.encPrivateJwk })
 })
 const DIR = `${USUARIO}@${accountCode((await pubkeyId(identity.acta.profileId)).slice(0, 16))}`
-console.log(`  (bóveda en ${PROXY_URL}, dirección ${DIR})`)
+console.log(`  (vault at ${PROXY_URL}, address ${DIR})`)
 
 // --- y ahora Chrome ----------------------------------------------------------
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
@@ -119,7 +119,7 @@ const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { 
 const extId = new URL(sw.url()).host
 
 const page = await ctx.newPage()
-page.on('pageerror', (e) => console.log('   [error de página]', e.message))
+page.on('pageerror', (e) => console.log('   [page error]', e.message))
 await page.goto(`chrome-extension://${extId}/src/manager.html#view=login`)
 await page.waitForTimeout(1200)
 
@@ -189,5 +189,5 @@ await ctx.close()
 await rm(perfil, { recursive: true, force: true })
 try { client.close() } catch (_) {}
 try { await proxy.stop?.() } catch (_) {}
-console.log(fallos.length ? `\nFALLARON ${fallos.length}` : '\nTODO BIEN')
+console.log(fallos.length ? `\nFAILED ${fallos.length}` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

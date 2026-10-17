@@ -188,7 +188,7 @@ que es lo que lee el equipo de revisión; 492 de 500 caracteres):
 ## Capturas (1280×800)
 
 > **Rehechas el 2026-08-28** para la 0.16.0: las anteriores eran de la 0.1.x y enseñaban
-> una interfaz que ya no existe. Se generan con `extension/store/tienda.mjs` —Chrome de
+> una interfaz que ya no existe. Se generan con `extension/store/screenshots.mjs` —Chrome de
 > verdad, extensión cargada, en español— sobre una página de demo servida interceptando
 > `https://tienda.ejemplo`, para que el sitio que sale en la UI se lea y no sea un
 > `localhost:8099`.

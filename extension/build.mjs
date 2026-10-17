@@ -29,7 +29,7 @@ for (const f of ['entry.js', 'device.js', 'store.js']) {
   await writeFile(ruta, txt.replace(
     "from '@dotrino/identity/content'", "from '../../identity/content.js'"))
 }
-console.log('vendor: sealed/* → la copia de @dotrino/identity/content')
+console.log('vendor: sealed/* → the copy of @dotrino/identity/content')
 
 // ENTRAR CON USUARIO Y CONTRASEÑA, dentro de la extensión: el mostrador del ecosistema
 // (`@dotrino/vault`) y el OPAQUE que comprueba la contraseña sin verla.
@@ -59,7 +59,7 @@ await mkdir(join(vendor, 'opaque/build'), { recursive: true })
 for (const f of ['opaque.js', 'wasm-bytes.js']) {
   await cp(join(here, '../../dotrino-opaque/build/', f), join(vendor, 'opaque/build/', f))
 }
-console.log('vendor: @dotrino/{vault (núcleo entero),compat,roadmap,store/core,opaque} → extension/src/vendor/')
+console.log('vendor: @dotrino/{vault (whole core),compat,roadmap,store/core,opaque} → extension/src/vendor/')
 
 // LOS IMPORTS DESNUDOS de esas copias pasan a ser las que viajan al lado. Un navegador no
 // los resuelve, y una extensión no puede usar un import map (es un script en línea y su CSP
@@ -87,7 +87,7 @@ async function reescribirDesnudos (dir) {
     const code = await readFile(ruta, 'utf8')
     const nuevo = code.replace(/(from\s*|import\s*\(\s*)(['"])(@dotrino\/[^'"]+)\2/g, (todo, antes, q, spec) => {
       const destino = DESNUDOS[spec]
-      if (!destino) throw new Error(`vendor: ${ruta.replace(here + '/', '')} importa ${spec} y no hay copia al lado (añádelo a DESNUDOS)`)
+      if (!destino) throw new Error(`vendor: ${ruta.replace(here + '/', '')} imports ${spec} and there is no copy next to it (add it to DESNUDOS)`)
       let rel = relative(dirname(ruta), join(vendor, destino))
       if (!rel.startsWith('.')) rel = './' + rel
       return antes + q + rel + q
@@ -181,7 +181,7 @@ const support = await readFile(supportPath, 'utf8')
 // La versión fijada en la URL cambia con cada support (0.9.0 la subió de @0.4 a @0.8): se lee
 // del archivo, y todo lo demás del bloque tiene que ser idéntico o se para.
 const pin = support.match(/const _STORE_CDN = 'https:\/\/cdn\.jsdelivr\.net\/npm\/@dotrino\/store@([0-9.]+)\/src\/index\.js'/)?.[1]
-if (!pin) throw new Error('support: no encuentro el import remoto del store; revisa el recorte del vendor')
+if (!pin) throw new Error('support: remote store import not found; check the vendor trimming')
 const remoto = `const _STORE_CDN = 'https://cdn.jsdelivr.net/npm/@dotrino/store@${pin}/src/index.js'
 async function _loadStore() {
   try { return await import('@dotrino/store') }
@@ -196,7 +196,7 @@ function recordAppOpen(appId) {
     .catch(() => { /* store no disponible (offline, bloqueado…): best-effort */ })
 }`
 if (!support.includes(remoto)) {
-  throw new Error('support: el contador de aperturas cambió de forma; revisa el recorte del vendor')
+  throw new Error('support: the open counter changed shape; check the vendor trimming')
 }
 const recortado = support.replace(remoto,
   `// RECORTADO AL VENDORIZAR (extension/build.mjs): aquí no hay contador de aperturas.
@@ -204,9 +204,9 @@ const recortado = support.replace(remoto,
 // la tienda lo rechaza —, y de paso avisaba a un servidor cada vez que se abre un gestor
 // de contraseñas. Lo que se publica no lleva ni la URL ni el import.
 function recordAppOpen() {}`)
-if (recortado.includes('cdn.jsdelivr.net')) throw new Error('support: queda una URL de jsDelivr después del recorte')
+if (recortado.includes('cdn.jsdelivr.net')) throw new Error('support: a jsDelivr URL remains after trimming')
 await writeFile(supportPath, recortado)
-console.log(`vendor: support sin el contador de aperturas (store@${pin} fuera, nada de código remoto)`)
+console.log(`vendor: support without the open counter (store@${pin} removed, no remote code)`)
 
 // LA TARJETA DE PERFIL del ecosistema (CONVENCIONES §6.1). Trae el editor —nombre, foto,
 // redes, datos— y además SU PROPIO conmutador de perfiles, con borrado, cuando se le pasa
@@ -309,7 +309,7 @@ async function verificarGrafo (entradas) {
   }
   for (const e of entradas) await ir(e)
   if (rotos.length) {
-    throw new Error('imports que no resuelven (el service worker no arrancaría):\n  ' +
+    throw new Error('unresolved imports (the service worker would not start):\n  ' +
       rotos.map((f) => f.replace(here + '/', '')).join('\n  '))
   }
   return visto.size
@@ -332,4 +332,4 @@ const cuantos = await verificarGrafo([
   join(here, 'src/field-modal.js'),
   join(here, 'src/approve.js'),
 ])
-console.log(`grafo: ${cuantos} archivos y todos los imports resuelven`)
+console.log(`graph: ${cuantos} files and every import resolves`)

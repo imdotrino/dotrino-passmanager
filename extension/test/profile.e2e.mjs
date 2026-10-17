@@ -7,7 +7,7 @@
 // Antes de esto, `profile-rename` y `profile-remove` existían en el service worker y no
 // los llamaba nadie: se podía crear un perfil y cambiarse a él, pero no ponerle nombre ni
 // borrarlo.
-// Se corre a mano, como sus hermanas:  node extension/test/perfil.e2e.mjs
+// Se corre a mano, como sus hermanas:  node extension/test/profile.e2e.mjs
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -28,7 +28,7 @@ await page.goto(`chrome-extension://${id}/src/manager.html`)
 await page.waitForTimeout(2500)
 
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 // EL GESTOR ES EL GESTOR: el perfil no está aquí. Se abre con el botón de la barra, y se
 // abre en SU PROPIA PÁGINA — en un modal salía apretado, que es todo lo que cabe decir de
@@ -85,5 +85,5 @@ ok(me?.result?.nickname === 'Perfil de prueba', 'el nombre se guardó en el perf
 ok(await card.locator('.panel-title').count() === 0, 'y SIN los paneles de reputación')
 await pagina.screenshot({ fullPage: true, path: '/tmp/claude-1000/-mnt-sda1-Dotrino/07b04585-15e7-481e-9e17-69baa9a969a3/scratchpad/perfil.png' })
 await ctx.close(); await rm(perfil, { recursive: true, force: true })
-console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTODO BIEN')
+console.log(fallos.length ? `\n${fallos.length} FAILURE(S)` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

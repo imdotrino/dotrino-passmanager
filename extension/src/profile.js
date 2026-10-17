@@ -21,7 +21,7 @@ document.documentElement.lang = lang
 
 const view = document.getElementById('view')
 
-const toast = (txt) => { try { console.warn('[perfil]', txt) } catch (_) {} }
+const toast = (txt) => { try { console.warn('[profile]', txt) } catch (_) {} }
 const humanError = (e) => errorText(ctx.lang, e)
 
 /** La tarjeta, que es lo que esta página es el 99 % de las veces. */

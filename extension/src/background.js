@@ -172,7 +172,7 @@ async function ownRecipientsOf (kind) {
     .map((m) => ({ pub: m.pub, encPub: m.encPub }))
   if (!lista.length) {
     throw new VaultError(CODES.NOT_ALLOWED,
-      'este navegador no tiene llave de cifrado en su propia acta: no hay a quién envolverle nada')
+      'this browser has no encryption key in its own record: there is nobody to wrap for')
   }
   return lista
 }
@@ -728,9 +728,9 @@ async function connect () {
   // dirección en el proxio; su llave de cifrado sale del acta, como la de cualquier
   // miembro. Si no hay emparejamiento no hay a quién pedirle: se dice y se para.
   const v = await identity.vaultStatus()
-  if (!v?.paired) throw new VaultError(CODES.NO_LINK, 'este perfil no está conectado a ninguna bóveda')
+  if (!v?.paired) throw new VaultError(CODES.NO_LINK, 'this profile is not linked to any vault')
   const peerEncPub = await identity.vaultEncPub()
-  if (!peerEncPub) throw new VaultError(CODES.UNSEALED, 'tu bóveda todavía no publicó su llave de cifrado')
+  if (!peerEncPub) throw new VaultError(CODES.UNSEALED, 'your vault has not published its encryption key yet')
 
   client = new WebSocketProxyClient({
     url: v.proxy || PROXY_URL,
@@ -820,7 +820,7 @@ const pairing = { code: null, deviceId: null }
 async function link ({ invite, label }) {
   const qr = parseInvite(String(invite || '').trim())
   if (!qr?.sn || !(qr.iss || qr.conn)) {
-    throw new VaultError(CODES.BAD_INVITE, 'eso no es una invitación de bóveda')
+    throw new VaultError(CODES.BAD_INVITE, 'that is not a vault invitation')
   }
   try {
     // `join: 'new'` — la cuenta de la bóveda entra COMO OTRA cuenta de este navegador,
@@ -1007,7 +1007,7 @@ async function signPasskey (p) {
 
   // Solo las passkeys de ESTE sitio, y solo las que el sitio admite.
   const suyas = candidatas.filter(e => e.hasWebauthn)
-  if (!suyas.length) throw new VaultError(CODES.NOT_FOUND, 'no hay passkey para este sitio')
+  if (!suyas.length) throw new VaultError(CODES.NOT_FOUND, 'no passkey for this site')
 
   for (const meta of suyas) {
     const entrada = await v.get(meta.id)
@@ -1025,7 +1025,7 @@ async function signPasskey (p) {
     await v.patch(meta.id, { signCount })
     return response
   }
-  throw new VaultError(CODES.NOT_FOUND, 'ninguna passkey sirve para lo que pide el sitio')
+  throw new VaultError(CODES.NOT_FOUND, 'no passkey matches what the site asks for')
 }
 
 // --- lo capturado, a la espera de que el usuario diga que sí ------------------
@@ -1365,7 +1365,7 @@ async function pendingDetail () {
  */
 async function savePending ({ id, pick, privateKeys, keepRest, name } = {}) {
   const p = await readPending()
-  if (!p) throw new VaultError(CODES.NOT_FOUND, 'ya no hay nada que guardar')
+  if (!p) throw new VaultError(CODES.NOT_FOUND, 'nothing left to save')
   const v = await connect()
   const marcadas = Array.isArray(pick) ? new Set(pick) : null
   const quiere = (k) => !marcadas || marcadas.has(k)
@@ -1660,7 +1660,7 @@ async function searchEntries ({ q, limit } = {}) {
  * Vacío lo quita, y vuelve el calculado: nunca se queda una fila sin nombre.
  */
 async function renameEntry ({ id, name } = {}) {
-  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no id given')
   const v = await connect()
   await v.patch(id, { name: String(name || '').trim().slice(0, 80) })
   try { await cache.forget(id) } catch (_) {}
@@ -1702,7 +1702,7 @@ async function approvalsList () {
 
 /** Decir que sí o que no a UN pedido. Lo firma la identidad de este aparato. */
 async function approvalsAnswer ({ id, yes } = {}) {
-  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no id given')
   await identity.approvals(yes ? 'approve' : 'deny', id)
   return { ok: true }
 }
@@ -1732,10 +1732,10 @@ async function sitesOf () {
  * pregunta. Sin la lista de arriba no se llega aquí.
  */
 async function entryView ({ id, url } = {}) {
-  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no id given')
   const hay = url ? await findFor(url).catch(() => []) : []
   const hit = hay.find(e => e.id === id)
-  if (!hit) throw new VaultError(CODES.NOT_FOUND, 'no hay ninguna entrada con ese id')
+  if (!hit) throw new VaultError(CODES.NOT_FOUND, 'there is no entry with that id')
   return stripDigest([hit])[0]
 }
 
@@ -1774,7 +1774,7 @@ async function entryDiff ({ id, url, pairs } = {}) {
  * su contraseña ni la pone en riesgo si algo falla a medias.
  */
 async function patchEntry ({ id, changes } = {}) {
-  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no id given')
   const v = await connect()
   const out = await v.patch(id, changes || {})
   try { await cache.forget(id) } catch (_) {}
@@ -1784,7 +1784,7 @@ async function patchEntry ({ id, changes } = {}) {
 
 /** Quitar una entrada de la bóveda. Solo desde la UI de la extensión, y con aviso. */
 async function removeEntry ({ id, url }) {
-  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no dijiste cuál')
+  if (!id) throw new VaultError(CODES.NOT_FOUND, 'no id given')
   const v = await connect()
   await v.remove(id)
   try { await cache.forget(id) } catch (_) {}

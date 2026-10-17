@@ -18,7 +18,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertirBoveda } from './_boveda.mjs'
+import { convertVault } from './_vault.mjs'
 const _pw = await import(process.env.PLAYWRIGHT || 'playwright')
 const chromium = _pw.chromium || _pw.default?.chromium
 
@@ -51,7 +51,7 @@ try {
     const extId = new URL(sw.url()).host
     const ext = await ctx.newPage()
     await ext.goto(`chrome-extension://${extId}/src/popup.html`)
-    await convertirBoveda((op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
+    await convertVault((op, payload) => ext.evaluate(([op, payload]) => new Promise((r) =>
       chrome.runtime.sendMessage({ op, payload }, r)), [op, payload]))
     await ext.close()
   }

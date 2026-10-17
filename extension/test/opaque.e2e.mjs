@@ -30,7 +30,7 @@ const ctx = await chromium.launchPersistentContext(perfil, {
   viewport: { width: 900, height: 820 },
 })
 const fallos = []
-const ok = (c, m) => { console.log((c ? '  ok    ' : '  FALLA ') + m); if (!c) fallos.push(m) }
+const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fallos.push(m) }
 
 const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker', { timeout: 15000 })
 const extId = new URL(sw.url()).host
@@ -83,5 +83,5 @@ ok(!violaciones.length, 'ni una violación de CSP' + (violaciones.length ? `: ${
 
 await ctx.close()
 await rm(perfil, { recursive: true, force: true })
-console.log(fallos.length ? `\nFALLARON ${fallos.length}` : '\nTODO BIEN')
+console.log(fallos.length ? `\nFAILED ${fallos.length}` : '\nALL GOOD')
 process.exit(fallos.length ? 1 : 0)

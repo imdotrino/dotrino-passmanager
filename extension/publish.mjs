@@ -47,14 +47,14 @@ const faltan = Object.entries({
 }).filter(([, v]) => !v).map(([k]) => k)
 
 if (faltan.length) {
-  console.error('Faltan credenciales de la tienda: %s', faltan.join(', '))
-  console.error('Cómo sacarlas: la cabecera de este archivo. Se hace una vez.')
+  console.error('Missing store credentials: %s', faltan.join(', '))
+  console.error('How to get them: see the header of this file. It is done once.')
   process.exit(1)
 }
 
 const zip = await readFile(zipPath).catch(() => null)
 if (!zip) {
-  console.error('No encuentro %s — corre antes: npm run package', zipPath)
+  console.error('%s not found — run first: npm run package', zipPath)
   process.exit(1)
 }
 
@@ -71,7 +71,7 @@ async function accessToken () {
     }),
   })
   const j = await r.json()
-  if (!r.ok || !j.access_token) throw new Error('no se pudo renovar el token: ' + JSON.stringify(j))
+  if (!r.ok || !j.access_token) throw new Error('could not refresh the token: ' + JSON.stringify(j))
   return j.access_token
 }
 
@@ -89,14 +89,14 @@ const resultado = await subida.json()
 // `uploadState` puede ser SUCCESS, IN_PROGRESS o FAILURE — y FAILURE llega con 200,
 // así que mirar solo el código HTTP diría que fue bien cuando no.
 if (resultado.uploadState === 'FAILURE') {
-  console.error('La tienda rechazó el paquete:')
+  console.error('The store rejected the package:')
   for (const e of resultado.itemError || []) console.error('  · %s', e.error_detail || e.error_code)
   process.exit(1)
 }
-console.log('Subido: %s v%s (%s)', extensionId, manifest.version, resultado.uploadState)
+console.log('Uploaded: %s v%s (%s)', extensionId, manifest.version, resultado.uploadState)
 
 if (!process.argv.includes('--publish')) {
-  console.log('Queda como BORRADOR. Para publicarlo: node publish.mjs --publish')
+  console.log('Left as DRAFT. To publish it: node publish.mjs --publish')
   process.exit(0)
 }
 
@@ -106,9 +106,9 @@ const pub = await fetch(
 const pr = await pub.json()
 
 if (!pub.ok) {
-  console.error('No se pudo publicar: %s', JSON.stringify(pr))
+  console.error('Could not publish: %s', JSON.stringify(pr))
   process.exit(1)
 }
-console.log('Publicado. Estado: %s', (pr.status || []).join(', ') || '(sin estado)')
+console.log('Published. Status: %s', (pr.status || []).join(', ') || '(no status)')
 for (const d of pr.statusDetail || []) console.log('  · %s', d)
-console.log('La revisión de una extensión de credenciales tarda; se avisa por correo.')
+console.log('Review of a credentials extension takes a while; you get notified by email.')

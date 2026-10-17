@@ -38,10 +38,10 @@ const pem = process.env.CRX_KEY_PEM_B64
   ? Buffer.from(process.env.CRX_KEY_PEM_B64, 'base64').toString('utf8')
   : (process.env.CRX_KEY ? await readFile(process.env.CRX_KEY, 'utf8') : null)
 if (!pem) {
-  console.error('No tengo la llave de firma.')
-  console.error('Vive en la bóveda de Dotrino, cajón «passmanager». Corre esto por delante:')
+  console.error('Signing key not found.')
+  console.error('It lives in the Dotrino vault, namespace «passmanager». Run this in front:')
   console.error('  dotrino-env run --ns passmanager -- npm run crx')
-  console.error('(pide aprobación en el teléfono: es la llave que firma lo que se instala)')
+  console.error('(asks for approval on the phone: it is the key that signs what gets installed)')
   process.exit(1)
 }
 
@@ -90,7 +90,7 @@ const crx = armarCrx(zip, pem, spki, id)
 // dispositivos a la misma extensión, y una llave equivocada aquí se vería como una
 // instalación nueva en cada máquina, sin vuelta atrás.
 const dentro = idDelCrx(crx)
-if (dentro !== id) throw new Error(`el .crx dice ${dentro} y la llave dice ${id}`)
+if (dentro !== id) throw new Error(`the .crx says ${dentro} and the key says ${id}`)
 comprobarFirma(crx)
 
 const appDir = join(here, '../web/app')
@@ -116,7 +116,7 @@ await writeFile(join(appDir, 'updates.xml'),
 
 for (const f of await readdir(appDir)) {
   if (/^dotrino-passmanager-\d+\.\d+\.\d+\.crx$/.test(f) && f !== nombre) {
-    await rm(join(appDir, f)); console.log('fuera el viejo:', f)
+    await rm(join(appDir, f)); console.log('removed old:', f)
   }
 }
 
@@ -166,7 +166,7 @@ await writeFile(join(appDir, 'dotrino-passmanager.plist'),
 </dict>
 </plist>
 `)
-console.log('política: %s/dotrino-passmanager.{reg,plist}', BASE)
+console.log('policy: %s/dotrino-passmanager.{reg,plist}', BASE)
 
 // EL ENLACE DE LA LANDING, apuntado a este paquete. El nombre lleva la versión
 // (CONVENCIONES §11.5), así que escrito a mano se queda atrás — y el wiki manda aquí a
@@ -175,8 +175,8 @@ const landing = join(here, '../web/index.html')
 const html = await readFile(landing, 'utf8')
 const puesto = html.replace(
   /\.\/app\/dotrino-passmanager-\d+\.\d+\.\d+\.crx/g, `./app/${nombre}`)
-if (!puesto.includes(nombre)) throw new Error('la landing no tiene el enlace al .crx donde se esperaba')
-if (puesto !== html) { await writeFile(landing, puesto); console.log('y la landing apunta a él') }
+if (!puesto.includes(nombre)) throw new Error('the landing page has no .crx link where expected')
+if (puesto !== html) { await writeFile(landing, puesto); console.log('and the landing page points to it') }
 
 console.log('\n.crx  : %s  (%s KB)', join(appDir, nombre), Math.round(crx.length / 1024))
 console.log('update: %s/updates.xml', BASE)
@@ -239,7 +239,7 @@ function * campos (buf) {
   let p = 0
   while (p < buf.length) {
     const [tag, t1] = varint(buf, p)
-    if ((tag & 7) !== 2) throw new Error('la cabecera del .crx trae un campo que no esperaba')
+    if ((tag & 7) !== 2) throw new Error('the .crx header has an unexpected field')
     const [len, t2] = varint(buf, t1)
     yield [tag >> 3, buf.subarray(t2, t2 + len)]
     p = t2 + len
@@ -259,7 +259,7 @@ function idDelCrx (buf) {
       return id.toString('hex').replace(/[0-9a-f]/g, (x) => 'abcdefghijklmnop'[parseInt(x, 16)])
     }
   }
-  throw new Error('la cabecera del .crx no trae el id')
+  throw new Error('the .crx header has no id')
 }
 
 /**
@@ -273,7 +273,7 @@ function comprobarFirma (buf) {
 
   let shd = null
   for (const [campo, valor] of campos(header)) if (campo === 10000) shd = valor
-  if (!shd) throw new Error('la cabecera del .crx no trae signed_header_data')
+  if (!shd) throw new Error('the .crx header has no signed_header_data')
 
   const largo = Buffer.alloc(4); largo.writeUInt32LE(shd.length)
   const firmado = Buffer.concat([Buffer.from('CRX3 SignedData\0', 'binary'), largo, shd, zip])
@@ -286,13 +286,13 @@ function comprobarFirma (buf) {
       if (c === 1) pub = v
       if (c === 2) sig = v
     }
-    if (!pub || !sig) throw new Error('una prueba del .crx viene incompleta')
+    if (!pub || !sig) throw new Error('a .crx proof is incomplete')
     const vale = createVerify('RSA-SHA256').update(firmado)
       .verify({ key: pub, format: 'der', type: 'spki' }, sig)
-    if (!vale) throw new Error('la firma del .crx no vale')
+    if (!vale) throw new Error('the .crx signature is invalid')
     n++
   }
-  if (!n) throw new Error('el .crx no trae ninguna firma')
+  if (!n) throw new Error('the .crx has no signature')
 }
 
 function varint (buf, p) {

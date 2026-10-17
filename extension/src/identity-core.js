@@ -35,7 +35,7 @@ async function hydratedKv (prefix = 'identity/') {
     // Un fallo al escribir la identidad no se traga: sin esto, la llave se regenera y
     // toda bóveda que conocía este aparato deja de reconocerlo, días después y sin
     // ninguna pista de por qué.
-    pending.catch(e => console.error('[identity] no se pudo guardar «%s»: %s', k, e?.message || e))
+    pending.catch(e => console.error('[identity] could not save «%s»: %s', k, e?.message || e))
   }
   return {
     getItem: (k) => (mem.has(k) ? mem.get(k) : null),
@@ -75,7 +75,7 @@ async function hydratedSessionKv (prefix = 'identity.session/') {
     pending = pending.then(() => (v === undefined
       ? chrome.storage.session.remove(prefix + k)
       : chrome.storage.session.set({ [prefix + k]: v })))
-    pending.catch(e => console.error('[identity] no se pudo guardar la sesión «%s»: %s', k, e?.message || e))
+    pending.catch(e => console.error('[identity] could not save session «%s»: %s', k, e?.message || e))
   }
   return {
     getItem: (k) => (mem.has(k) ? mem.get(k) : null),
