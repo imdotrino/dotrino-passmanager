@@ -162,7 +162,7 @@ las cuentas con su frase** (decidido). Al abrir:
 3. cada entrada se reescribe: un sobre por campo, la vista pública sellada, sus huellas de
    sitio y sus resúmenes;
 4. **se borra la `cek` del archivo** y se recorre el disco comprobando que no queda (como
-   `dotrino-test/smoke/reposo.mjs`).
+   `dotrino-test/smoke/at-rest.mjs`).
 
 Durante ese paso la bóveda ve los valores —los tiene que reescribir—, igual que en la
 conversión de los cajones a v5; después, ya no. Un aparato con `passwords` **sin `encPub`** en

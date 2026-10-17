@@ -1557,7 +1557,7 @@ de la bóveda.
 El timbre es lo único de la cadena que **no se puede probar en local**: hace falta un
 servicio de push de verdad al que el navegador esté conectado. Así que se probó contra el
 proxio de producción, con una identidad de usar y tirar y sin bóveda de por medio
-(`dotrino-test/produccion/timbre.mjs`, `npm run prod:timbre` — aparte del `smoke`, porque
+(`dotrino-test/production/doorbell.mjs`, `npm run prod:timbre` — aparte del `smoke`, porque
 sí toca producción). Lo medido:
 
 | | |
