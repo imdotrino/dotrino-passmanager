@@ -24,6 +24,7 @@
     "test:save-prompt": "node extension/test/save-prompt.e2e.mjs",
     "test:login": "node extension/test/login.e2e.mjs",
     "test:opaque": "node extension/test/opaque.e2e.mjs",
+    "test:respaldo": "node extension/test/respaldo.e2e.mjs",
     "test:offers": "node --test extension/test/*.test.mjs",
     "test:field-button": "node extension/test/field-button.e2e.mjs",
     "test:generar": "node extension/test/generar.e2e.mjs",

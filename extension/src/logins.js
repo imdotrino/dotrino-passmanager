@@ -388,3 +388,60 @@ export async function leaveLogin ({ proxyUrl = null } = {}) {
   const r = await alWorker('id.logoutLogin', {})
   return { ...r, told }
 }
+
+// --- EL RESPALDO (dotrino-vault/docs/respaldo.md) -----------------------------------
+//
+// Solo en la pestaña que ES la bóveda: no viaja por el canal entre páginas (no está en
+// METODOS). El archivo se cierra aquí, con la contraseña del respaldo.
+//
+// LAS CONTRASEÑAS NO VAN POR AQUÍ. En la extensión las guarda el worker, con su propia copia
+// de recuperación; la bóveda de esta pestaña ni las ve (`servePasswords: false`). Así que el
+// respaldo de la extensión lleva los cajones (servicios, aparatos, `@me`), y al importar se
+// aparta lo de contraseñas y se dice cuántas eran: escribirlas en el almacén de esta pestaña
+// sería guardarlas donde nadie las lee.
+
+const PASSWORDS = 'passwords'
+function bovedaAqui () {
+  if (!atendiendo) throw Object.assign(new Error('this tab is not serving the vault'), { code: 'not-the-vault' })
+  return atendiendo.vault
+}
+
+/** Los cajones que hay: `[{ owner, count, device? }]`. */
+export async function backupDrawers () {
+  return (await bovedaAqui().backupDrawers()).filter((d) => d.owner !== PASSWORDS)
+}
+
+/** Exporta todo (`drawers: null`) o esos cajones, ya cifrado con `password`. */
+export async function backupExport ({ drawers = null, password } = {}) {
+  const { sealBackup } = await import('./vendor/vault/core/backup.js')
+  const v = bovedaAqui()
+  const todos = (await v.backupDrawers()).map((d) => d.owner).filter((o) => o !== PASSWORDS)
+  const { payload, summary } = await v.exportBackup({ drawers: drawers || todos })
+  return { file: await sealBackup(payload, password), summary }
+}
+
+/** Lo que trae un respaldo, sin sus contraseñas, y cuántas se apartaron. */
+async function sinContrasenas (file, password) {
+  const { openBackup } = await import('./vendor/vault/core/backup.js')
+  const payload = await openBackup(file, password)
+  const pwd = payload.drawers.find((d) => d.owner === PASSWORDS)
+  return { payload, drawers: payload.drawers.map((d) => d.owner).filter((o) => o !== PASSWORDS), passwordsLeftOut: pwd?.entries?.length || 0 }
+}
+
+/** El plan de importar: qué es nuevo, igual o choca. No escribe nada. */
+export async function backupPlan ({ file, password, map = {} } = {}) {
+  const v = bovedaAqui()
+  const { payload, drawers, passwordsLeftOut } = await sinContrasenas(file, password)
+  if (!drawers.length) return { drawers: [], counts: { new: 0, same: 0, conflict: 0, skipped: 0 }, passwordsLeftOut }
+  return { ...(await v.planBackupImport(payload, { drawers, map })), passwordsLeftOut }
+}
+
+/** Importa. Con un choque sin decidir lanza `BACKUP_CONFLICTS` y no escribe nada. */
+export async function backupImport ({ file, password, map = {}, decisions = {} } = {}) {
+  const v = bovedaAqui()
+  const { payload, drawers } = await sinContrasenas(file, password)
+  // Una lista vacía es «todos» para el núcleo: con un respaldo que solo trae contraseñas,
+  // pasarla tal cual las metería en el almacén de esta pestaña.
+  if (!drawers.length) return { written: 0, kept: 0, same: 0, skipped: [], keptPrivate: [] }
+  return v.importBackup(payload, { drawers, map, decisions })
+}
