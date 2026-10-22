@@ -51,7 +51,14 @@ const CSS = `
   box-shadow: 0 8px 24px rgba(0,0,0,.35);
   font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-.pm-wait b { display: block; font-size: .9rem; margin-bottom: 4px; }
+.pm-wait b { display: block; font-size: .9rem; margin-bottom: 4px; padding-right: 26px; }
+.pm-wait .pm-x {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: inherit;
+  font: 18px/26px system-ui, sans-serif; cursor: pointer; opacity: .85;
+}
+.pm-wait .pm-x:hover { background: rgba(255,255,255,.16); opacity: 1; }
+.pm-wait .pm-x:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 .pm-wait p { margin: 0; font-size: .82rem; }
 .pm-wait small { display: block; margin-top: 6px; font-size: .72rem; opacity: .8; }
 `
@@ -113,15 +120,26 @@ export function hostApprovals ({ resize, standalone, onAnswer } = {}) {
    * no sabía que tenía que aprobar ni dónde. No bloquea: solo dice qué hacer.
    */
   let espera = null
+  // CERRADO A MANO: el aviso no vuelve a salir hasta que la espera termine y empiece otra.
+  // Sin botón se quedaba tapando la pantalla aunque la aprobación ya se hubiera dado por otro
+  // lado (la petición sigue abierta hasta que la bóveda contesta o vence).
+  let cerrado = false
+  function hideWait () {
+    if (!espera) return
+    espera.remove(); espera = null
+    if (document.body && !abierta) document.body.style.minHeight = ''
+    resize?.()
+  }
   function showWait (on) {
     if (!on) {
+      cerrado = false
       if (!espera) return
       espera.remove(); espera = null
       if (document.body && !abierta) document.body.style.minHeight = ''
       resize?.()
       return
     }
-    if (espera || !document.body) return
+    if (espera || cerrado || !document.body) return
     espera = document.createElement('div')
     espera.className = 'pm-wait'
     espera.setAttribute('role', 'status')
@@ -133,7 +151,15 @@ export function hostApprovals ({ resize, standalone, onAnswer } = {}) {
     p.textContent = t(lang, 'waitApprovalBody')
     const nota = document.createElement('small')
     nota.textContent = t(lang, 'waitApprovalNote')
-    espera.append(h, p, nota)
+    const x = document.createElement('button')
+    x.type = 'button'
+    x.className = 'pm-x'
+    x.textContent = '×'
+    x.setAttribute('aria-label', t(lang, 'waitApprovalClose'))
+    x.title = t(lang, 'waitApprovalClose')
+    x.setAttribute('data-testid', 'approval-wait-close')
+    x.onclick = () => { cerrado = true; hideWait() }
+    espera.append(x, h, p, nota)
     document.body.appendChild(espera)
     // Un iframe pequeño (el modal de un campo) recorta el aviso: se pide sitio y se mide.
     if (!abierta) document.body.style.minHeight = '160px'

@@ -30,6 +30,7 @@
     "test:generate": "node extension/test/generate.e2e.mjs",
     "test:replacements": "node extension/test/replacements.e2e.mjs",
     "test:labels": "node extension/test/labels.e2e.mjs",
+    "test:approval-wait": "node extension/test/approval-wait.e2e.mjs",
     "test:manager": "node extension/test/manager.e2e.mjs",
     "test:accounts": "node extension/test/accounts.e2e.mjs",
     "test:autofill": "node extension/test/autofill.e2e.mjs",
