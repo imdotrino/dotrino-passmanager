@@ -425,6 +425,14 @@ chrome.windows.onRemoved.addListener(id => { if (id === askWindow) askWindow = n
  */
 const REMOTE_WAIT_MS = 1500
 let remoteSlow = 0
+/**
+ * LAS ÚNICAS QUE PUEDEN PEDIR APROBACIÓN (`sealed-responder.js`, `#needsApproval`): sacar un
+ * campo privado (`get`) y cambiar o quitar una passkey (`put`, `patch`, `remove`). Buscar qué
+ * hay para un sitio (`find`, `views`, `passkey`…) no la pide nunca, y contarlas hacía saltar
+ * el aviso en páginas con muchos campos (Salesforce: una búsqueda por campo, alguna lenta)
+ * sin que hubiera nada que aprobar.
+ */
+const MAY_ASK = new Set(['pm2.get', 'pm2.put', 'pm2.patch', 'pm2.remove'])
 
 function tellRemoteWait (h) {
   const m = { t: 'remote-wait', on: remoteSlow > 0 }
@@ -434,6 +442,7 @@ function tellRemoteWait (h) {
 function watchSlowRequests (tr) {
   const request = tr.request.bind(tr)
   tr.request = (op, payload) => {
+    if (!MAY_ASK.has(op)) return request(op, payload)
     let slow = false
     const timer = setTimeout(() => { slow = true; remoteSlow++; tellRemoteWait() }, REMOTE_WAIT_MS)
     const end = () => { clearTimeout(timer); if (slow) { remoteSlow--; tellRemoteWait() } }
