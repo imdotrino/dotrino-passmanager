@@ -117,6 +117,17 @@ desde aquí es un aparato: find / get / put ────►   solo mientras el i
   para cerrarlos** (decidido). Cerrar uno no cambia la contraseña ni quita el aparato: el
   siguiente inicio vuelve a pedir la contraseña.
 - **Salir** suelta las llaves de memoria y cierra el inicio de sesión en la bóveda.
+- **Sin inicio de sesión abierto, la bóveda no atiende a esa llave, y ese navegador borra la
+  cuenta** (dueño, 2026-10-23). La llave sigue en el acta —el siguiente inicio la vuelve a
+  usar—, así que el papel verifica; el corte lo hace la bóveda al atender (`isClosed` de
+  `passwordLogins.js`, en el núcleo y en la bóveda del aparato, y también en el mostrador de
+  contraseñas). Y le manda el `vault.revoked` **firmado** con `why: 'login-closed'`, el mismo aviso
+  que borra la cuenta de un aparato expulsado: el navegador lo recibe en su siguiente petición
+  (la primera es al arrancar) y la cuenta desaparece de ahí. Un rechazo sin firma no borra nada.
+  Vale para cerrarla desde la consola y para cambiar la contraseña. **Límite:** el corte es por
+  LLAVE, y todos los navegadores que entraron con el mismo usuario comparten la llave. Mientras
+  quede uno abierto, los demás siguen atendidos; cortar uno solo exige que cada petición lleve su
+  `sid`, y eso es pendiente.
 
 ### 3.3. Qué entradas lleva
 
@@ -177,7 +188,7 @@ y la pantalla de alta los enseña uno por uno.
 | el equipo prestado mientras estás dentro | **las entradas marcadas** para ese aparato, sin preguntar si lo creaste sin aprobación |
 | tu contraseña, capturada en ese equipo | entrar desde cualquier sitio **hasta que la cambies o revoques el aparato**, y solo a lo marcado |
 | la llave que quedó en el equipo, con el inicio de sesión abierto | las entradas marcadas, **hasta que lo cierres** desde tu consola, cambies la contraseña o revoques el aparato: la bóveda no lo corta sola |
-| la llave que quedó en el equipo, con el inicio de sesión cerrado | nada: sin inicio de sesión abierto no hay sobres, y abrir otro pide la contraseña |
+| la llave que quedó en el equipo, con el inicio de sesión cerrado | nada: sin inicio de sesión abierto no hay sobres, y abrir otro pide la contraseña. Ese navegador borra la cuenta al recibir el aviso firmado |
 
 Y lo de siempre: **el equipo prestado ve lo que rellenas**. Nada de esto protege lo que
 escribes en una máquina comprometida.
