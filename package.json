@@ -27,6 +27,7 @@
     "test:backup": "node extension/test/backup.e2e.mjs",
     "test:offers": "node --test extension/test/*.test.mjs",
     "test:field-button": "node extension/test/field-button.e2e.mjs",
+    "test:autofill-on-open": "node extension/test/autofill-on-open.e2e.mjs",
     "test:generate": "node extension/test/generate.e2e.mjs",
     "test:replacements": "node extension/test/replacements.e2e.mjs",
     "test:labels": "node extension/test/labels.e2e.mjs",

@@ -156,7 +156,30 @@ async function scan () {
   } else {
     ui.reposition()
   }
+  autoFill().catch(() => {})
   return shown
+}
+
+/**
+ * RELLENAR AL ABRIR, si el usuario lo encendió (está apagado por defecto). Quién, cuándo y
+ * con qué entrada lo decide el service worker (`autofillFor`); aquí solo se pregunta una
+ * vez por dirección y paso, y solo con la casilla vacía: lo que el usuario borró no se
+ * repone. El paso cuenta porque un acceso en dos pasos (primero el usuario, luego la
+ * contraseña) suele cambiar el formulario sin cambiar la dirección.
+ */
+const autoFilled = new Set()
+async function autoFill () {
+  if (window !== window.top) return
+  const conClave = lastForms.find(x => x.password && !x.password.value)
+  const soloUsuario = !conClave && lastForms.find(x => !x.password && x.username && !x.username.value)
+  if (!conClave && !soloUsuario) return
+  const paso = `${location.href}|${conClave ? 'secret' : 'username'}`
+  if (autoFilled.has(paso)) return
+  autoFilled.add(paso)
+  const r = await ask('autofill')
+  if (r?.error || !r?.result?.secret) return
+  await fillLogin(r.result)
+  scan().catch(() => {})
 }
 
 // Rellenar manda cuando hay algo guardado que poner: generar sigue estando dentro, pero
@@ -406,7 +429,7 @@ function messageFor (code) {
 async function fillLogin ({ username, secret }) {
   const { detect, ui } = await mods
   if (!lastForms.length) await scan()
-  const f = lastForms[0]
+  const f = lastForms.find(x => x.password) || lastForms[0]
   if (!f) return false
   let done = false
   if (f.username && username) done = detect.fillField(f.username, username) || done

@@ -1640,6 +1640,46 @@ async function setDefault ({ url, id } = {}) {
 }
 
 /**
+ * RELLENAR AL ABRIR LA PÁGINA: un ajuste, APAGADO por defecto (dueño, 2026-10-26: *«por
+ * default no me gusta que autocomplete»*).
+ *
+ * Encendido, al cargar una página con un formulario de acceso vacío se rellena sin pulsar
+ * nada. Sirve para un navegador que maneja un programa (el de Playwright), donde nadie va
+ * a pulsar el marcador. El precio, y por eso no es el defecto: lo relleno lo lee el script
+ * de la página, así que un sitio con código ajeno inyectado se lleva la contraseña sin que
+ * hayas hecho nada. Es lo mismo que ya puede hacer `get` desde la página, pero sin el clic.
+ *
+ * Se va a una entrada sin elegir solo si no hay duda: la predeterminada del sitio, o la
+ * única con contraseña. Con dos y sin predeterminada no rellena: elegir es del usuario.
+ */
+const autofillKey = async () => keyFor((await activeProfile()).id, 'passmanager/autofill')
+
+async function getAutofill () {
+  return (await store.get(await autofillKey())) === true
+}
+
+async function setAutofill ({ on } = {}) {
+  if (on) await store.set(await autofillKey(), true)
+  else await store.del(await autofillKey())
+  return { on: !!on }
+}
+
+async function autofillFor (_p, sender) {
+  // La dirección sale de Chrome, no de lo que diga la página; y solo el marco principal:
+  // un iframe de terceros dentro del sitio no se lleva la credencial del sitio.
+  if (!sender?.tab || sender.frameId !== 0 || !sender.url) return null
+  if (!(await getAutofill())) return null
+  const url = sender.url
+  const metas = (await findFor(url)).filter(m => m.hasSecret || m.type === 'login')
+  if (!metas.length) return null
+  const predet = await getDefault({ url })
+  const elegida = metas.find(m => m.id === predet) || (metas.length === 1 ? metas[0] : null)
+  if (!elegida) return null
+  const e = await getEntry(await connect(), elegida.id, ['username', 'secret'])
+  return { username: e?.username || '', secret: e?.secret || '' }
+}
+
+/**
  * BUSCAR una entrada por texto, en toda la bóveda y no solo en este sitio.
  *
  * Es para el caso que el dueño describió el 2026-08-28: *«a veces cambia el subdominio y
@@ -2030,6 +2070,9 @@ const OPS = {
   'open-convert': () => chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html#view=convert') }).then(() => ({ ok: true })),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),
+  'autofill-get': () => getAutofill(),
+  'autofill-set': p => setAutofill(p),
+  autofill: (p, sender) => autofillFor(p, sender),
   get: async p => getEntry(await connect(), p.id, p.keys),
   put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
 }
@@ -2134,7 +2177,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
   // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
   // extensión.
-  if (!deLaExtension && !['find', 'get', 'status', 'webauthn-has', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
+  if (!deLaExtension && !['find', 'get', 'autofill', 'status', 'webauthn-has', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

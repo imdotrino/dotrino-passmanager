@@ -96,3 +96,4 @@ button.link {
 }
 .gen-item .btns { display: flex; gap: 4px; flex-shrink: 0; }
 .gen-item .mini { padding: 2px 7px; font-size: 11px; }
+.autofill { display: flex; align-items: center; gap: 4px; margin-top: 10px; cursor: pointer; }

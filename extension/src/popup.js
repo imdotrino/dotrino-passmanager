@@ -290,6 +290,17 @@ async function renderSite (estado0) {
   const generatedBox = el('div', { className: 'gen-box' })
   renderGenerated(generatedBox, url)
 
+  // RELLENAR AL ABRIR (`autofillFor` en el service worker). Apagado por defecto.
+  const autoCheck = el('input', { type: 'checkbox' })
+  autoCheck.dataset.testid = 'popup-autofill'
+  autoCheck.onchange = async () => {
+    try { await ask('autofill-set', { on: autoCheck.checked }) } catch (err) { toast(humanError(err), 'error') }
+  }
+  ask('autofill-get').then(on => { autoCheck.checked = !!on }).catch(() => {})
+  const autoBox = el('label', { className: 'hint autofill', title: t(lang, 'autofillHint') }, [
+    autoCheck, el('span', { textContent: ' ' + t(lang, 'autofill') }),
+  ])
+
   // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es
   // de la bóveda entera, como los perfiles, y no una acción más de la última tarjeta.
   view.replaceChildren(
@@ -297,7 +308,7 @@ async function renderSite (estado0) {
     abrirGestor,
     ...(propia ? [recoveryNotice({ lang, ask, onGo: () => ask('open-convert') })] : []),
     el('h2', { textContent: t(lang, 'onThisSite') }),
-    list, estado, generatedBox, pie,
+    list, estado, generatedBox, autoBox, pie,
   )
 
   try {
