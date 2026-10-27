@@ -268,7 +268,7 @@ hay bóveda de identidad a la que preguntar. Correcto para el usuario, inservibl
 escaparate.
 
 En `chrome://extensions` → «Cargar descomprimida» → carpeta `extension/`, con una bóveda
-corriendo al otro lado (`dotrino-vault caps <ID> +contrasenas`, o `npx dotrino-passmanager
+corriendo al otro lado (`dotrino-vault caps <ID> +passwords`, o `npx dotrino-passmanager
 serve`).
 
 ## Lo que hay que esperar

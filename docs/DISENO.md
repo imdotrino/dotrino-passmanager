@@ -10,7 +10,7 @@
 > **Passkeys hechas** (§7). La bóveda y sus aparatos se administran en
 > `vault.dotrino.com/vault` — una sola dirección desde el 2026-08-26 (§6.2).
 >
-> **El vault del ecosistema atiende** (`dotrino-vault caps <ID> +contrasenas`): almacén
+> **El vault del ecosistema atiende** (`dotrino-vault caps <ID> +passwords`): almacén
 > cifrado en reposo, llave propia, lista de aparatos que se cruza con el acta, y la
 > aprobación en dos tiempos enganchada a la del vault — que es **el teléfono** (§2.1).
 > 10 tests propios, 259 en la suite del vault. Detalle en
@@ -105,7 +105,7 @@ es la bóveda, así que es la bóveda la que manda.
 
 **Y es el ÚNICO permiso.** No se inventa aquí un segundo sistema de aprobación en
 paralelo al del vault: el permiso de pedir aprobación ya existe (`pair --approval`,
-`caps +aprueba`), y duplicarlo con marcas por entrada solo crea dos reglas que acaban
+`caps +approve`), y duplicarlo con marcas por entrada solo crea dos reglas que acaban
 diciendo cosas distintas. Si hace falta afinar qué se aprueba, se afina **ahí**, donde
 ya viven los permisos de los aparatos.
 
@@ -131,7 +131,7 @@ siempre (§3.3.2).
 
 El PC se apaga; el teléfono no. Y el teléfono tiene almacenamiento respaldado por
 hardware, que el navegador de escritorio no tiene. Además el flujo ya existe: la
-**aprobación desde el teléfono** (`pair --approval` / `caps +aprueba`, vault 0.50)
+**aprobación desde el teléfono** (`pair --approval` / `caps +approve`, vault 0.50)
 es exactamente esta operación con otro contenido.
 
 El vault del PC no desaparece: cuando está, es quien manda y quien lleva la bitácora
@@ -353,8 +353,8 @@ listas que acordarse de tocar.
 Ahora se empareja con `vaultPair()` del mismo núcleo, como cualquier otro aparato:
 invitación de la bóveda → llave nueva aquí → **seis caracteres** que se teclean allí →
 certificado firmado por la maestra y entrada en el acta. Y lo que deja pedir credenciales
-es la capacidad **`passwords`** del acta (`pair --scope contrasenas` al conectar, o
-`caps <ID> +contrasenas` después): un permiso más, en el sitio donde están los permisos.
+es la capacidad **`passwords`** del acta (`pair --scope passwords` al conectar, o
+`caps <ID> +passwords` después): un permiso más, en el sitio donde están los permisos.
 
 ## 3.3.1. Nace funcionando: la extensión ES su propia bóveda
 
@@ -457,7 +457,7 @@ propósito: el aparato que pide es este mismo navegador, así que recordarla ser
 clic que apaga la pregunta para siempre. Mientras el proceso no esté asentado se ve, que
 es lo que el dueño pidió — *«seguramente automatizaremos para que no se vea, pero hasta que
 el proceso sea sólido»*. Cuando se automatice, será **en los permisos del aparato**, donde
-ya viven (`pair --approval`, `caps +aprueba`), y no en una regla nueva de aquí.
+ya viven (`pair --approval`, `caps +approve`), y no en una regla nueva de aquí.
 
 **Reemplazar no pregunta, y eso costó un fallo.** La primera versión de esto leía la
 entrada entera antes de escribir —para no perderle lo que el formulario no toca— y por eso

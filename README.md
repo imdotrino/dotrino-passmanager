@@ -31,7 +31,7 @@ bóveda de la extensión con la de la web. Las apps nativas viven aquí (CONVENC
 
 1. **Bóveda, autocompletado, TOTP e importación** — hecho
 2. El **vault del PC** responde de a una — hecho, y **el vault del ecosistema también**
-   (`dotrino-vault caps <ID> +contrasenas`), con su acta y su bitácora
+   (`dotrino-vault caps <ID> +passwords`), con su acta y su bitácora
 3. El **teléfono** aprueba, con huella — hecho: va por la aprobación del vault
    (`dotrino-vault approval <ID> on`)
 4. **Passkeys** — hechas
