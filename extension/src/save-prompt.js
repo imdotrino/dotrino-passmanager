@@ -418,11 +418,21 @@ function syncButtons () {
   $('save').title = nada ? t(lang, 'pickNothing') : ''
 }
 
+// Lo capturado caduca a los 5 minutos (`PENDING_TTL_MS` en background.js). Pasado eso
+// no queda nada que guardar, así que el aviso se cierra solo.
+let expiryTimer = null
+function scheduleExpiry (expiresAt) {
+  clearTimeout(expiryTimer)
+  if (!Number.isFinite(expiresAt)) return
+  expiryTimer = setTimeout(close, Math.max(0, expiresAt - Date.now()))
+}
+
 /** `cambio`: se vuelve a cargar porque se eligió otra cuenta, no porque se abra el aviso. */
 async function load ({ cambio = false } = {}) {
   $('err').hidden = true
   detail = await ask('pending-detail')
   if (!detail?.has) return close()
+  scheduleExpiry(detail.expiresAt)
   nuevoNombre = null
   editando = ''
   // De quién y de dónde es lo que se acaba de escribir. Llega aquí, no por la URL.

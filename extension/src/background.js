@@ -1355,6 +1355,9 @@ async function pendingDetail () {
 
   return {
     has: true,
+    // Cuándo se borra lo capturado: el aviso se cierra solo a esa hora, en vez de dejar
+    // un «Guardar» que ya no tiene nada que guardar.
+    expiresAt: p.ts + PENDING_TTL_MS,
     host: p.host,
     username: p.username,
     login: !!p.secret,
