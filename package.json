@@ -45,7 +45,7 @@
     "@dotrino/proxy-client": "0.47.0",
     "@dotrino/store": "0.14.2",
     "@dotrino/update": "0.9.2",
-    "@dotrino/vault": "0.120.0"
+    "@dotrino/vault": "0.120.1"
   },
   "devDependencies": {
     "playwright": "1.62.0"
