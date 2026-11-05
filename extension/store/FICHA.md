@@ -44,43 +44,64 @@ deja fuera los tests. Verificado: 49 archivos, ~85 KB.
 **Descripción corta** (132 caracteres máx.)
 `Tus contraseñas las guarda tu propia bóveda. El navegador recibe solo la del sitio que abres, y nada más.`
 
-**Descripción larga**
+**Descripción larga** (es; puesta en el panel el 2026-11-05 para la 0.58.6. La de agosto decía
+que hacía falta la bóveda con `npx … serve` e importar de 1Password/Bitwarden/Chrome: las dos
+cosas eran falsas para la extensión)
 
 ```
-Un gestor de contraseñas en el que el navegador NO guarda tus contraseñas.
+Un gestor de contraseñas en el que el navegador no tiene una copia de todas tus contraseñas.
 
-Lo habitual es que la extensión tenga una copia de todas y la descifre al
-desbloquearla. Aquí no: cuando entras a un sitio, le pide a tu bóveda la
-contraseña de ese sitio, la usa y la suelta. Si alguien se hiciera con la
-extensión, no se llevaría tu bóveda, porque no la tiene.
+Lo habitual es que la extensión las guarde todas y las descifre al desbloquearla. Aquí no: cuando entras a un sitio, pide la contraseña de ese sitio, la usa y la suelta. Y no sale ninguna sin que tú lo autorices.
 
 QUÉ HACE
 
 · Guarda contraseñas, códigos de dos pasos y passkeys.
-· Guarda también otros datos que rellenas a menudo — correo, teléfono,
-  dirección, cédula — atados a un sitio o válidos en cualquiera.
-· No autocompleta por su cuenta: marca los campos donde puede ayudar y espera
-  a que tú elijas.
-· Trae lo que ya tienes desde 1Password, Bitwarden o Chrome.
+· Guarda también otros datos que rellenas a menudo —correo, teléfono, dirección, número de socio—, atados a un sitio o válidos en cualquiera.
+· No rellena nada por su cuenta: marca los campos donde puede ayudarte y espera a que tú elijas.
 · Genera contraseñas.
 
-DÓNDE VIVEN TUS DATOS
+EMPIEZA SOLA
 
-En tu equipo, en tu bóveda. No en un servidor nuestro: no tenemos ninguno que
-las guarde. Lo que viaja entre tus aparatos va cerrado con una llave que solo
-ellos tienen, así que por el camino no se puede leer.
+Sin cuenta, sin contraseña maestra y sin instalar nada en tu computadora: al instalarla crea su propia bóveda cifrada dentro del navegador. Cuando quieras tus contraseñas en un solo sitio para todos tus navegadores, conectas tu bóveda de Dotrino desde la propia extensión.
 
-Sin cuenta, sin correo, sin anuncios y sin código de terceros. Código abierto
-(MIT): https://github.com/imdotrino/dotrino-passmanager
+NADA LLEGA A NUESTROS SERVIDORES
 
-HACE FALTA TU BÓVEDA
+Ni tus contraseñas ni los sitios donde las usas. Lo que viaja entre tus aparatos va cerrado con una llave que solo ellos tienen: por el camino no se puede leer.
 
-Esta extensión pide, no guarda. Necesita tu bóveda corriendo en tu equipo:
+Sin anuncios y sin código de terceros. Código abierto (MIT): https://github.com/imdotrino/dotrino-passmanager
 
-    npx dotrino-passmanager serve
-
-Instrucciones en https://pass.dotrino.com
+Cómo se usa: https://wiki.dotrino.com/herramientas/contrasenas/
 ```
+
+**Descripción larga en inglés** (la ficha en inglés estaba VACÍA hasta el 2026-11-05)
+
+```
+A password manager in which the browser does not keep a copy of all your passwords.
+
+The usual way is for the extension to store them all and decrypt them when you unlock it. Not here: when you open a site, it asks for that site's password, uses it and lets it go. And none leaves without your say-so.
+
+WHAT IT DOES
+
+· Stores passwords, two-step codes and passkeys.
+· Also stores other things you fill in often —email, phone, address, membership number—, tied to one site or valid on any.
+· Fills nothing on its own: it marks the fields where it can help and waits for you to choose.
+· Generates passwords.
+
+STARTS ON ITS OWN
+
+No account, no master password and nothing to install on your computer: once installed it creates its own encrypted vault inside the browser. When you want your passwords in one place for all your browsers, you connect your Dotrino vault from the extension itself.
+
+NOTHING REACHES OUR SERVERS
+
+Neither your passwords nor the sites where you use them. What travels between your devices is locked with a key only they have: it cannot be read on the way.
+
+No ads and no third-party code. Open source (MIT): https://github.com/imdotrino/dotrino-passmanager
+
+How to use it: https://wiki.dotrino.com/en/herramientas/contrasenas/
+```
+
+**Página:** https://pass.dotrino.com/ · **Soporte:** https://wiki.dotrino.com/herramientas/contrasenas/
+
 
 **Categoría:** Productividad · Herramientas
 **Idiomas:** español, inglés
@@ -155,7 +176,7 @@ borrador, se prueba con una bóveda de verdad, y solo entonces se envía.
 Con una revisión en curso el botón «Upload new package» queda **deshabilitado** y no hay
 forma de dejar nada en borrador — otra razón para no enviar antes de tiempo.
 
-**Estado: borrador con la 0.1.1**, dos idiomas reconocidos y los cuatro permisos
+**Estado (2026-11-05): ENVIADA A REVISIÓN con la 0.58.6** (zip subido por Playwright: el selector de archivos SÍ funciona con `browser_file_upload`; justificaciones de Privacy reescritas para la bóveda propia de la extensión). Antes: borrador con la 0.1.1 / 0.16.0, dos idiomas reconocidos y los cuatro permisos
 declarados. También se descarga de `pass.dotrino.com`, que es como se instala hoy.
 
 Google avisó de que **la revisión será más lenta por los permisos de host amplios**, y
