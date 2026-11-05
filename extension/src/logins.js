@@ -239,8 +239,10 @@ export async function serveLogins ({ proxyUrl = null } = {}) {
     proxyUrl: proxyUrl || PROXY_URL,
     // El cliente lo crea esta página (un service worker no podría sostenerlo) y con el
     // sellado del perfil, que es el sobre de las contraseñas.
-    makeClient: ({ url, acceptDirectFrom }) => {
-      client = new WebSocketProxyClient({ url, enableWebRTC: false, autoReconnect: true, sealing: identitySealing(sellador), acceptDirectFrom })
+    // `myEncPub`/`myEncPrivateKey`: la llave de transporte de la bóveda, para abrir lo que sus
+    // aparatos le sellan con el sobre del pilar (`dotrino-vault/docs/sealed-requests.md`).
+    makeClient: ({ url, acceptDirectFrom, myEncPub, myEncPrivateKey }) => {
+      client = new WebSocketProxyClient({ url, enableWebRTC: false, autoReconnect: true, sealing: identitySealing(sellador), acceptDirectFrom, ...(myEncPrivateKey ? { myEncPub, myEncPrivateKey } : {}) })
       return client
     },
     opaque: opaqueServer,

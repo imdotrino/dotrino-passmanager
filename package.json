@@ -41,11 +41,11 @@
     "test:convert": "node extension/test/convert.e2e.mjs"
   },
   "dependencies": {
-    "@dotrino/identity": "0.135.1",
-    "@dotrino/proxy-client": "0.46.0",
+    "@dotrino/identity": "0.136.0",
+    "@dotrino/proxy-client": "0.47.0",
     "@dotrino/store": "0.14.2",
     "@dotrino/update": "0.9.2",
-    "@dotrino/vault": "0.119.0"
+    "@dotrino/vault": "0.120.0"
   },
   "devDependencies": {
     "playwright": "1.62.0"
