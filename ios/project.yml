@@ -56,6 +56,8 @@ targets:
         # dotrino-native trae el lector de QR (emparejar con la bóveda): sin esta frase App Store
         # Connect rechaza el build (90683), aunque la pantalla no se abra nunca.
         NSCameraUsageDescription: "Para escanear el código de emparejamiento de tu bóveda."
+        NSBluetoothAlwaysUsageDescription: "Para encontrar tu bóveda cerca al emparejar, sin escanear ningún código."
+        NSLocalNetworkUsageDescription: "Para encontrar tu bóveda en tu red al emparejar, sin escanear ningún código."
         NSFaceIDUsageDescription: "Para confirmar que eres tú antes de ver o copiar una contraseña."
     entitlements:
       path: Passmanager/Passmanager.entitlements
