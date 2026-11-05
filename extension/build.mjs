@@ -182,20 +182,15 @@ const support = await readFile(supportPath, 'utf8')
 // del archivo, y todo lo demás del bloque tiene que ser idéntico o se para.
 const pin = support.match(/const _STORE_CDN = 'https:\/\/cdn\.jsdelivr\.net\/npm\/@dotrino\/store@([0-9.]+)\/src\/index\.js'/)?.[1]
 if (!pin) throw new Error('support: remote store import not found; check the vendor trimming')
-const remoto = `const _STORE_CDN = 'https://cdn.jsdelivr.net/npm/@dotrino/store@${pin}/src/index.js'
-async function _loadStore() {
-  try { return await import('@dotrino/store') }
-  catch { return await import(/* @vite-ignore */ _STORE_CDN) }
-}
-function recordAppOpen(appId) {
-  if (!appId || _openRecorded.has(appId)) return
-  _openRecorded.add(appId)
-  _loadStore()
-    .then((mod) => mod.Store.connect())
-    .then((store) => store.recordOpen(appId))
-    .catch(() => { /* store no disponible (offline, bloqueado…): best-effort */ })
-}`
-if (!support.includes(remoto)) {
+// Las líneas de tipos (`/** … */`, support ≥ 0.10.1) pueden ir delante de cada función; el
+// cuerpo tiene que ser el de siempre, o se para.
+const jsdoc = String.raw`(?:/\*\*[^\n]*\*/\n)?`
+const remoto = new RegExp(
+  String.raw`const _STORE_CDN = 'https://cdn\.jsdelivr\.net/npm/@dotrino/store@${pin.replace(/\./g, '\\.')}/src/index\.js'\n` +
+  jsdoc + String.raw`async function _loadStore\(\) \{\n  try \{ return await import\('@dotrino/store'\) \}\n  catch \{ return await import\(/\* @vite-ignore \*/ _STORE_CDN\) \}\n\}\n` +
+  jsdoc + String.raw`function recordAppOpen\(appId\) \{\n  if \(!appId \|\| _openRecorded\.has\(appId\)\) return\n  _openRecorded\.add\(appId\)\n  _loadStore\(\)\n    \.then\(\(mod\) => mod\.Store\.connect\(\)\)\n    \.then\(\(store\) => store\.recordOpen\(appId\)\)\n    \.catch\(\(\) => \{ /\* store no disponible \(offline, bloqueado…\): best-effort \*/ \}\)\n\}`
+)
+if (!remoto.test(support)) {
   throw new Error('support: the open counter changed shape; check the vendor trimming')
 }
 const recortado = support.replace(remoto,
@@ -205,6 +200,7 @@ const recortado = support.replace(remoto,
 // de contraseñas. Lo que se publica no lleva ni la URL ni el import.
 function recordAppOpen() {}`)
 if (recortado.includes('cdn.jsdelivr.net')) throw new Error('support: a jsDelivr URL remains after trimming')
+if (recortado.includes("import('@dotrino/store')")) throw new Error('support: the store import remains after trimming')
 await writeFile(supportPath, recortado)
 console.log(`vendor: support without the open counter (store@${pin} removed, no remote code)`)
 
