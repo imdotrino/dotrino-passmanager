@@ -5,8 +5,8 @@
 > los mismos textos que aquí. La 0.59.0 se envió a revisión con el código fuente de OPAQUE
 > (`dotrino-opaque` + `README-AMO.md`, el build reproducido byte a byte). Claves de la API y
 > códigos de respaldo de la cuenta en el cajón `dotrino/passmanager`. Las versiones siguientes:
-> `npm run publish:amo`. Política de privacidad de la ficha en es y en. Pendiente:
-> `pass.dotrino.com/privacy.html` describe la extensión de agosto (sin bóveda propia).
+> `npm run publish:amo`. Política de privacidad de la ficha en es y en. `pass.dotrino.com/privacy.html`
+> reescrita el mismo día (bóveda propia; es/en).
 
 Lo que hay que rellenar en el panel, ya escrito. **La subida la hace el dueño**: hace
 falta la cuenta de desarrollador (pago único de 5 USD) y no se puede automatizar sin
@@ -184,7 +184,7 @@ borrador, se prueba con una bóveda de verdad, y solo entonces se envía.
 Con una revisión en curso el botón «Upload new package» queda **deshabilitado** y no hay
 forma de dejar nada en borrador — otra razón para no enviar antes de tiempo.
 
-**Estado (2026-11-05): ENVIADA A REVISIÓN con la 0.58.6** (zip subido por Playwright: el selector de archivos SÍ funciona con `browser_file_upload`; justificaciones de Privacy reescritas para la bóveda propia de la extensión). Antes: borrador con la 0.1.1 / 0.16.0, dos idiomas reconocidos y los cuatro permisos
+**Estado (2026-11-08): 0.58.6 publicada; 0.59.0 ENVIADA A REVISIÓN** (subida por Playwright, publicación automática al aprobarse). **Antes (2026-11-05): ENVIADA A REVISIÓN con la 0.58.6** (zip subido por Playwright: el selector de archivos SÍ funciona con `browser_file_upload`; justificaciones de Privacy reescritas para la bóveda propia de la extensión). Antes: borrador con la 0.1.1 / 0.16.0, dos idiomas reconocidos y los cuatro permisos
 declarados. También se descarga de `pass.dotrino.com`, que es como se instala hoy.
 
 Google avisó de que **la revisión será más lenta por los permisos de host amplios**, y
