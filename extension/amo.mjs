@@ -4,17 +4,17 @@
 //
 // Firefox para Android solo instala extensiones firmadas por AMO y publicadas en su listado.
 //
-// Hacen falta las credenciales de la API de AMO (addons.mozilla.org → Herramientas →
-// Administrar claves de API), que son del dueño:
+// Las credenciales de la API de AMO viven en la bóveda, cajón `dotrino/passmanager`
+// (AMO_JWT_ISSUER pública, AMO_JWT_SECRET privada; generadas el 2026-11-08). `npm run
+// publish:amo` las inyecta con `dotrino-env run`.
 //
-//   AMO_JWT_ISSUER, AMO_JWT_SECRET
-//
-// La primera vez la ficha se crea a mano en AMO (nombre, categoría, que es compatible con
-// Android). AMO pide además el código fuente del WASM de OPAQUE: es `dotrino-opaque`
-// (público, MIT), y se adjunta su enlace en la revisión.
+// La ficha existe desde el 2026-11-08 (slug `dotrino-gestor-de-contraseñas`, es + en, Firefox
+// y Firefox para Android). Cada versión con el WASM de OPAQUE pide su código fuente: el zip
+// con `dotrino-opaque` y `README-AMO.md` (cómo reproducir los dos archivos generados) se
+// adjunta desde el panel de la versión.
 //
 // Uso:
-//   node amo.mjs              # sube y firma en el canal listado (pasa por revisión)
+//   npm run publish:amo       # sube y firma en el canal listado (pasa por revisión)
 
 import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'

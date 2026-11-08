@@ -10,6 +10,6 @@
     "crx": "node crx.mjs",
     "release": "dotrino-env run --ns passmanager -- node crx.mjs && node package.mjs",
     "publish:store": "node publish.mjs",
-    "publish:amo": "node amo.mjs"
+    "publish:amo": "dotrino-env run --ns passmanager -- node amo.mjs"
   }
 }

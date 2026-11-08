@@ -1,5 +1,13 @@
 # Ficha para la Chrome Web Store
 
+> **Firefox (addons.mozilla.org)**: ficha creada el 2026-11-08, slug
+> `dotrino-gestor-de-contraseñas`, en español e inglés, para Firefox y Firefox para Android, con
+> los mismos textos que aquí. La 0.59.0 se envió a revisión con el código fuente de OPAQUE
+> (`dotrino-opaque` + `README-AMO.md`, el build reproducido byte a byte). Claves de la API y
+> códigos de respaldo de la cuenta en el cajón `dotrino/passmanager`. Las versiones siguientes:
+> `npm run publish:amo`. Pendiente: la política de privacidad de la ficha solo en español, y
+> `pass.dotrino.com/privacy.html` describe la extensión de agosto (sin bóveda propia).
+
 Lo que hay que rellenar en el panel, ya escrito. **La subida la hace el dueño**: hace
 falta la cuenta de desarrollador (pago único de 5 USD) y no se puede automatizar sin
 sus credenciales.
