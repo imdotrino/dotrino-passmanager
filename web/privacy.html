@@ -6,6 +6,8 @@
 <title>Privacidad — Dotrino Contraseñas</title>
 <meta name="description" content="Qué datos maneja el gestor de contraseñas de Dotrino y a dónde van. En corto: a ningún servidor nuestro.">
 <link rel="canonical" href="https://pass.dotrino.com/privacy.html">
+<meta property="og:locale" content="es_ES">
+<meta property="og:locale:alternate" content="en_US">
 <meta name="theme-color" content="#00658c">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <script>window.goatcounter={path:function(p){return location.hostname+p}}</script>
@@ -23,46 +25,65 @@
   th { color: var(--fg); font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
   td:first-child { color: var(--fg); font-weight: 600; }
   .date { font-size: 13px; color: var(--dim); }
+  /* Los dos idiomas están en la página; se ve el del documento (lo pone la barra). */
+  html[lang^="en"] main > section[lang="es"],
+  html:not([lang^="en"]) main > section[lang="en"] { display: none; }
 </style>
+<script>
+  // El idioma guardado por la barra, antes de pintar: sin esto se vería el español un instante.
+  try {
+    var l = localStorage.getItem('dotrino-lang') ||
+      ((navigator.language || 'es').toLowerCase().indexOf('en') === 0 ? 'en' : 'es')
+    if (l === 'en') document.documentElement.lang = 'en'
+  } catch (e) {}
+  document.addEventListener('dotrino-lang', function (e) {
+    document.documentElement.lang = e.detail && e.detail.lang === 'en' ? 'en' : 'es'
+  })
+</script>
 </head>
 <body>
 
 <dotrino-topbar profile theme
-  brand="Privacidad"
+  brand="Dotrino"
   icon="icon.svg"
   brand-href="./"
   support-repo="imdotrino/dotrino-passmanager"
   support-discord="https://discord.gg/D648uq7cth"></dotrino-topbar>
 
 <main>
+<section lang="es">
   <h1>Qué hace la extensión con tus datos</h1>
-  <p class="date">Última actualización: 26 de agosto de 2026</p>
+  <p class="date">Última actualización: 8 de noviembre de 2026</p>
 
   <p>
     En una frase: <strong>tus contraseñas no llegan a ningún servidor nuestro</strong>, ni
-    siquiera de paso. Lo que sigue es el detalle de qué toca la extensión y a dónde va
-    cada cosa.
+    siquiera de paso. Vale para la extensión en Chrome, Firefox (también en Android) y
+    Vivaldi.
   </p>
 
   <h2>Qué guarda la extensión</h2>
   <p>
-    <strong>Nada de tus contraseñas.</strong> La extensión no tiene la llave que abre tu
-    bóveda y no puede pedir la lista de lo que hay dentro. Cuando necesita una
-    credencial, se la pide a tu bóveda y recibe <strong>esa sola</strong>.
+    Al instalarla crea <strong>su propia bóveda cifrada dentro del navegador</strong>. Ahí
+    guarda tus contraseñas, códigos de dos pasos, passkeys y los demás datos que le pidas
+    guardar. No hace falta cuenta ni contraseña maestra, y nada de eso sale del navegador.
   </p>
-  <p>En el navegador solo se queda:</p>
+  <p>Si conectas tu bóveda de Dotrino, además guarda:</p>
   <ul>
     <li>a qué bóveda tuya está enlazada (una clave pública, no un secreto);</li>
     <li>su propia llave de aparato, que la identifica ante tu bóveda;</li>
-    <li>durante la sesión del navegador, en memoria, las credenciales que tu bóveda ya
-      te entregó. Eso se borra al cerrar el navegador y nunca toca el disco.</li>
+    <li>durante la sesión del navegador, en memoria, las credenciales que tu bóveda ya te
+      entregó. Eso se borra al cerrar el navegador.</li>
   </ul>
+  <p>
+    Con una bóveda conectada, la extensión no tiene la llave que la abre: cuando necesita una
+    credencial, se la pide y recibe <strong>esa sola</strong>.
+  </p>
 
   <h2>Qué lee de las páginas que visitas</h2>
   <p>
     Lee los formularios de la página que tienes abierta para saber dónde puede ayudarte:
     los campos, sus etiquetas y la dirección del sitio. <strong>Nada de eso sale de tu
-    navegador.</strong> No se envía, no se guarda y no se comparte.
+    navegador.</strong> No se envía y no se comparte.
   </p>
   <p>
     La extensión <strong>no rellena nada por su cuenta</strong>: marca los campos donde
@@ -71,11 +92,11 @@
 
   <h2>Qué viaja por la red, y cómo</h2>
   <p>
-    Solo lo que va entre tus propios aparatos: la petición de una credencial y su
-    respuesta. Viaja por el transporte de Dotrino
-    (<code>proxy.dotrino.com</code>) <strong>cerrado con una llave que solo tienen tus
-    aparatos</strong>. Quien opera ese servidor no puede leer ni a qué sitio le pides una
-    credencial ni cuál se te devuelve.
+    Sin una bóveda conectada, <strong>nada</strong>. Con una bóveda conectada, solo lo que va
+    entre tus propios aparatos: la petición de una credencial y su respuesta. Viaja por el
+    transporte de Dotrino (<code>proxy.dotrino.com</code>) <strong>cerrado con una llave que
+    solo tienen tus aparatos</strong>. Quien opera ese servidor no puede leer ni a qué sitio
+    le pides una credencial ni cuál se te devuelve.
   </p>
   <p>
     Lo que ese servidor sí ve, y conviene decirlo: <strong>que un aparato tuyo habla con
@@ -85,10 +106,10 @@
   <h2>Resumen</h2>
   <table>
     <tr><th>Dato</th><th>Dónde va</th></tr>
-    <tr><td>Tus contraseñas</td><td>A tu bóveda, en tu equipo. A ningún servidor nuestro.</td></tr>
+    <tr><td>Tus contraseñas</td><td>A la bóveda cifrada del navegador, o a tu bóveda de Dotrino si la conectas. A ningún servidor nuestro.</td></tr>
     <tr><td>Los formularios que lee</td><td>No salen de tu navegador.</td></tr>
     <tr><td>A qué sitios les pides credenciales</td><td>Cerrado; nuestro servidor no lo ve.</td></tr>
-    <tr><td>Tu identidad</td><td>Vive en tu bóveda. No creamos cuentas ni pedimos correo.</td></tr>
+    <tr><td>Tu identidad</td><td>Vive en tu navegador y en tu bóveda. No creamos cuentas ni pedimos correo.</td></tr>
     <tr><td>Analítica</td><td>Solo visitas a esta web, agregadas y sin cookies. La extensión no lleva analítica.</td></tr>
   </table>
 
@@ -106,6 +127,85 @@
     <a href="https://github.com/imdotrino/dotrino-passmanager">GitHub</a>. Lo que dice
     esta página se puede verificar leyéndolo.
   </p>
+</section>
+
+<section lang="en">
+  <h1>What the extension does with your data</h1>
+  <p class="date">Last updated: November 8, 2026</p>
+
+  <p>
+    In one sentence: <strong>your passwords do not reach any server of ours</strong>, not
+    even in passing. This applies to the extension in Chrome, Firefox (also on Android) and
+    Vivaldi.
+  </p>
+
+  <h2>What the extension stores</h2>
+  <p>
+    Once installed it creates <strong>its own encrypted vault inside the browser</strong>.
+    It keeps your passwords, two-step codes, passkeys and the other data you ask it to keep
+    there. No account or master password is needed, and none of it leaves the browser.
+  </p>
+  <p>If you connect your Dotrino vault, it also stores:</p>
+  <ul>
+    <li>which of your vaults it is linked to (a public key, not a secret);</li>
+    <li>its own device key, which identifies it to your vault;</li>
+    <li>during the browser session, in memory, the credentials your vault already gave
+      you. That is erased when the browser closes.</li>
+  </ul>
+  <p>
+    With a vault connected, the extension does not have the key that opens it: when it needs
+    a credential, it asks for it and gets <strong>that one only</strong>.
+  </p>
+
+  <h2>What it reads from the pages you visit</h2>
+  <p>
+    It reads the forms on the page you have open to know where it can help: the fields,
+    their labels and the site address. <strong>None of that leaves your browser.</strong>
+    It is not sent and not shared.
+  </p>
+  <p>
+    The extension <strong>fills nothing on its own</strong>: it marks the fields where it
+    can help and waits for you to choose.
+  </p>
+
+  <h2>What travels over the network, and how</h2>
+  <p>
+    Without a connected vault, <strong>nothing</strong>. With a connected vault, only what goes
+    between your own devices: the request for a credential and its answer. It travels over
+    the Dotrino transport (<code>proxy.dotrino.com</code>) <strong>locked with a key only
+    your devices have</strong>. Whoever runs that server cannot read which site you ask a
+    credential for, nor which one you get back.
+  </p>
+  <p>
+    What that server does see, and it is worth saying: <strong>that one of your devices
+    talks to another of your devices, when and how much</strong>. Not what they say.
+  </p>
+
+  <h2>Summary</h2>
+  <table>
+    <tr><th>Data</th><th>Where it goes</th></tr>
+    <tr><td>Your passwords</td><td>To the browser's encrypted vault, or to your Dotrino vault if you connect it. To no server of ours.</td></tr>
+    <tr><td>The forms it reads</td><td>They do not leave your browser.</td></tr>
+    <tr><td>Which sites you ask credentials for</td><td>Locked; our server does not see it.</td></tr>
+    <tr><td>Your identity</td><td>Lives in your browser and your vault. We create no accounts and ask for no email.</td></tr>
+    <tr><td>Analytics</td><td>Only visits to this website, aggregated and without cookies. The extension has no analytics.</td></tr>
+  </table>
+
+  <h2>What we do not do</h2>
+  <ul>
+    <li>We do not sell or share data with anyone. There is nothing to share: we do not have it.</li>
+    <li>There are no ads, no cookies and no third-party code inside the extension.</li>
+    <li>We keep no record of the pages you visit.</li>
+    <li>We ask for no account, email or phone number to use it.</li>
+  </ul>
+
+  <h2>You can check it</h2>
+  <p>
+    All the code is open source (MIT license) and is on
+    <a href="https://github.com/imdotrino/dotrino-passmanager">GitHub</a>. What this page
+    says can be verified by reading it.
+  </p>
+</section>
 </main>
 
 </body>
