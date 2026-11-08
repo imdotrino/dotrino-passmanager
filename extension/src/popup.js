@@ -352,6 +352,25 @@ document.addEventListener('dotrino-lang', (ev) => {
 
 render()
 
-
+/**
+ * EL PERMISO DE LEER LAS PÁGINAS. En Chrome se concede al instalar; en Firefox (también en
+ * Android) los permisos de sitios de una MV3 pueden quedar sin conceder, y entonces la
+ * extensión no ve ningún formulario y no rellena nada, sin decir por qué. Aquí se dice, y el
+ * botón lo pide: `permissions.request` solo vale dentro de un gesto del usuario.
+ */
+const SITES = { origins: chrome.runtime.getManifest().host_permissions }
+async function checkSitesPermission () {
+  const banner = document.getElementById('sites-perm')
+  if (await chrome.permissions.contains(SITES)) { banner.hidden = true; return }
+  const btn = el('button', { className: 'primary', textContent: t(lang, 'permAsk') })
+  btn.dataset.testid = 'sites-permission-grant'
+  btn.onclick = async () => {
+    try { if (await chrome.permissions.request(SITES)) banner.hidden = true } catch (e) { toast(humanError(e), 'error') }
+  }
+  banner.replaceChildren(el('span', { textContent: t(lang, 'permMissing') }), btn)
+  banner.hidden = false
+}
+checkSitesPermission()
+document.addEventListener('dotrino-lang', () => checkSitesPermission())
 // La barra, con su selector de perfiles y tu avatar: lo pinta el componente.
 wireTopbar(ask)

@@ -38,7 +38,9 @@
     "store:shots": "node extension/store/screenshots.mjs",
     "test:profile": "node extension/test/profile.e2e.mjs",
     "test:share": "node extension/test/share.e2e.mjs",
-    "test:convert": "node extension/test/convert.e2e.mjs"
+    "test:convert": "node extension/test/convert.e2e.mjs",
+    "test:firefox": "node extension/test/firefox.e2e.mjs",
+    "test:action-icon": "node extension/test/action-icon.e2e.mjs"
   },
   "dependencies": {
     "@dotrino/identity": "0.137.0",

@@ -1886,7 +1886,8 @@ Cobertura esperada:
 | App Android / iOS | nativo | Android: proveedor de Credential Manager (HECHO 2026-10-16). iOS: pendiente |
 | Chrome / Edge | extensión | parche de `navigator.credentials` |
 | Safari | extensión | API de proveedor real (macOS 14+) |
-| Firefox | extensión | mismo parche, sin API |
+| Firefox (también Android) | extensión, el mismo paquete que Chrome | mismo parche, sin API |
+| Vivaldi Android | extensión de la Chrome Web Store | mismo parche |
 
 ## 8. Plan por pasos
 

@@ -4,9 +4,8 @@
 // —una página sandbox no los tiene—. Lo único que pasa por aquí que sea sensible es la
 // contraseña, y pasa porque es donde se comprueba sin que nadie la vea: eso es OPAQUE.
 //
-// El motivo de que esté aparte está en `opaque-sandbox.html`: MV3 bloquea el WASM con su
-// CSP por defecto, y una página sandbox tiene la suya, así que el permiso no se le abre a
-// toda la extensión.
+// El motivo de que esté aparte está en `opaque-sandbox.html`: en Chrome una página sandbox
+// no tiene `chrome.*`. En Firefox es una página normal (no hay sandbox).
 
 import { client, server, suiteId } from './vendor/opaque/index.js'
 

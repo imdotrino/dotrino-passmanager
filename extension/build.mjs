@@ -34,13 +34,11 @@ console.log('vendor: sealed/* → the copy of @dotrino/identity/content')
 // ENTRAR CON USUARIO Y CONTRASEÑA, dentro de la extensión: el mostrador del ecosistema
 // (`@dotrino/vault`) y el OPAQUE que comprueba la contraseña sin verla.
 //
-// El OPAQUE es WASM —sale de `opaque-ke`, que es Rust— y MV3 bloquea instanciarlo con su
-// CSP por defecto. La extensión NO se la abre a todas sus páginas: el WASM vive en UNA
-// página sandbox (`src/opaque-sandbox.html`), que tiene su propia CSP, y el resto le habla
-// por `postMessage` (`opaque-bridge.js`). Así no hace falta ni `'wasm-unsafe-eval'` global
-// ni el permiso `offscreen` — un documento offscreen ES una página de la extensión y lleva
-// su misma CSP, así que no habría ahorrado nada. Probado en un Chrome de verdad:
-// `npm run test:opaque`.
+// El OPAQUE es WASM —sale de `opaque-ke`, que es Rust—. Vive en UNA página sandbox
+// (`src/opaque-sandbox.html`) y el resto le habla por `postMessage` (`opaque-bridge.js`): en
+// Chrome esa página no tiene `chrome.*`. Firefox no conoce las páginas sandbox, así que las
+// páginas de la extensión declaran `'wasm-unsafe-eval'` (un solo paquete para los dos
+// navegadores, 2026-11-08). Probado en un Chrome de verdad: `npm run test:opaque`.
 // LA BÓVEDA ENTERA: el MISMO núcleo que el binario (`browser.js` → `core/`), que corre en
 // la pestaña de bóveda (`logins.js`). Y lo que importa: compat, roadmap y las reglas del
 // almacén. La librería de contraseñas ya viaja arriba (`vendor/passmanager`).

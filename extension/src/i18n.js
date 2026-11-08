@@ -1,6 +1,8 @@
 // Bilingüe es/en (CONVENCIONES §9). Español neutro, tuteo, sin voseo.
 const STRINGS = {
   es: {
+    permMissing: 'Este navegador todavía no deja que Dotrino lea las páginas, así que no puede rellenar nada.',
+    permAsk: 'Dar permiso',
     // --- entrar con usuario y contraseña (docs/temporary-access.md) ---
     // --- entrar con usuario y contraseña, desde aquí ---
     // --- convertir la bóveda propia al formato sellado (sealed-passwords.md) ---
@@ -300,6 +302,8 @@ const STRINGS = {
     notesLabel: 'Notas',
   },
   en: {
+    permMissing: 'This browser does not let Dotrino read pages yet, so it cannot fill anything in.',
+    permAsk: 'Grant access',
     cvTitle: 'Choose the password for your passwords',
     cvWhy: 'Your passwords are sealed and only your account devices can open them. This password is the recovery copy: the only thing that can open them again if you lose this browser.',
     cvWarn: 'It cannot be recovered. If you lose it, you lose the copy.',

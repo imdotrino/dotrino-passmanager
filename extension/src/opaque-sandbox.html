@@ -5,10 +5,12 @@
 <!--
   LA PÁGINA SANDBOX: aquí y solo aquí corre el WASM de OPAQUE.
                                                                                         
-  Por qué existe: MV3 bloquea instanciar WebAssembly con su CSP por defecto, y la salida
-  fácil —declarar `wasm-unsafe-eval` para TODAS las páginas de la extensión— abre la puerta
-  en sitios donde no hace falta. Una página sandbox tiene su PROPIA CSP, así que el permiso
-  se queda acotado a esta, que es la única que lo necesita.
+  Por qué existe: en Chrome una página sandbox no tiene `chrome.*`, así que el WASM corre
+  sin acceso a nada de la extensión. Firefox no tiene páginas sandbox (ignora la clave
+  `sandbox` del manifiesto) y la carga como una página más; por eso las páginas de la
+  extensión declaran `wasm-unsafe-eval` (2026-11-08: un solo paquete para Chrome, Firefox y
+  Vivaldi). Ese permiso solo deja compilar WebAssembly que viene de la propia extensión;
+  `eval` de JavaScript sigue prohibido.
 
   Lo que hay aquí dentro es solo cálculo: entran cadenas, salen cadenas. No tiene acceso a
   `chrome.*`, no guarda nada, y no es `web_accessible_resource` — así que no la puede

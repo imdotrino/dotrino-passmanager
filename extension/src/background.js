@@ -51,6 +51,7 @@ import { fieldKey, fieldOffers } from './detect.js'
 import { t, pickLang, KIND_LABEL } from './i18n.js'
 // Estático a propósito: un service worker no admite `import()` dinámico.
 import { identity, identityCore } from './identity-core.js'
+import { avatarPaint } from './vendor/identity/avatar.js'
 
 const PROXY_URL = 'wss://proxy.dotrino.com'
 
@@ -402,20 +403,33 @@ function settleAsk (rid, ok) {
   p.done(!!ok)
 }
 
+// EN UN TELÉFONO NO HAY VENTANAS. Firefox para Android no trae `chrome.windows`, y abrir una
+// ventana emergente allí no tiene sentido: la pregunta sale en una PESTAÑA. `askWindow` guarda
+// entonces el id de la pestaña, y se sabe cuál de las dos cosas es por `askIsTab`.
+let askIsTab = false
+
 async function openAskWindow () {
   if (askWindow != null) {
-    try { await chrome.windows.update(askWindow, { focused: true }); return } catch (_) { askWindow = null }
+    try {
+      if (askIsTab) await chrome.tabs.update(askWindow, { active: true })
+      else await chrome.windows.update(askWindow, { focused: true })
+      return
+    } catch (_) { askWindow = null }
   }
+  const url = chrome.runtime.getURL('src/approve.html')
   try {
-    const w = await chrome.windows.create({
-      url: chrome.runtime.getURL('src/approve.html'),
-      type: 'popup', width: 380, height: 300, focused: true,
-    })
-    askWindow = w.id
+    if (chrome.windows?.create) {
+      const w = await chrome.windows.create({ url, type: 'popup', width: 380, height: 300, focused: true })
+      askWindow = w.id; askIsTab = false
+    } else {
+      const t = await chrome.tabs.create({ url, active: true })
+      askWindow = t.id; askIsTab = true
+    }
   } catch (_) { /* sin ventana no hay a quién preguntar: caduca y se toma como un no */ }
 }
 
-chrome.windows.onRemoved.addListener(id => { if (id === askWindow) askWindow = null })
+chrome.windows?.onRemoved.addListener(id => { if (!askIsTab && id === askWindow) askWindow = null })
+chrome.tabs.onRemoved.addListener(id => { if (askIsTab && id === askWindow) askWindow = null })
 
 /**
  * LA BÓVEDA ENLAZADA TARDA: casi siempre es que pidió tu aprobación en el teléfono. La
@@ -649,6 +663,54 @@ async function listProfiles () {
     ...(p.login ? { login: p.login } : {}),
   }))), ...cerradas]
 }
+
+/**
+ * EL ICONO DE LA EXTENSIÓN ES EL DEL PERFIL ACTIVO (dueño, 2026-11-08: «que cambie al cambiar
+ * el perfil»). Con varios perfiles, la barra del navegador dice en cuál estás sin abrir nada.
+ *
+ * Un service worker no rasteriza SVG, y `action.setIcon` pide píxeles: el identicon se pinta
+ * en un OffscreenCanvas con `avatarPaint` de `@dotrino/identity/avatar` —la misma geometría que
+ * el avatar del menú, no una copia—. Una foto propia (PNG/JPEG) se decodifica y se recorta en
+ * círculo. Sin perfil activo, el icono de la extensión.
+ */
+const ICON_SIZES = [16, 24, 32]
+const DEFAULT_ICON = { 16: '/icons/icon-16.png', 32: '/icons/icon-32.png' }
+
+/** Una foto que se puede decodificar en un worker (un SVG no: ese es el identicon). */
+const isRaster = (src) => typeof src === 'string' && /^data:image\/(png|jpe?g|webp|gif)[;,]/.test(src)
+
+async function profileIconPixels (prof, size) {
+  const canvas = new OffscreenCanvas(size, size)
+  const ctx = canvas.getContext('2d')
+  if (isRaster(prof.avatar)) {
+    const bmp = await createImageBitmap(await (await fetch(prof.avatar)).blob())
+    ctx.beginPath()
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.drawImage(bmp, 0, 0, size, size)
+  } else {
+    avatarPaint(ctx, prof.pubkey, { size })
+  }
+  return ctx.getImageData(0, 0, size, size)
+}
+
+async function paintProfileIcon () {
+  // Un navegador que no enseña el icono de la extensión puede no traer `setIcon` (en un
+  // teléfono la extensión suele ser una entrada del menú): ahí no hay nada que pintar.
+  if (!chrome.action.setIcon) return
+  const cur = (await identity.profiles()).find((p) => p.current)
+  if (!cur || (!isRaster(cur.avatar) && !cur.pubkey)) return chrome.action.setIcon({ path: DEFAULT_ICON })
+  const imageData = {}
+  for (const size of ICON_SIZES) imageData[size] = await profileIconPixels(cur, size)
+  await chrome.action.setIcon({ imageData })
+}
+
+/** Las operaciones después de las cuales el perfil activo —o su foto— puede ser otro. */
+const PROFILE_OPS = new Set(['profile-add', 'profile-use', 'profile-set', 'profile-remove',
+  'id.adoptLogin', 'id.logoutLogin', 'id.joinProfile', 'identity-refresh'])
+
+const repaintIcon = () => paintProfileIcon().catch((e) => console.error('passmanager: could not paint the profile icon:', e))
+repaintIcon()
 
 /**
  * Otro perfil con su bóveda en esta misma extensión. La personal y la del trabajo sin
@@ -2169,7 +2231,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // una pestaña cuando se abren así (`chrome-extension://<id>/src/popup.html`), y con
   // esa comprobación el popup abierto en pestaña no podía ni enlazar. Lo que distingue
   // a una página ajena es su ORIGEN.
-  const deLaExtension = (sender.origin || sender.url || '').startsWith(`chrome-extension://${chrome.runtime.id}`)
+  //
+  // El origen se saca de `getURL('')` y no se escribe a mano: en Firefox es
+  // `moz-extension://<uuid>/` (y el uuid no es `runtime.id`), así que con
+  // `chrome-extension://` escrito el popup de Firefox no podía ni cambiar de perfil.
+  const base = chrome.runtime.getURL('')   // termina en «/»
+  const deLaExtension = sender.origin ? sender.origin + '/' === base : (sender.url || '').startsWith(base)
   // Cambiar de perfil es cambiar de bóveda: si una página pudiera, te enseñaría las
   // credenciales de otro perfil o te las guardaría en el que ella eligiera.
   //
@@ -2186,7 +2253,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   Promise.resolve(op(msg.payload || {}, sender))
-    .then(result => sendResponse({ result }))
+    .then(result => { if (PROFILE_OPS.has(msg.op)) repaintIcon(); sendResponse({ result }) })
     .catch(e => sendResponse({ error: { code: e?.code || 'error', message: e?.message } }))
   return true
 })

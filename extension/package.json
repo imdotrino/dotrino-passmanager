@@ -3,12 +3,13 @@
   "version": "0.38.1",
   "private": true,
   "type": "module",
-  "description": "Extensi\u00f3n Chrome MV3 del gestor de contrase\u00f1as de Dotrino",
+  "description": "Extensión MV3 del gestor de contraseñas de Dotrino (Chrome, Firefox, Vivaldi)",
   "scripts": {
     "build": "node build.mjs",
     "package": "node package.mjs",
     "crx": "node crx.mjs",
     "release": "dotrino-env run --ns passmanager -- node crx.mjs && node package.mjs",
-    "publish:store": "node publish.mjs"
+    "publish:store": "node publish.mjs",
+    "publish:amo": "node amo.mjs"
   }
 }

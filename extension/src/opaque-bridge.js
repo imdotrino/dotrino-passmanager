@@ -5,8 +5,9 @@
 // eso el mostrador (`createLoginDesk`) acepta que le inyecten el OPAQUE: en el binario y en
 // la pestaña es el de casa y va en el mismo hilo; aquí vive al otro lado de una frontera.
 //
-// La frontera existe para no abrirle la CSP a toda la extensión: solo la página sandbox
-// puede instanciar WebAssembly, y es lo único que hay dentro.
+// La frontera existe para que el WASM corra sin `chrome.*` (en Chrome, una página sandbox no
+// lo tiene). Firefox no tiene páginas sandbox: allí la frontera es solo el `postMessage`, y el
+// WASM puede compilarse porque las páginas de la extensión declaran `wasm-unsafe-eval`.
 
 const SANDBOX = 'opaque-sandbox.html'
 

@@ -17,7 +17,7 @@ pide de a una por el proxio y nada viaja en claro. Ver
 |---|---|---|
 | `lib/` | `@dotrino/passmanager` — modelo, cifrado, protocolo, las dos puntas | hecho, 56 tests |
 | `bin/` | la bóveda: crear, editar, generar, importar, y responder a los aparatos | hecha |
-| `extension/` | extensión Chrome MV3 — pide, no guarda | hecha, sin publicar en la tienda |
+| `extension/` | extensión MV3 (Chrome, Firefox, Vivaldi; también Android) — pide, no guarda | hecha, sin publicar en la tienda |
 | `web/` | landing en [pass.dotrino.com](https://pass.dotrino.com/) | en vivo |
 | `android/` | app nativa de Android (`com.dotrino.passmanager`): buscar, copiar, crear, editar | hecha y probada en emulador; **sin publicar** |
 | `ios/` | app nativa de iOS, la misma | **escrita y sin compilar** (ver `ios/README.md`) |

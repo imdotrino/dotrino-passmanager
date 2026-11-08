@@ -1,6 +1,7 @@
-# Extensión de Chrome — Dotrino
+# Extensión del navegador — Dotrino
 
-Extensión MV3 del gestor de contraseñas. Ver el diseño en
+Extensión MV3 del gestor de contraseñas. **Un solo paquete** para Chrome, Firefox (también
+Android) y Vivaldi (también Android, que la instala desde la Chrome Web Store). Ver el diseño en
 [`../docs/DISENO.md`](../docs/DISENO.md).
 
 ## La extensión NO tiene la bóveda
@@ -68,3 +69,35 @@ y nunca `search`.
 Esta comprobación es **manual** por ahora: automatizarla pide un navegador de verdad
 (Playwright), y todavía no está en el repo. La lógica que sí se prueba sola está en
 `../lib` (`npm test`).
+
+## Firefox y Vivaldi (también en Android)
+
+El mismo zip sirve a todos (`npm run package`). Lo que en el manifiesto y el código existe
+por Firefox:
+
+- `background.scripts` junto a `service_worker`: Firefox no tiene service worker de extensión
+  y usa el primero; Chrome usa el segundo.
+- `browser_specific_settings.gecko` (id `passmanager@dotrino.com`, Firefox ≥ 128 por los
+  content scripts en `world: MAIN`).
+- `extension_pages` con `'wasm-unsafe-eval'`: Firefox ignora las páginas `sandbox`, y el
+  OPAQUE es WASM. Solo deja compilar WebAssembly de la propia extensión; `eval` sigue
+  prohibido.
+- El origen de las páginas propias se saca de `runtime.getURL('')` (`moz-extension://` en
+  Firefox), nunca escrito a mano.
+- Sin `chrome.windows` (Firefox para Android), la pregunta de aprobación sale en una pestaña.
+- En Firefox los permisos de sitios pueden quedar sin conceder: el popup lo dice y los pide.
+
+Vivaldi para Android instala desde la Chrome Web Store; no hay nada específico para él.
+
+```bash
+npm run test:firefox                     # el mismo paquete en un Firefox de verdad
+FIREFOX_BIN=<Firefox 148> npm run test:firefox   # 149+ no deja abrir el popup por BiDi
+npm run publish:amo                      # subir a addons.mozilla.org (claves AMO_JWT_*)
+```
+
+## El icono es el del perfil activo
+
+El fondo pinta el avatar del perfil activo como icono de la extensión al arrancar y después
+de cada cambio de perfil (`paintProfileIcon`). El identicon sale de `avatarPaint` de
+`@dotrino/identity/avatar`, la misma geometría que el avatar del menú. Prueba:
+`npm run test:action-icon`.
