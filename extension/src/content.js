@@ -161,7 +161,7 @@ async function scan () {
 }
 
 /**
- * RELLENAR AL ABRIR, si el usuario lo encendió (está apagado por defecto). Quién, cuándo y
+ * RELLENAR AL ABRIR, si el usuario lo encendió para este sitio (apagado por defecto). Quién, cuándo y
  * con qué entrada lo decide el service worker (`autofillFor`); aquí solo se pregunta una
  * vez por dirección y paso, y solo con la casilla vacía: lo que el usuario borró no se
  * repone. El paso cuenta porque un acceso en dos pasos (primero el usuario, luego la
@@ -178,8 +178,28 @@ async function autoFill () {
   autoFilled.add(paso)
   const r = await ask('autofill')
   if (r?.error || !r?.result?.secret) return
-  await fillLogin(r.result)
+  const relleno = await fillLogin(r.result)
+  if (relleno && r.result.submit) await autoSubmit()
   scan().catch(() => {})
+}
+
+/**
+ * ENVIAR AL RELLENAR, el segundo ajuste del sitio. Solo con todas las casillas llenas, y
+ * solo si el service worker dice que este formulario no se ha enviado ya
+ * (`autosubmit-claim`): así un acceso fallido no se reintenta en bucle, y un formulario
+ * nuevo —el segundo paso— sí se envía.
+ */
+async function autoSubmit () {
+  const { detect } = await mods
+  // Dejar que la página procese lo escrito: muchas habilitan el botón al recibir `input`.
+  await new Promise(r => setTimeout(r, 300))
+  const f = detect.findLoginForms(document).find(x => x.password) || null
+  const scope = detect.submitScope(f?.password || f?.username)
+  if (!scope || !detect.scopeFilled(scope)) return
+  const sig = `${location.pathname}|${detect.scopeSignature(scope)}`
+  const r = await ask('autosubmit-claim', { sig })
+  if (r?.error || r?.result !== true) return
+  detect.submitScopeNow(scope)
 }
 
 // Rellenar manda cuando hay algo guardado que poner: generar sigue estando dentro, pero

@@ -1706,7 +1706,9 @@ async function setDefault ({ url, id } = {}) {
 
 /**
  * RELLENAR AL ABRIR LA PÁGINA: un ajuste, APAGADO por defecto (dueño, 2026-10-26: *«por
- * default no me gusta que autocomplete»*).
+ * default no me gusta que autocomplete»*), y POR SITIO (dueño, 2026-11-11: *«ambas
+ * opciones no son globales sino dependiendo de la url»*). Se guarda en el store con el
+ * host, igual que la entrada predeterminada.
  *
  * Encendido, al cargar una página con un formulario de acceso vacío se rellena sin pulsar
  * nada. Sirve para un navegador que maneja un programa (el de Playwright), donde nadie va
@@ -1716,33 +1718,92 @@ async function setDefault ({ url, id } = {}) {
  *
  * Se va a una entrada sin elegir solo si no hay duda: la predeterminada del sitio, o la
  * única con contraseña. Con dos y sin predeterminada no rellena: elegir es del usuario.
+ *
+ * ENVIAR AL RELLENAR es el segundo ajuste, y depende del primero: sin rellenar no hay nada
+ * que enviar, así que apagar el relleno apaga también el envío. El envío lo hace la página
+ * (`autoSubmit` en content.js) solo con todas las casillas llenas, y UNA vez por formulario
+ * (`claimAutosubmit`): si la clave es mala y vuelve el mismo formulario, no se reintenta.
  */
-const autofillKey = async () => keyFor((await activeProfile()).id, 'passmanager/autofill')
-
-async function getAutofill () {
-  return (await store.get(await autofillKey())) === true
+const siteSettingKey = async (name, url) => {
+  const host = hostOf(url)
+  if (!host) return ''
+  return keyFor((await activeProfile()).id, `passmanager/${name}/${host}`)
 }
 
-async function setAutofill ({ on } = {}) {
-  if (on) await store.set(await autofillKey(), true)
-  else await store.del(await autofillKey())
-  return { on: !!on }
+async function getSiteFlag (name, url) {
+  const k = await siteSettingKey(name, url)
+  return k ? (await store.get(k)) === true : false
+}
+
+async function setSiteFlag (name, url, on) {
+  const k = await siteSettingKey(name, url)
+  if (!k) throw new VaultError(CODES.NOT_FOUND, 'no site for url')
+  if (on) await store.set(k, true)
+  else await store.del(k)
+}
+
+async function getAutofill ({ url } = {}) {
+  const autofill = await getSiteFlag('autofill', url)
+  return { on: autofill, submit: autofill && await getSiteFlag('autosubmit', url) }
+}
+
+async function setAutofill ({ url, on, submit } = {}) {
+  if (on !== undefined) {
+    await setSiteFlag('autofill', url, !!on)
+    if (!on) await setSiteFlag('autosubmit', url, false)
+  }
+  if (submit !== undefined) {
+    if (submit && !(await getSiteFlag('autofill', url))) throw new VaultError(CODES.DENIED, 'autosubmit needs autofill')
+    await setSiteFlag('autosubmit', url, !!submit)
+  }
+  return getAutofill({ url })
 }
 
 async function autofillFor (_p, sender) {
   // La dirección sale de Chrome, no de lo que diga la página; y solo el marco principal:
   // un iframe de terceros dentro del sitio no se lleva la credencial del sitio.
   if (!sender?.tab || sender.frameId !== 0 || !sender.url) return null
-  if (!(await getAutofill())) return null
   const url = sender.url
+  const ajuste = await getAutofill({ url })
+  if (!ajuste.on) return null
   const metas = (await findFor(url)).filter(m => m.hasSecret || m.type === 'login')
   if (!metas.length) return null
   const predet = await getDefault({ url })
   const elegida = metas.find(m => m.id === predet) || (metas.length === 1 ? metas[0] : null)
   if (!elegida) return null
   const e = await getEntry(await connect(), elegida.id, ['username', 'secret'])
-  return { username: e?.username || '', secret: e?.secret || '' }
+  return { username: e?.username || '', secret: e?.secret || '', submit: ajuste.submit }
 }
+
+/**
+ * UN ENVÍO POR FORMULARIO. La página pide permiso antes de pulsar, con la firma del
+ * formulario (dirección + qué casillas tiene). La misma firma en la misma pestaña no se
+ * envía dos veces: un acceso fallido que vuelve con el mismo formulario se queda quieto en
+ * vez de entrar en bucle. Un formulario DISTINTO (el segundo paso, otra pantalla) tiene
+ * otra firma y sí se envía.
+ *
+ * Vive en `chrome.storage.session` porque un envío fallido suele recargar la página, y con
+ * ella la memoria del content script. Caduca a los 5 minutos: volver a entrar más tarde en
+ * la misma pestaña (tras salir de la cuenta) vuelve a enviar.
+ */
+const AUTOSUBMIT_TTL_MS = 5 * 60 * 1000
+const autosubmitKey = (tabId) => `autosubmit/${tabId}`
+
+async function claimAutosubmit ({ sig } = {}, sender) {
+  if (!sender?.tab || sender.frameId !== 0 || !sender.url || !sig) return false
+  if (!(await getAutofill({ url: sender.url })).submit) return false
+  const k = autosubmitKey(sender.tab.id)
+  const ahora = Date.now()
+  const vistos = ((await chrome.storage.session.get(k))[k] || {})
+  for (const [s, ts] of Object.entries(vistos)) if (ahora - ts > AUTOSUBMIT_TTL_MS) delete vistos[s]
+  const firma = `${hostOf(sender.url)}|${String(sig).slice(0, 2000)}`
+  if (vistos[firma]) return false
+  vistos[firma] = ahora
+  await chrome.storage.session.set({ [k]: vistos })
+  return true
+}
+
+chrome.tabs.onRemoved.addListener(id => { chrome.storage.session.remove(autosubmitKey(id)).catch(() => {}) })
 
 /**
  * BUSCAR una entrada por texto, en toda la bóveda y no solo en este sitio.
@@ -2135,9 +2196,10 @@ const OPS = {
   'open-convert': () => chrome.tabs.create({ url: chrome.runtime.getURL('src/manager.html#view=convert') }).then(() => ({ ok: true })),
   'default-get': p => getDefault(p),
   'default-set': p => setDefault(p),
-  'autofill-get': () => getAutofill(),
+  'autofill-get': p => getAutofill(p),
   'autofill-set': p => setAutofill(p),
   autofill: (p, sender) => autofillFor(p, sender),
+  'autosubmit-claim': (p, sender) => claimAutosubmit(p, sender),
   get: async p => getEntry(await connect(), p.id, p.keys),
   put: async p => { forgetFinds(); return (await connect()).put(p.entry) },
 }
@@ -2247,7 +2309,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // sí tocan la bóveda: `save-pending`, que escribe, y `pending-detail`, que la lee
   // para decir qué cambia. Los dos se piden desde el iframe del aviso, que es de la
   // extensión.
-  if (!deLaExtension && !['find', 'get', 'autofill', 'status', 'webauthn-has', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
+  if (!deLaExtension && !['find', 'get', 'autofill', 'autosubmit-claim', 'status', 'webauthn-has', 'webauthn-create', 'webauthn-get', 'capture', 'pending-save', 'offers', 'open-convert'].includes(msg.op)) {
     sendResponse({ error: { code: CODES.DENIED } })
     return false
   }

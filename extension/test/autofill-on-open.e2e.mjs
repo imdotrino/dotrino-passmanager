@@ -1,6 +1,7 @@
 // RELLENAR AL ABRIR LA PÁGINA, el ajuste opcional (dueño, 2026-10-26). Apagado no rellena
 // nada; encendido rellena el acceso con la única entrada del sitio, y con dos solo si una
-// es la predeterminada.
+// es la predeterminada. Los dos ajustes son POR SITIO (2026-11-11), y el segundo, ENVIAR
+// AL RELLENAR, pulsa una sola vez por formulario.
 //
 //   python3 -m http.server 8099 --directory web/test &
 //   node extension/test/autofill-on-open.e2e.mjs
@@ -37,7 +38,10 @@ try {
 
   const una = (await pedir('put', { entry: { type: 'login', title: 'Local', sites: ['localhost'], username: 'ana@ejemplo.com', secret: 'clave-local-1' } })).result
   ok(!!una?.id, 'la entrada se guarda')
-  ok((await pedir('autofill-get')).result === false, 'el ajuste nace apagado')
+  const URL_LOGIN = `${SITE}/login.html`
+  const a0 = (await pedir('autofill-get', { url: URL_LOGIN })).result
+  ok(a0?.on === false && a0?.submit === false, 'los dos ajustes nacen apagados')
+  ok(!!(await pedir('autofill-set', { url: URL_LOGIN, submit: true })).error, 'enviar sin rellenar: no se deja')
 
   const page = await ctx.newPage()
   const valores = () => page.evaluate(() => [
@@ -59,7 +63,8 @@ try {
   const [u0, s0] = await abrirLogin({ autorizar: false })
   ok(u0 === '' && s0 === '', 'apagado: no rellena nada')
 
-  ok((await pedir('autofill-set', { on: true })).result?.on === true, 'se enciende')
+  ok((await pedir('autofill-set', { url: URL_LOGIN, on: true })).result?.on === true, 'se enciende')
+  ok((await pedir('autofill-get', { url: 'https://otro.example/' })).result?.on === false, 'solo para este sitio')
   const [u1, s1] = await abrirLogin({ autorizar: true })
   ok(u1 === 'ana@ejemplo.com' && s1 === 'clave-local-1', `encendido: rellena la única entrada (${u1})`)
 
@@ -71,7 +76,31 @@ try {
   const [u3, s3] = await abrirLogin({ autorizar: true })
   ok(u3 === 'beto' && s3 === 'clave-local-2', 'con predeterminada: usa esa')
 
-  await pedir('autofill-set', { on: false })
+  // ENVIAR AL RELLENAR.
+  ok((await pedir('autofill-set', { url: URL_LOGIN, submit: true })).result?.submit === true, 'enviar se enciende')
+  await page.goto(URL_LOGIN)
+  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 8000 }) } catch (_) {}
+  await page.waitForURL(/inside\.html/, { timeout: 8000 }).catch(() => {})
+  ok(page.url().includes('inside.html'), `enviar: rellena y entra (${page.url()})`)
+
+  // Un acceso que falla y vuelve con el mismo formulario: una sola vez, nada de bucle.
+  await page.goto(`${SITE}/login-fail.html`)
+  await page.evaluate(() => { sessionStorage.envios = '0' })
+  await page.reload()
+  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 8000 }) } catch (_) {}
+  await page.waitForTimeout(4000)
+  const envios = await page.evaluate(() => sessionStorage.envios)
+  ok(envios === '1', `con clave mala: envía una vez y para (${envios})`)
+
+  // Un formulario DISTINTO en la misma pestaña (el segundo paso) sí se envía.
+  await page.goto(`${SITE}/step2.html?user=beto`)
+  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 8000 }) } catch (_) {}
+  await page.waitForURL(/inside\.html/, { timeout: 8000 }).catch(() => {})
+  ok(page.url().includes('inside.html'), `otro formulario: también se envía (${page.url()})`)
+
+  // Apagar el relleno apaga el envío.
+  const a5 = (await pedir('autofill-set', { url: URL_LOGIN, on: false })).result
+  ok(a5?.on === false && a5?.submit === false, 'apagar rellenar apaga enviar')
   const [u4] = await abrirLogin({ autorizar: false })
   ok(u4 === '', 'apagado otra vez: no rellena')
 

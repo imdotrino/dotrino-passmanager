@@ -290,15 +290,38 @@ async function renderSite (estado0) {
   const generatedBox = el('div', { className: 'gen-box' })
   renderGenerated(generatedBox, url)
 
-  // RELLENAR AL ABRIR (`autofillFor` en el service worker). Apagado por defecto.
+  // RELLENAR AL ABRIR y ENVIAR AL RELLENAR (`autofillFor` en el service worker). Los dos
+  // son DE ESTE SITIO y nacen apagados; el segundo depende del primero, así que sin
+  // rellenar se ve deshabilitado (no escondido) y apagarlo apaga el envío.
   const autoCheck = el('input', { type: 'checkbox' })
   autoCheck.dataset.testid = 'popup-autofill'
-  autoCheck.onchange = async () => {
-    try { await ask('autofill-set', { on: autoCheck.checked }) } catch (err) { toast(humanError(err), 'error') }
+  const submitCheck = el('input', { type: 'checkbox', disabled: true })
+  submitCheck.dataset.testid = 'popup-autosubmit'
+  const pintarAjuste = (a) => {
+    autoCheck.checked = !!a?.on
+    submitCheck.checked = !!a?.submit
+    submitCheck.disabled = !a?.on
   }
-  ask('autofill-get').then(on => { autoCheck.checked = !!on }).catch(() => {})
-  const autoBox = el('label', { className: 'hint autofill', title: t(lang, 'autofillHint') }, [
-    autoCheck, el('span', { textContent: ' ' + t(lang, 'autofill') }),
+  const guardarAjuste = async (cambio) => {
+    try { pintarAjuste(await ask('autofill-set', { url, ...cambio })) } catch (err) {
+      toast(humanError(err), 'error')
+      ask('autofill-get', { url }).then(pintarAjuste).catch(() => {})
+    }
+  }
+  // Sin sitio (una pestaña nueva, una página del navegador) no hay a qué atar el ajuste.
+  let conSitio = false
+  try { conSitio = /^https?:$/.test(new URL(url).protocol) } catch (_) {}
+  autoCheck.disabled = !conSitio
+  autoCheck.onchange = () => guardarAjuste({ on: autoCheck.checked })
+  submitCheck.onchange = () => guardarAjuste({ submit: submitCheck.checked })
+  if (conSitio) ask('autofill-get', { url }).then(pintarAjuste).catch(() => {})
+  const autoBox = el('div', { className: 'autofill-box' }, [
+    el('label', { className: 'hint autofill', title: t(lang, 'autofillHint') }, [
+      autoCheck, el('span', { textContent: ' ' + t(lang, 'autofill') }),
+    ]),
+    el('label', { className: 'hint autofill sub', title: t(lang, 'autosubmitHint') }, [
+      submitCheck, el('span', { textContent: ' ' + t(lang, 'autosubmit') }),
+    ]),
   ])
 
   // El gestor va ARRIBA, entre los perfiles y lo de este sitio (dueño, 2026-08-29): es

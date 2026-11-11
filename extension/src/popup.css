@@ -97,6 +97,8 @@ button.link {
 .gen-item .btns { display: flex; gap: 4px; flex-shrink: 0; }
 .gen-item .mini { padding: 2px 7px; font-size: 11px; }
 .autofill { display: flex; align-items: center; gap: 4px; margin-top: 10px; cursor: pointer; }
+.autofill.sub { margin-top: 4px; padding-left: 18px; }
+.autofill:has(input:disabled) { opacity: .5; cursor: default; }
 
 /* Firefox: los permisos de sitios pueden quedar sin conceder (popup.js, checkSitesPermission). */
 .perm-banner { display: flex; flex-direction: column; gap: 8px; margin: 8px 12px; padding: 10px 12px;

@@ -591,3 +591,75 @@ export function fillField (el, value) {
   el.blur()
   return true
 }
+
+// --- enviar al rellenar ------------------------------------------------------
+//
+// El segundo ajuste por sitio (dueño, 2026-11-11). Aquí solo se decide QUÉ se envía y SI
+// está listo; cuántas veces lo decide el service worker (`claimAutosubmit`).
+
+/** Las casillas que una persona tendría que escribir: ni botones, ni casillas de marcar. */
+const NOT_TYPED = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'checkbox', 'radio', 'file', 'range', 'color'])
+
+/**
+ * DÓNDE se envía un campo: su `<form>`, o, en las páginas que no usan `<form>`, el
+ * antecesor más cercano que tenga un botón. Sin ninguno de los dos, `null`: no se adivina.
+ */
+export function submitScope (field) {
+  if (!field) return null
+  if (field.form) return field.form
+  let n = field.parentElement
+  for (let i = 0; n && i < 6; i++, n = n.parentElement) {
+    if (n.querySelector('button, input[type=submit]')) return n
+  }
+  return null
+}
+
+/** Las casillas visibles y editables del ámbito. */
+export function scopeInputs (scope) {
+  if (!scope) return []
+  return collectInputs(scope).filter(el => isVisible(el) && !NOT_TYPED.has(el.type))
+}
+
+/**
+ * ¿Está TODO lleno? Si queda una casilla vacía (un código de verificación, un captcha) no
+ * se envía: enviar a medias es provocar un fallo, y eso es justo lo que no se quiere.
+ */
+export function scopeFilled (scope) {
+  const ins = scopeInputs(scope)
+  return ins.length > 0 && ins.every(el => String(el.value || '').trim() !== '')
+}
+
+/**
+ * La FIRMA de un formulario: qué casillas tiene. El mismo formulario que vuelve tras un
+ * fallo firma igual; el segundo paso de un acceso (otras casillas) firma distinto.
+ */
+export function scopeSignature (scope) {
+  return scopeInputs(scope).map(el => `${el.type}:${el.name || el.id || el.autocomplete || ''}`).join(',')
+}
+
+/** El botón de enviar: el declarado, o el único botón visible si no hay ninguno declarado. */
+export function submitButton (scope) {
+  if (!scope) return null
+  const usable = el => !el.disabled && onScreen(el)
+  const declarados = [...scope.querySelectorAll('button[type=submit], input[type=submit]')].filter(usable)
+  if (declarados.length) return declarados[0]
+  if (scope.tagName === 'FORM') {
+    const sinTipo = [...scope.querySelectorAll('button:not([type])')].filter(usable)
+    if (sinTipo.length) return sinTipo[0]
+    return null
+  }
+  const botones = [...scope.querySelectorAll('button')].filter(usable)
+  return botones.length === 1 ? botones[0] : null
+}
+
+/** Envía como lo haría una persona: pulsando el botón. Un `<form>` sin botón, por `requestSubmit`. */
+export function submitScopeNow (scope) {
+  const btn = submitButton(scope)
+  if (btn) { btn.click(); return true }
+  if (scope?.tagName === 'FORM') {
+    if (typeof scope.requestSubmit === 'function') scope.requestSubmit()
+    else scope.submit()
+    return true
+  }
+  return false
+}

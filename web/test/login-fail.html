@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow"><title>Entrar · clave mala</title><link rel="stylesheet" href="bench.css"></head>
+<body>
+<!--
+  Un acceso que SIEMPRE falla y vuelve con el mismo formulario. Sirve para comprobar que
+  «enviar al rellenar» pulsa una sola vez y no entra en bucle. Cuenta los envíos en
+  sessionStorage (`envios`).
+-->
+<nav><a href="./">← banco de pruebas</a></nav>
+<h1>Entrar</h1>
+<p class="lead" id="msg">Acceso que nunca deja entrar.</p>
+<form id="login" method="GET" action="login-fail.html">
+  <label>Usuario <input name="user" type="text" autocomplete="username"></label>
+  <label>Contraseña <input name="password" type="password" autocomplete="current-password"></label>
+  <button type="submit">Entrar</button>
+</form>
+<script>
+  if (location.search) {
+    sessionStorage.envios = String(Number(sessionStorage.envios || 0) + 1)
+    document.getElementById('msg').textContent = 'Usuario o contraseña incorrectos'
+  }
+</script>
+</body></html>
