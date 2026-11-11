@@ -188,17 +188,30 @@ async function autoFill () {
  * solo si el service worker dice que este formulario no se ha enviado ya
  * (`autosubmit-claim`): así un acceso fallido no se reintenta en bucle, y un formulario
  * nuevo —el segundo paso— sí se envía.
+ *
+ * No envía al momento: enseña una cuenta atrás de AUTOSUBMIT_DELAY_S segundos con un botón
+ * para cancelar (dueño, 2026-11-11). Al llegar a cero vuelve a mirar: si el formulario ya
+ * no está o alguien vació una casilla, no envía.
  */
+const AUTOSUBMIT_DELAY_S = 10
+
 async function autoSubmit () {
-  const { detect } = await mods
+  const { detect, ui } = await mods
   // Dejar que la página procese lo escrito: muchas habilitan el botón al recibir `input`.
   await new Promise(r => setTimeout(r, 300))
   const f = detect.findLoginForms(document).find(x => x.password) || null
   const scope = detect.submitScope(f?.password || f?.username)
   if (!scope || !detect.scopeFilled(scope)) return
   const sig = `${location.pathname}|${detect.scopeSignature(scope)}`
+  // Se reclama ANTES de contar: cancelar también cuenta como «este formulario ya se vio».
   const r = await ask('autosubmit-claim', { sig })
   if (r?.error || r?.result !== true) return
+  const go = await ui.showCountdown({
+    seconds: AUTOSUBMIT_DELAY_S,
+    label: () => t('autosubmitIn'),
+    cancelLabel: t('cancel'),
+  })
+  if (!go || !scope.isConnected || !detect.scopeFilled(scope)) return
   detect.submitScopeNow(scope)
 }
 

@@ -192,6 +192,30 @@ function styles () {
       font: inherit; opacity: .6; cursor: pointer;
     }
     .close:hover { opacity: 1; }
+
+    /* LA CUENTA ATRÁS del envío automático: abajo al centro, fija, y con un solo botón,
+       Cancelar. No tapa el formulario ni bloquea la página. */
+    .countdown {
+      position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 12px;
+      box-sizing: border-box; width: 300px; max-width: calc(100vw - 32px);
+      padding: 10px 10px 10px 16px;
+      background: ${BRAND}; color: #fff;
+      border-radius: 999px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.3);
+      font: 14px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
+      pointer-events: auto;
+    }
+    .countdown .n {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 26px; height: 26px; border-radius: 50%;
+      background: rgba(255,255,255,.2); font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .countdown span:nth-child(2) { flex: 1; }
+    .countdown button {
+      padding: 7px 14px; border: 0; border-radius: 999px;
+      background: #fff; color: ${BRAND}; font: inherit; font-weight: 650; cursor: pointer;
+    }
   `
   return s
 }
@@ -365,6 +389,53 @@ export function showModal ({ title, what, lead, options = [], empty, actions = [
 export function closeModal () {
   modal?.remove()
   modal = null
+}
+
+/**
+ * LA CUENTA ATRÁS antes de enviar un formulario solo (dueño, 2026-11-11: *«el envío debe
+ * hacerse unos 10 segundos después de rellenar, con un contador y un botón de cancelar
+ * flotante»*). Da tiempo a ver qué cuenta se usó y a pararlo.
+ *
+ * Resuelve `true` si llegó a cero y `false` si se canceló (o si otra cuenta la sustituyó).
+ * Cancelar no hace nada más que no enviar: lo relleno se queda.
+ */
+let countdown = null
+
+export function showCountdown ({ seconds = 10, label, cancelLabel }) {
+  const sr = ensureHost()
+  closeCountdown()
+  return new Promise((resolve) => {
+    const box = document.createElement('div')
+    box.className = 'countdown'
+    box.setAttribute('role', 'status')
+    box.dataset.testid = 'autosubmit-countdown'
+    const n = document.createElement('span')
+    n.className = 'n'
+    const txt = document.createElement('span')
+    const cancel = document.createElement('button')
+    cancel.type = 'button'
+    cancel.dataset.testid = 'autosubmit-cancel'
+    cancel.textContent = cancelLabel || 'Cancelar'
+    box.append(n, txt, cancel)
+
+    let left = seconds
+    const paint = () => { n.textContent = String(left); txt.textContent = label ? label(left) : '' }
+    const end = (done) => {
+      clearInterval(timer)
+      box.remove()
+      if (countdown?.box === box) countdown = null
+      resolve(done)
+    }
+    const timer = setInterval(() => { left -= 1; if (left <= 0) end(true); else paint() }, 1000)
+    cancel.addEventListener('click', () => end(false))
+    paint()
+    sr.append(box)
+    countdown = { box, end }
+  })
+}
+
+export function closeCountdown () {
+  countdown?.end(false)
 }
 
 /** Para las pruebas: el shadow root, que es cerrado y no se alcanza desde fuera. */

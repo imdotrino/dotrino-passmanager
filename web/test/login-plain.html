@@ -15,4 +15,10 @@
   <label for="password">Password</label> <input type="password" name="password" id="password">
   <button id="submit">Submit</button>
 </div>
+<script>
+  // Cuenta las pulsaciones del botón: la usa la prueba de «enviar al rellenar».
+  document.getElementById('submit').onclick = () => {
+    document.body.dataset.sent = String(Number(document.body.dataset.sent || 0) + 1)
+  }
+</script>
 </body></html>

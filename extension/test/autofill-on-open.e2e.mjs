@@ -60,6 +60,18 @@ try {
     return valores()
   }
 
+  /** Espera a que la casilla `sel` se rellene, contestando que sí si la bóveda pregunta. */
+  const esperarRelleno = async (sel, ms = 12000) => {
+    const fin = Date.now() + ms
+    while (Date.now() < fin) {
+      const si = ext.locator('[data-testid=approval-yes]')
+      if (await si.isVisible().catch(() => false)) await si.click().catch(() => {})
+      if (await page.evaluate((s) => !!document.querySelector(s)?.value, sel).catch(() => false)) return true
+      await page.waitForTimeout(250)
+    }
+    return false
+  }
+
   const [u0, s0] = await abrirLogin({ autorizar: false })
   ok(u0 === '' && s0 === '', 'apagado: no rellena nada')
 
@@ -78,24 +90,42 @@ try {
 
   // ENVIAR AL RELLENAR.
   ok((await pedir('autofill-set', { url: URL_LOGIN, submit: true })).result?.submit === true, 'enviar se enciende')
+  // Cancelar: la cuenta atrás sale, se pulsa Cancelar, y no se envía. En una página sin
+  // <form> (el botón se busca en el contenedor), que también hay que cubrir.
+  const URL_PLAIN = `${SITE}/login-plain.html`
+  await pedir('autofill-set', { url: URL_PLAIN, on: true })
+  await pedir('autofill-set', { url: URL_PLAIN, submit: true })
+  await page.goto(URL_PLAIN)
+  ok(await esperarRelleno('#username'), 'enviar: rellena (página sin <form>)')
+  await page.waitForTimeout(1500)
+  ok(!(await page.evaluate(() => document.body.dataset.sent)), 'enviar: no envía antes de tiempo')
+  // La cuenta atrás vive en un shadow root CERRADO (la página no la alcanza), así que se
+  // pulsa por coordenadas: píldora de 300 px centrada abajo, Cancelar a la derecha.
+  const vp = page.viewportSize()
+  await page.mouse.click(vp.width / 2 + 102, vp.height - 47)
+  await page.waitForTimeout(11000)
+  ok(!(await page.evaluate(() => document.body.dataset.sent)), 'cancelar: no envía')
+
   await page.goto(URL_LOGIN)
-  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 8000 }) } catch (_) {}
-  await page.waitForURL(/inside\.html/, { timeout: 8000 }).catch(() => {})
-  ok(page.url().includes('inside.html'), `enviar: rellena y entra (${page.url()})`)
+  await esperarRelleno('input[name=password]')
+  const tRelleno = Date.now()
+  await page.waitForURL(/inside\.html/, { timeout: 20000 }).catch(() => {})
+  const tarda = Date.now() - tRelleno
+  ok(page.url().includes('inside.html') && tarda > 9000, `enviar: rellena y entra a los 10 s (${Math.round(tarda / 1000)} s)`)
 
   // Un acceso que falla y vuelve con el mismo formulario: una sola vez, nada de bucle.
   await page.goto(`${SITE}/login-fail.html`)
   await page.evaluate(() => { sessionStorage.envios = '0' })
   await page.reload()
-  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 8000 }) } catch (_) {}
-  await page.waitForTimeout(4000)
+  await esperarRelleno('input[name=password]')
+  await page.waitForTimeout(26000)
   const envios = await page.evaluate(() => sessionStorage.envios)
   ok(envios === '1', `con clave mala: envía una vez y para (${envios})`)
 
   // Un formulario DISTINTO en la misma pestaña (el segundo paso) sí se envía.
   await page.goto(`${SITE}/step2.html?user=beto`)
-  try { await ext.locator('[data-testid=approval-yes]').click({ timeout: 8000 }) } catch (_) {}
-  await page.waitForURL(/inside\.html/, { timeout: 8000 }).catch(() => {})
+  await esperarRelleno('input[name=password]')
+  await page.waitForURL(/inside\.html/, { timeout: 20000 }).catch(() => {})
   ok(page.url().includes('inside.html'), `otro formulario: también se envía (${page.url()})`)
 
   // Apagar el relleno apaga el envío.
