@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Acceso por pasos (prueba)</title>
+</head>
+<body>
+<!-- Imita el acceso de Google: correo, luego contraseña, luego un segundo paso, todo en la
+     MISMA página, sin <form> y sin recargar. La contraseña buena es «buena-de-prueba»; con
+     cualquier otra sale un error y la casilla se queda. -->
+<main id="app"></main>
+<script>
+  const app = document.getElementById('app')
+  let correo = ''
+  function paso1 () {
+    app.innerHTML = `<h1>Iniciar sesión</h1>
+      <input type="email" id="identifierId" name="identifier" autocomplete="username" aria-label="Correo">
+      <button type="button" id="next1">Siguiente</button>`
+    document.getElementById('next1').onclick = () => {
+      correo = document.getElementById('identifierId').value
+      history.pushState({}, '', '?step=pwd')
+      paso2()
+    }
+  }
+  function paso2 (error = '') {
+    app.innerHTML = `<h1>Hola, ${correo.replace(/</g, '')}</h1>
+      <input type="password" name="Passwd" autocomplete="current-password" aria-label="Contraseña">
+      <button type="button" id="next2">Siguiente</button>
+      <p id="err">${error}</p>`
+    const pass = app.querySelector('input[name=Passwd]')
+    document.getElementById('next2').onclick = () => {
+      if (pass.value !== 'buena-de-prueba') {
+        document.getElementById('err').textContent = 'Contraseña incorrecta'
+        return
+      }
+      history.pushState({}, '', '?step=2fa')
+      app.innerHTML = '<h1>Segundo paso</h1><p id="done">Confirma en tu teléfono.</p>'
+    }
+  }
+  paso1()
+</script>
+</body>
+</html>

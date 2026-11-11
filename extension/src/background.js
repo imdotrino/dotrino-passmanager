@@ -1170,6 +1170,16 @@ async function capture ({ username, secret, url, fields, focus, from }, sender) 
   // Un usuario suelto también se guarda: es media credencial, y la otra media se suma
   // luego a la misma entrada. Lo que no se guarda es nada.
   if (!secret && !username && !limpios.length) return { ok: false }
+  // UN ACCESO POR PASOS: el usuario llegó antes, en su propia pantalla (`step`), y ahora llega
+  // la contraseña sin él. Se juntan — solo si es la misma pestaña y el mismo sitio, y dentro
+  // de la caducidad de siempre— para que el aviso ofrezca los dos de una vez.
+  if (secret && !username) {
+    const antes = await readPending()
+    if (antes?.from === 'step' && antes.username && antes.host === hostOf(url) &&
+        sender?.tab?.id != null && antes.tabId === sender.tab.id) {
+      username = antes.username
+    }
+  }
   await chrome.storage.session.set({
     [PENDING]: {
       username: username || '',
@@ -1188,7 +1198,9 @@ async function capture ({ username, secret, url, fields, focus, from }, sender) 
       //     pestaña es a donde el acceso le llevó, aunque sea otro host.
       //   · `leave`  — solo se fue de la página. No hubo acceso, así que lo apuntado no
       //     sigue a nadie: se queda en su sitio.
-      from: ['field', 'leave'].includes(from) ? from : 'submit',
+      //   · `step`   — el usuario de un acceso por pasos, sin su contraseña todavía. No
+      //     saca aviso: espera a que llegue la contraseña para ir con ella.
+      from: ['field', 'leave', 'step'].includes(from) ? from : 'submit',
       url: url || '',
       host: hostOf(url),
       // EN QUÉ PESTAÑA se escribió. Es lo que ata la captura al acceso que la produjo:
@@ -1340,7 +1352,7 @@ function stripDigest (list) {
 async function pendingSave ({ host } = {}, sender) {
   const p = await readPending()
   if (!p) return { has: false }
-  if (p.from === 'field') return { has: false }
+  if (p.from === 'field' || p.from === 'step') return { has: false }
   const mismoHost = !!host && !!p.host && host === p.host
   const mismaPestana = p.from === 'submit' && sender?.tab?.id != null && sender.tab.id === p.tabId
   if (!mismaPestana && !mismoHost) return { has: false }

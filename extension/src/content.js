@@ -91,6 +91,7 @@ const idDe = (el) => {
 
 async function scan () {
   const { detect, ui } = await mods
+  const antes = lastForms
   try {
     lastForms = detect.findLoginForms(document)
     // `free`: también los campos que no se reconocen, para poder guardar lo que el
@@ -99,6 +100,7 @@ async function scan () {
   } catch { lastForms = []; lastData = [] }
   // Lo que se acaba de ver ya está visto: el vigilante de rellenos solo salta si cambia.
   huella = huellaDeCampos()
+  try { pasoAvanzado(antes, detect) } catch (_) { /* no impide marcar los campos */ }
 
   const markable = []
   for (const f of lastForms) {
@@ -589,6 +591,8 @@ addEventListener('submit', (e) => {
   // Y sin contraseña ninguna: un formulario de datos. El freno está en `captureFrom`.
   if (captureFrom({ form: el, password: null, username: null })) return
   for (const x of lastForms) if (captureFrom(x)) return
+  // Ni contraseña ni datos: puede ser el primer paso de un acceso por pasos.
+  captureStep()
 }, true)
 
 /**
@@ -608,8 +612,55 @@ const PULSADO_MS = 5000
 addEventListener('click', (e) => {
   if (e.target?.closest?.('button, input[type=submit], input[type=button], input[type=image]')) {
     pulsado = Date.now()
+    verPasoUsuario()
   }
 }, { capture: true, passive: true })
+// Enter en una casilla también es «entrar»: hay accesos sin formulario ni botón que pulsar.
+addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target?.tagName === 'INPUT') { pulsado = Date.now(); verPasoUsuario() }
+}, { capture: true, passive: true })
+// En el momento de pulsar, no en la pasada siguiente: la pasada va con freno y un clic
+// rápido tras escribir llega antes de que haya visto el campo lleno.
+const verPasoUsuario = () => { try { pasoUsuario = cache.detect?.findUsernameStep(document) || pasoUsuario } catch (_) {} }
+
+/**
+ * ACCESOS POR PASOS QUE NO RECARGAN LA PÁGINA (dueño, 2026-11-11, en el de Google: «al pasar
+ * la página debería sugerirme almacenar»).
+ *
+ * Google pide el correo, luego la contraseña, luego el segundo factor, y todo en la MISMA
+ * página: no hay `submit` (no hay formulario) ni `pagehide` (no se sale). Lo único que se ve
+ * es que, tras pulsar «Siguiente», la casilla desaparece. Eso es lo que se mira aquí, en cada
+ * pasada:
+ *
+ *   · la contraseña escrita desapareció justo después de un botón o un Enter → es un envío:
+ *     se apunta y se ofrece guardar ya, en esta misma página. Si la contraseña era mala, la
+ *     casilla sigue ahí (con su error) y no se ofrece nada.
+ *   · el usuario del primer paso desapareció igual → se apunta como `step`: no saca ningún
+ *     aviso, solo espera a la contraseña para ir con ella en UN aviso. Dos avisos seguidos
+ *     dejarían, al cerrar el segundo, una entrada con usuario y sin contraseña.
+ */
+let pasoUsuario = null
+function pasoAvanzado (antes, detect) {
+  const fuera = (el) => !el.isConnected || !detect.isVisible(el)
+  if (Date.now() - pulsado < PULSADO_MS) {
+    const f = antes.find(x => x.password?.value && fuera(x.password))
+    if (f && captureFrom(f, { from: 'submit' })) {
+      pasoUsuario = null
+      offerSave().catch(() => {})
+      return
+    }
+    if (pasoUsuario && fuera(pasoUsuario)) captureStep(pasoUsuario.value)
+  }
+  pasoUsuario = detect.findUsernameStep(document)
+}
+
+/** Apunta el usuario de un primer paso. Sin argumento, lo busca en la página. */
+function captureStep (username) {
+  const u = String(username ?? cache.detect?.findUsernameStep(document)?.value ?? '').trim()
+  if (!u) return false
+  capture({ from: 'step', username: u, secret: '', fields: [], focus: [], url: location.href })
+  return true
+}
 
 // 2. Y la salida de la página, porque media web entra sin disparar `submit`: un botón
 //    que llama a `fetch` y navega a mano. Sin esto el gestor solo aprendería de los
@@ -618,6 +669,8 @@ addEventListener('pagehide', () => {
   // Si acaba de pulsar un botón, esto es un envío aunque no haya `submit`.
   const from = Date.now() - pulsado < PULSADO_MS ? 'submit' : 'leave'
   for (const f of lastForms) if (captureFrom(f, { from })) return
+  // El primer paso de un acceso por pasos, si se pasó al siguiente con un botón.
+  if (from === 'submit' && captureStep()) return
   // Un formulario de datos no aparece en `lastForms` (ahí solo van los accesos), así que
   // se mira la página entera — pero solo si el usuario escribió: ver una pantalla no es
   // llenarla.

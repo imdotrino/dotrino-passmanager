@@ -323,6 +323,23 @@ export function findLoginForms (doc = document) {
 }
 
 /**
+ * EL PRIMER PASO DE UN ACCESO POR PASOS: una pantalla que pide solo el usuario (Google,
+ * Microsoft) y la contraseña en la siguiente. Devuelve el campo del usuario, con algo
+ * escrito, o null.
+ *
+ * Estrecho a propósito: sin ninguna contraseña a la vista, y UN solo campo que parezca un
+ * usuario. Con dos ya no se sabe cuál es, y un buscador con un correo de boletín al pie no
+ * tiene por qué contar como un acceso.
+ */
+export function findUsernameStep (doc = document) {
+  const inputs = collectInputs(doc).filter(isVisible)
+  if (inputs.some(el => el.type === 'password')) return null
+  const users = inputs.filter(el =>
+    ['text', 'email', 'tel', ''].includes(el.type) && !insideDataGrid(el) && looksLikeUser(el))
+  return users.length === 1 && users[0].value.trim() ? users[0] : null
+}
+
+/**
  * EL CAMPO DE «repite la contraseña», si es que lo hay — y solo si se reconoce.
  *
  * Existe por el generador (§4.1.1): una contraseña nueva se escribe en las DOS casillas de
