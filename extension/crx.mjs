@@ -175,8 +175,11 @@ const landing = join(here, '../web/index.html')
 const html = await readFile(landing, 'utf8')
 const puesto = html.replace(
   /\.\/app\/dotrino-passmanager-\d+\.\d+\.\d+\.crx/g, `./app/${nombre}`)
-if (!puesto.includes(nombre)) throw new Error('the landing page has no .crx link where expected')
-if (puesto !== html) { await writeFile(landing, puesto); console.log('and the landing page points to it') }
+// Desde el 2026-11-11 la portada enlaza a las tiendas y no al .crx: sin enlace no hay nada
+// que apuntar, y se dice. El canal propio sigue vivo por `updates.xml`.
+if (puesto === html && !/\.\/app\/dotrino-passmanager-[\d.]+\.crx/.test(html)) {
+  console.log('the landing page links to the stores, not to the .crx: nothing to point')
+} else if (puesto !== html) { await writeFile(landing, puesto); console.log('and the landing page points to it') }
 
 console.log('\n.crx  : %s  (%s KB)', join(appDir, nombre), Math.round(crx.length / 1024))
 console.log('update: %s/updates.xml', BASE)

@@ -50,10 +50,11 @@ const html = await readFile(landing, 'utf8')
 const puesto = html.replace(
   /\.\/app\/dotrino-passmanager-\d+\.\d+\.\d+\.zip/g,
   `./app/dotrino-passmanager-${manifest.version}.zip`)
-if (!puesto.includes(`dotrino-passmanager-${manifest.version}.zip`)) {
-  throw new Error('the landing page has no download link where expected')
-}
-if (puesto !== html) { await writeFile(landing, puesto); console.log('and the landing page points to it') }
+// Desde el 2026-11-11 la portada enlaza a las tiendas y no al zip: sin enlace no hay nada
+// que apuntar, y se dice. El zip sigue en `web/app/` para quien lo cargue a mano.
+if (puesto === html && !/\.\/app\/dotrino-passmanager-[\d.]+\.zip/.test(html)) {
+  console.log('the landing page links to the stores, not to the zip: nothing to point')
+} else if (puesto !== html) { await writeFile(landing, puesto); console.log('and the landing page points to it') }
 
 for (const f of await readdir(appDir)) {
   if (/^dotrino-passmanager-\d+\.\d+\.\d+\.zip$/.test(f) && f !== `dotrino-passmanager-${manifest.version}.zip`) {
