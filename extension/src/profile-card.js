@@ -128,6 +128,43 @@ export function wireTopbar (ask) {
     async getMe () { return (await ask('profile-get')) || {} },
     async switchProfile (id) { return ask('profile-use', { id }) },
   }
+
+  // «Enlazar a mi bóveda» del menú: aquí enlazar es adoptar la cuenta de una bóveda, no
+  // ir a profile.dotrino.com/vault, que es otra identidad.
+  barra.setAttribute('profile-vault-href', pagina('profile') + '#adopt')
+  barra.store = vaultStateStore(ask)
+}
+
+/**
+ * EL PUNTO DEL BOTÓN DE PERFIL: ¿la bóveda contesta?
+ *
+ * El topbar lo pinta con lo que le da `@dotrino/store` (`store.vault`, el evento `vault` y
+ * `vaultSync`). La extensión no usa ese almacén —sus contraseñas se le piden a la bóveda—,
+ * así que esto le da la misma forma con lo que sabe el service worker (`vault-state`). Sin
+ * él, el gestor era la única pantalla del ecosistema sin el punto.
+ */
+function vaultStateStore (ask) {
+  const fns = new Set()
+  const store = {
+    vault: null,
+    on (ev, fn) {
+      if (ev !== 'vault') return () => {}
+      fns.add(fn)
+      return () => fns.delete(fn)
+    },
+    async vaultSync () { apply(await ask('vault-state', { retry: true })) },
+  }
+  function apply (s) {
+    if (!s) return
+    store.vault = s
+    for (const fn of fns) fn()
+  }
+  // Los cambios los avisa el worker cuando pasan: una petición que contesta o que no.
+  chrome.runtime.onMessage.addListener((m) => { if (m?.t === 'vault-state') apply(m.state) })
+  const fail = (e) => console.warn('vault-state:', e?.code || e)
+  ask('vault-state', {}).then(apply, fail)
+  ask('vault-state', { probe: true }).then(apply, fail)
+  return store
 }
 
 /**

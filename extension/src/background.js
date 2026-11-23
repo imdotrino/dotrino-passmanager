@@ -782,6 +782,97 @@ async function removeProfile ({ id }) {
   return status()
 }
 
+// --- el punto del topbar: ¿la bóveda contesta? ------------------------------
+//
+// El topbar del ecosistema pinta, junto al botón de perfil, el estado del respaldo que le
+// da `@dotrino/store` (`store.vault`). Aquí no hay `@dotrino/store`: las contraseñas de un
+// perfil enlazado no se copian a ningún sitio, se le PIDEN a la bóveda. Así que lo que el
+// punto dice aquí es lo único que importa en este gestor: si la bóveda está contestando.
+//
+// Se mide con las peticiones de verdad (cualquier respuesta, también un «no», es que la
+// bóveda está ahí) y, cuando una página lo pide, con una sonda barata (`pm2.recipients`).
+// Mismo formato que `store.vault`, para que el topbar no necesite saber de dónde sale.
+
+/** Sin respuesta en este tiempo, la sonda dice que la bóveda no contesta. */
+const PROBE_MS = 20_000
+/** Una respuesta más reciente que esto vale: abrir el popup no vuelve a preguntar. */
+const PROBE_FRESH_MS = 60_000
+/** Estos códigos son de que no hubo nadie al otro lado; cualquier otro es una respuesta. */
+const NO_ANSWER = new Set([CODES.UNREACHABLE, CODES.APPROVAL_TIMEOUT, CODES.UNSEALED, CODES.UNDECIPHERABLE, CODES.UNKNOWN])
+
+let backup = { of: null, state: null, reason: null, error: null, lastSyncAt: 0 }
+let probing = null
+
+function setBackup (of, s) {
+  backup = { of, state: null, reason: null, error: null, lastSyncAt: backup.of === of ? backup.lastSyncAt : 0, ...s }
+  const msg = { t: 'vault-state', state: backupView() }
+  try { chrome.runtime.sendMessage(msg).catch(() => {}) } catch (_) {}
+}
+
+function backupView () {
+  const { state, reason, error, lastSyncAt } = backup
+  return { state, reason, error, lastSyncAt: lastSyncAt || undefined, pending: 0 }
+}
+
+/** Apunta cómo acaba cada petición a la bóveda del perfil `of`. */
+function watchBackup (tr, of) {
+  const request = tr.request.bind(tr)
+  tr.request = (op, payload) => {
+    const p = request(op, payload)
+    // Una conexión de un perfil que ya no es el activo no habla por el de ahora.
+    const mine = () => vaultOf === of
+    p.then(
+      () => mine() && setBackup(of, { state: 'synced', lastSyncAt: Date.now() }),
+      (e) => {
+        if (!mine()) return
+        if (NO_ANSWER.has(e?.code)) setBackup(of, { state: 'error', error: { code: e.code } })
+        else setBackup(of, { state: 'synced', lastSyncAt: Date.now() })
+      }
+    )
+    return p
+  }
+}
+
+/**
+ * EL ESTADO PARA EL TOPBAR. Con `probe`, si no hay una respuesta reciente, pregunta a la
+ * bóveda; con `retry`, además cierra la conexión de antes (es el botón «Reintentar»).
+ */
+async function vaultState ({ probe = false, retry = false } = {}) {
+  const prof = await activeProfile()
+  // La bóveda es esta extensión: no hay otra donde esté copiado.
+  if (prof.kind === 'own') {
+    setBackup(prof.id, { state: 'off', reason: 'not-paired' })
+    return backupView()
+  }
+  if (backup.of !== prof.id) setBackup(prof.id, {})
+  const fresh = backup.state === 'synced' && Date.now() - backup.lastSyncAt < PROBE_FRESH_MS
+  if (!(probe || retry) || (fresh && !retry)) return backupView()
+  if (!probing) {
+    probing = (async () => {
+      if (retry) dropOpen()
+      setBackup(prof.id, { state: 'syncing' })
+      let timer
+      try {
+        await connect()
+        const answer = transport.request('pm2.recipients', {})
+        const late = new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new VaultError(CODES.UNREACHABLE, 'the vault did not answer')), PROBE_MS)
+        })
+        await Promise.race([answer, late])
+      } catch (e) {
+        if (e?.code === CODES.NO_LINK) setBackup(prof.id, { state: 'off', reason: 'not-paired' })
+        else if (e?.code === CODES.DENIED || e?.code === CODES.NOT_ALLOWED) setBackup(prof.id, { state: 'error', error: { code: 'unauthorized' } })
+        else setBackup(prof.id, { state: 'error', error: { code: e?.code || CODES.UNREACHABLE } })
+      } finally {
+        clearTimeout(timer)
+        probing = null
+      }
+    })()
+  }
+  await probing
+  return backupView()
+}
+
 async function connect () {
   const prof = await activeProfile()
   if (vault && vaultOf === prof.id && (prof.kind === 'own' || client?._connected)) return vault
@@ -828,6 +919,7 @@ async function connect () {
     peerEncPub,
   })
   watchSlowRequests(transport)
+  watchBackup(transport, prof.id)
   // LA BÓVEDA YA NO ABRE NADA: guarda sobres dirigidos a este aparato, y abrirlos es cosa
   // de aquí (`docs/sealed-passwords.md`). Por eso `SealedVault` y no `RemoteVault` — cumple
   // el mismo contrato (`find`, `get`, `put`, `patch`, `search`, `sites`), así que nada de
@@ -2160,6 +2252,7 @@ async function generatedClear () {
 
 const OPS = {
   status,
+  'vault-state': p => vaultState(p),
   'gen-new': p => generateNew(p),
   'gen-last': p => generatedLast(p),
   'gen-list': () => generatedList(),

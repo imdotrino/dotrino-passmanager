@@ -30,6 +30,7 @@
     "test:autofill-on-open": "node extension/test/autofill-on-open.e2e.mjs",
     "test:login-steps": "node extension/test/login-steps.e2e.mjs",
     "test:generate": "node extension/test/generate.e2e.mjs",
+    "test:topbar-led": "node extension/test/topbar-led.e2e.mjs",
     "test:replacements": "node extension/test/replacements.e2e.mjs",
     "test:labels": "node extension/test/labels.e2e.mjs",
     "test:approval-wait": "node extension/test/approval-wait.e2e.mjs",
