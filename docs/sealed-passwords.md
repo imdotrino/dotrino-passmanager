@@ -128,6 +128,13 @@ ningún campo (el mismo barrido de `secretos-sellados.md` §8.7).
 Nada de esto necesita la maestra desatendida: repartir lo hace un aparato, y reparar es el
 segundo trabajo de la maestra al abrir.
 
+**Comprobar desde la consola (2026-11-23).** `SealedStore.inspect({ idx, rp })` contesta, para
+las huellas de un sitio (`siteHashes`, `passkeyRpHashes`), qué entradas hay, si llevan passkey,
+qué aparatos pueden abrirlas (`holders`), a cuáles les falta la envoltura (`missing`) y si la
+frase las abre (`recovery`). **Solo lee**: no reenvuelve ni escribe, y sin huellas no contesta
+(no es un `list`). La huella la calcula quien tiene la llave del perfil: en la bóveda, con la
+frase al abrir. De aquí sale `dotrino-vault passwords find <dominio>`.
+
 ### 2.6. Comparar sin abrir, y buscar sin nombrar
 
 **Decidido (2026-09-17): con llave.** Sirve para que el gestor sepa si lo que acabas de
