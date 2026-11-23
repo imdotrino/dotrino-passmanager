@@ -133,7 +133,13 @@ las huellas de un sitio (`siteHashes`, `passkeyRpHashes`), qué entradas hay, si
 qué aparatos pueden abrirlas (`holders`), a cuáles les falta la envoltura (`missing`) y si la
 frase las abre (`recovery`). **Solo lee**: no reenvuelve ni escribe, y sin huellas no contesta
 (no es un `list`). La huella la calcula quien tiene la llave del perfil: en la bóveda, con la
-frase al abrir. De aquí sale `dotrino-vault passwords find <dominio>`.
+frase al abrir. De aquí sale `dotrino-vault passwords find <texto>`.
+
+La búsqueda de la consola es **parcial** (`npm` encuentra `www.npmjs.com`; también por título
+o usuario), y eso no se puede hacer con huellas: una huella solo casa con el texto exacto, y la
+extensión guarda el host tal cual (`www.npmjs.com`), así que `npmjs.com` no lo encontraba. Por
+eso `inspect({ all: true })` devuelve todas las entradas —siempre la vista sellada, nunca un
+valor— y la bóveda abre las vistas con la frase y compara el texto (0.19.1).
 
 ### 2.6. Comparar sin abrir, y buscar sin nombrar
 
